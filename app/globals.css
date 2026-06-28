@@ -1,0 +1,317 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+
+@layer base {
+  html,
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    @apply bg-[#0B1220];
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Inter", system-ui, sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-3xl md:text-4xl font-bold text-white mb-2;
+  }
+
+  h2 {
+    @apply text-2xl md:text-3xl font-bold text-white mb-2;
+  }
+
+  h3 {
+    @apply text-xl md:text-2xl font-bold text-white;
+  }
+
+  :root {
+    --background: 228 15% 10%;
+    --foreground: 0 0% 98%;
+
+    --card: 228 15% 13%;
+    --card-foreground: 0 0% 98%;
+
+    --muted: 228 10% 20%;
+    --muted-foreground: 228 8% 60%;
+
+    --primary: 152 100% 50%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 192 100% 50%;
+    --secondary-foreground: 0 0% 5%;
+
+    --accent: 270 100% 70%;
+    --accent-foreground: 0 0% 5%;
+
+    --destructive: 0 100% 70%;
+    --destructive-foreground: 0 0% 5%;
+
+    --border: 228 10% 20%;
+    --input: 228 10% 20%;
+    --ring: 152 100% 50%;
+
+    --radius: 12px;
+
+    --gradient-primary: linear-gradient(135deg, #00FF88 0%, #00D4FF 100%);
+    --gradient-success: linear-gradient(135deg, #00FF88 0%, #00CC70 100%);
+    --gradient-danger: linear-gradient(135deg, #FF6B6B 0%, #FF4444 100%);
+    --gradient-warning: linear-gradient(135deg, #FFB84D 0%, #FF9500 100%);
+    --gradient-bg: linear-gradient(135deg, #0B1220 0%, #16202C 50%, #0F1923 100%);
+  }
+
+  .dark {
+    --background: 228 15% 10%;
+    --foreground: 0 0% 98%;
+
+    --card: 228 15% 13%;
+    --card-foreground: 0 0% 98%;
+
+    --muted: 228 10% 20%;
+    --muted-foreground: 228 8% 60%;
+
+    --primary: 152 100% 50%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary: 192 100% 50%;
+    --secondary-foreground: 0 0% 5%;
+
+    --border: 228 10% 20%;
+    --input: 228 10% 20%;
+    --ring: 152 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-[#0B1220] text-foreground;
+    background: linear-gradient(135deg, #0B1220 0%, #16202C 50%, #0F1923 100%);
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-[#0B1220];
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20;
+  }
+}
+
+@layer components {
+  /* Glass Card */
+  .glass-card {
+    @apply bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass;
+  }
+
+  .glass-card-hover {
+    @apply glass-card hover:bg-white/[0.07] hover:border-white/[0.1] hover:-translate-y-0.5 transition-all duration-300;
+  }
+
+  /* Neon buttons */
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-semibold hover:shadow-neon hover:scale-[1.02] active:scale-95 transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl bg-gradient-to-r from-[#00D4FF] to-[#0099CC] text-[#0B1220] font-semibold hover:shadow-lg transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply px-6 py-3 rounded-xl text-white/70 font-medium hover:bg-white/[0.06] hover:text-white transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF6B6B] to-[#FF4444] text-white font-semibold hover:shadow-lg transition-all duration-200;
+  }
+
+  .btn-outline {
+    @apply px-6 py-3 rounded-xl border border-white/[0.12] bg-white/[0.03] text-white/80 font-medium hover:bg-white/[0.06] hover:text-white hover:border-white/[0.2] transition-all duration-200;
+  }
+
+  /* Badge styles - dark theme */
+  .badge-success {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full bg-[#00FF88]/15 text-[#00FF88] border border-[#00FF88]/25 font-medium text-xs;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full bg-[#FFB84D]/15 text-[#FFB84D] border border-[#FFB84D]/25 font-medium text-xs;
+  }
+
+  .badge-danger {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full bg-[#FF6B6B]/15 text-[#FF6B6B] border border-[#FF6B6B]/25 font-medium text-xs;
+  }
+
+  .badge-info {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full bg-[#00D4FF]/15 text-[#00D4FF] border border-[#00D4FF]/25 font-medium text-xs;
+  }
+
+  .badge-purple {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full bg-[#B366FF]/15 text-[#B366FF] border border-[#B366FF]/25 font-medium text-xs;
+  }
+
+  /* Input styling - dark */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.1] text-white placeholder-white/40 focus:border-[#00FF88] focus:ring-2 focus:ring-[#00FF88]/20 outline-none transition-all duration-200 font-medium;
+  }
+
+  .input-field:hover {
+    @apply border-white/[0.18];
+  }
+
+  /* Stat card - dark premium */
+  .stat-card {
+    @apply relative overflow-hidden bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl px-6 py-6 shadow-glass-sm hover:shadow-glass hover:bg-white/[0.07] transition-all duration-300;
+  }
+
+  .stat-card::before {
+    @apply absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#00FF88] to-[#00D4FF];
+    content: "";
+  }
+
+  /* Tables - dark */
+  .table-head {
+    @apply bg-white/[0.04] text-white/60 font-semibold text-xs uppercase tracking-widest;
+  }
+
+  .table-row-hover {
+    @apply hover:bg-white/[0.03] transition-colors duration-200;
+  }
+
+  /* Status indicators */
+  .status-dot {
+    @apply inline-block w-2.5 h-2.5 rounded-full;
+  }
+
+  .status-completed {
+    @apply status-dot bg-[#00FF88];
+  }
+
+  .status-pending {
+    @apply status-dot bg-[#FFB84D];
+  }
+
+  .status-in-progress {
+    @apply status-dot bg-[#00D4FF];
+  }
+
+  .status-overdue {
+    @apply status-dot bg-[#FF6B6B];
+  }
+
+  /* Sidebar */
+  .sidebar-item-active {
+    @apply bg-white/[0.08] text-[#00FF88] rounded-xl font-medium border-l-2 border-l-[#00FF88];
+  }
+
+  .sidebar-item {
+    @apply text-white/50 hover:text-white/80 hover:bg-white/[0.04] rounded-xl transition-all duration-200 font-medium;
+  }
+
+  /* Shadow utilities */
+  .shadow-elevated {
+    @apply shadow-glass;
+  }
+
+  .shadow-soft {
+    @apply shadow-glass-sm;
+  }
+
+  .hover-lift {
+    @apply hover:-translate-y-0.5 transition-transform duration-300;
+  }
+
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Gradients */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, #00FF88 0%, #00D4FF 100%);
+  }
+
+  .bg-gradient-success {
+    background: linear-gradient(135deg, #00FF88 0%, #00CC70 100%);
+  }
+
+  .bg-gradient-warning {
+    background: linear-gradient(135deg, #FFB84D 0%, #FF9500 100%);
+  }
+
+  .bg-gradient-danger {
+    background: linear-gradient(135deg, #FF6B6B 0%, #FF4444 100%);
+  }
+
+  .bg-gradient-page {
+    background: linear-gradient(135deg, #0B1220 0%, #16202C 50%, #0F1923 100%);
+  }
+
+  .bg-gradient-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+  }
+
+  /* Neon text */
+  .text-neon-green {
+    color: #00FF88;
+  }
+
+  .text-neon-cyan {
+    color: #00D4FF;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-in-out;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #00FF88, #00D4FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+@media print {
+  body { @apply bg-white; }
+  .no-print { @apply hidden; }
+}
