@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   Card,
@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { attendanceAPI } from "@/lib/api";
 
 export default function AttendancePage() {
@@ -25,9 +25,9 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchAttendance();
-  }, []);
+  }, [fetchAttendance]);
 
-  const fetchAttendance = async () => {
+  const fetchAttendance = useCallback(async () => {
     try {
       setLoading(true);
       const response = await attendanceAPI.getAll();
@@ -38,7 +38,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleMarkAttendance = async () => {
     try {

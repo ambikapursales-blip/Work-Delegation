@@ -5,13 +5,13 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import User from "@/src/models/User";
 
 export async function GET(request, { params }) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();
@@ -33,7 +33,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
-  const authUser = await getAuthUser(request);
+  const authUser = await requireAuth(request); if (authUser instanceof NextResponse) return authUser;
   if (!["Admin", "HR"].includes(authUser.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
@@ -61,7 +61,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   await ensureDbConnection();
-  const authUser = await getAuthUser(request);
+  const authUser = await requireAuth(request); if (authUser instanceof NextResponse) return authUser;
   if (authUser.role !== "Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },

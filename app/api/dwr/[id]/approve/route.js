@@ -5,8 +5,8 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import DWR from "@/src/models/DWR";
 import Notification from "@/src/models/Notification";
 import Activity from "@/src/models/Activity";
@@ -14,7 +14,7 @@ import Activity from "@/src/models/Activity";
 export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   if (!["Admin", "Manager", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },

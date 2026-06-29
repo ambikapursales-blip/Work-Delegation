@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   Card,
@@ -368,6 +368,7 @@ export default function PerformancePage() {
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-3">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={
                                     item?.user?.avatar ||

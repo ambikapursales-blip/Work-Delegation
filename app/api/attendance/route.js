@@ -5,13 +5,13 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import Attendance from "@/src/models/Attendance";
 
 export async function GET(request) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request);
   req.user = user;
   const res = createRes();
@@ -54,7 +54,7 @@ export async function GET(request) {
 export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request);
   req.user = user;
   const res = createRes();

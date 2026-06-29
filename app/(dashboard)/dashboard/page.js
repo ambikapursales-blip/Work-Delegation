@@ -14,13 +14,9 @@ import {
   Filter,
   RefreshCw,
 } from "lucide-react";
-import { dashboardAPI, reportsAPI } from "@/lib/api";
-import { taskAPI } from "@/lib/api";
+import { dashboardAPI, reportsAPI, taskAPI, usersAPI } from "@/lib/api";
 import Link from "next/link";
 import Toast from "@/components/Toast";
-import dynamic from "next/dynamic";
-
-const Chart = dynamic(() => import("chart.js/auto"), { ssr: false });
 
 /* ─── Design Tokens ─────────────────────────────────────────────── */
 const T = {
@@ -297,16 +293,8 @@ export default function DashboardPage() {
 
       if (isAdminOrManager) {
         try {
-          const usersRes = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/users`,
-            {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            },
-          );
-          const usersData = await usersRes.json();
-          setUsersList(usersData?.users || []);
+          const usersRes = await usersAPI.getAll();
+          setUsersList(usersRes.data?.users || []);
         } catch (err) {
           console.error("Failed to fetch users:", err);
         }
@@ -324,9 +312,12 @@ export default function DashboardPage() {
   }, [fetchDashboardData]);
 
   useEffect(() => {
-    if (!loading && analytics && viewMode === "graphs") initializeCharts();
-    return () =>
-      Object.values(chartInstances.current).forEach((c) => c?.destroy());
+    if (!loading && analytics && viewMode === "graphs") {
+      initializeCharts().catch(console.error);
+    }
+    const instances = chartInstances.current;
+    return () => Object.values(instances).forEach((c) => c?.destroy());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     stats,
     analytics,
@@ -337,7 +328,8 @@ export default function DashboardPage() {
     viewMode,
   ]);
 
-  const initializeCharts = () => {
+  const initializeCharts = async () => {
+    const { default: Chart } = await import("chart.js/auto");
     const font = { family: "Inter, system-ui, sans-serif", size: 12 };
     const tooltipDefaults = {
       backgroundColor: "#0F1A2E",
@@ -529,17 +521,6 @@ export default function DashboardPage() {
       });
     }
   };
-
-  useEffect(() => {
-    if (!document.getElementById("dash-fonts")) {
-      const l = document.createElement("link");
-      l.id = "dash-fonts";
-      l.rel = "stylesheet";
-      l.href =
-        "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap";
-      document.head.appendChild(l);
-    }
-  }, []);
 
   if (loading) {
     return (
@@ -898,7 +879,7 @@ export default function DashboardPage() {
                                   <div className="flex flex-wrap gap-1">
                                     {task.assignedTo.slice(0, 2).map((u, i) => (
                                       <span
-                                        key={i}
+                                        key={u._id || u.name || i}
                                         className="text-xs font-medium text-[#00D4FF] bg-[#00D4FF]/10 px-2 py-0.5 rounded-md border border-[#00D4FF]/20"
                                       >
                                         {u.name || "User"}
@@ -1184,7 +1165,7 @@ Today&apos;s Snapshot
                 <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
                   {recentActivities.slice(0, 5).map((activity, i) => (
                     <div
-                      key={i}
+                      key={activity._id || i}
                       className="px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] border-l-2 border-l-[#00FF88]"
                     >
                       <p className="text-xs font-medium text-white/85 mb-0.5 leading-snug">

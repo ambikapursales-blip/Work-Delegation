@@ -4,8 +4,8 @@ import {
   createRes,
   finishRes,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import Attendance from "@/src/models/Attendance";
 import Activity from "@/src/models/Activity";
 
@@ -26,7 +26,10 @@ const logout = async (req, res) => {
       ipAddress: req.ip,
     });
 
-    res.status(200).json({ success: true, message: "Logged out successfully" });
+    res
+      .cookie("token", "", { maxAge: 0, httpOnly: true, sameSite: "lax" })
+      .status(200)
+      .json({ success: true, message: "Logged out successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
   }
@@ -34,7 +37,7 @@ const logout = async (req, res) => {
 
 export async function POST(request) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request);
   req.user = user;
   const res = createRes();

@@ -4,15 +4,15 @@ import {
   createRes,
   finishRes,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import User from "@/src/models/User";
 import Task from "@/src/models/Task";
 import DWR from "@/src/models/DWR";
 
 export async function GET(request) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   if (!["Admin", "Manager", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
@@ -100,11 +100,11 @@ export async function GET(request) {
       const scoreA =
         a.metrics.taskCompletionRate * 0.4 +
         a.metrics.dwrApprovalRate * 0.3 +
-        a.performanceScore * 0.3;
+        (a.user?.performanceScore || 0) * 0.3;
       const scoreB =
         b.metrics.taskCompletionRate * 0.4 +
         b.metrics.dwrApprovalRate * 0.3 +
-        b.performanceScore * 0.3;
+        (b.user?.performanceScore || 0) * 0.3;
       return scoreB - scoreA;
     });
 

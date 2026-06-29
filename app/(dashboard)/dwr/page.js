@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { dwrAPI } from "@/lib/api";
 import { Loading } from "@/components/loading";
@@ -55,8 +55,6 @@ export default function DWRPage() {
 
   const canReview = ["Admin", "Manager", "HR"].includes(user?.role);
 
-  useEffect(() => { fetchData(); }, [activeTab]);
-
   useEffect(() => {
     if (alert) {
       const t = setTimeout(() => setAlert(null), 3500);
@@ -64,7 +62,7 @@ export default function DWRPage() {
     }
   }, [alert]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       if (activeTab === "my-dwrs") {
@@ -79,7 +77,9 @@ export default function DWRPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, canReview]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleSubmitDWR = async (e) => {
     e.preventDefault();
@@ -366,9 +366,8 @@ export default function DWRPage() {
                   </thead>
                   <tbody>
                     {sorted.map((dwr, i) => (
-                      <>
+                      <Fragment key={dwr._id}>
                         <tr
-                          key={dwr._id}
                           className={`border-b border-white/[0.04] transition-colors ${
                             expandedRow === dwr._id
                               ? "bg-white/[0.04]"
@@ -457,7 +456,7 @@ export default function DWRPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                        </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -515,9 +514,8 @@ export default function DWRPage() {
                   </thead>
                   <tbody>
                     {pendingReview.map((dwr) => (
-                      <>
+                      <Fragment key={dwr._id}>
                         <tr
-                          key={dwr._id}
                           className={`border-b border-white/[0.04] border-l-2 transition-colors ${
                             reviewOpen === dwr._id
                               ? "bg-[#FFB84D]/10 border-l-[#FFB84D]"
@@ -667,7 +665,7 @@ export default function DWRPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                          </Fragment>
                     ))}
                   </tbody>
                 </table>

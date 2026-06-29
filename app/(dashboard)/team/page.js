@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
   Card,
@@ -40,9 +40,9 @@ export default function TeamPage() {
   useEffect(() => {
     if (!canViewTeam) return;
     fetchTeamData();
-  }, []);
+  }, [canViewTeam, fetchTeamData]);
 
-  const fetchTeamData = async () => {
+  const fetchTeamData = useCallback(async () => {
     try {
       setLoading(true);
       const [membersRes, statsRes] = await Promise.all([
@@ -57,7 +57,7 @@ export default function TeamPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const fetchMemberDetails = async (memberId, type) => {
     try {

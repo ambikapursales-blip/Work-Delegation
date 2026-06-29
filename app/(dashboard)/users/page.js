@@ -117,6 +117,7 @@ function UserCard({ user }) {
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("All");
 
@@ -131,6 +132,7 @@ export default function UsersPage() {
       setUsers(response.data.users || []);
     } catch (error) {
       console.error("Failed to fetch users:", error);
+      setError("Failed to load users. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -142,6 +144,20 @@ export default function UsersPage() {
       : users.filter((u) => u.role === activeFilter);
 
   if (loading) return <Loading />;
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6 text-center">
+        <p className="text-red-400">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 rounded-lg bg-[#00FF88] px-4 py-2 text-sm font-semibold text-black"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

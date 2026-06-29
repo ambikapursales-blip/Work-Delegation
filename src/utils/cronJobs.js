@@ -1,4 +1,3 @@
-import cron from "node-cron";
 import Task from "../models/Task.js";
 import User from "../models/User.js";
 import { sendTaskReminderEmail } from "./emailService.js";
@@ -206,7 +205,8 @@ const sendPendingTaskReminders = async () => {
   }
 };
 
-const initCronJobs = () => {
+const initCronJobs = async () => {
+  const { default: cron } = await import("node-cron");
   console.log("Cron Jobs initialized");
 
   cron.schedule("0 2 * * *", async () => {

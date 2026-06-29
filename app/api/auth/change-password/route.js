@@ -5,8 +5,8 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import User from "@/src/models/User";
 import Activity from "@/src/models/Activity";
 
@@ -43,7 +43,7 @@ const changePassword = async (req, res) => {
 export async function PUT(request) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request);
   req.user = user;
   const res = createRes();

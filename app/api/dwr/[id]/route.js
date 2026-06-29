@@ -5,13 +5,13 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import DWR from "@/src/models/DWR";
 
 export async function GET(request, { params }) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();
@@ -36,7 +36,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();

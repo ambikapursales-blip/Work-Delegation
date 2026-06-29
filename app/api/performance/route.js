@@ -3,15 +3,16 @@ import {
   createReq,
   createRes,
   finishRes,
+  parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import User from "@/src/models/User";
 import Activity from "@/src/models/Activity";
 
 export async function GET(request) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request);
   req.user = user;
   const res = createRes();
@@ -40,11 +41,37 @@ export async function GET(request) {
 export async function PUT(request) {
   await parseBody(request);
   await ensureDbConnection();
-  const authUser = await getAuthUser(request);
+  const authUser = await requireAuth(request); if (authUser instanceof NextResponse) return authUser;
   if (!["Manager", "Admin", "HR"].includes(authUser.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
     );
   }
+  const req = createReq(request);
+  req.user = authUser;
+  const res = createRes();
+  try {
+    const { userId, performanceScore, grade } = req.body;
+    const updated = await User.findByIdAndUpdate(
+      userId,
+      { performanceScore, grade },
+      { new: true, runValidators: true },
+    ).select("-password");
+    if (!updated) {
+      res.status(404).json({ success: false, message: "User not found" });
+    } else {
+      await Activity.create({
+        user: authUser._id,
+        type: "performance_updated",
+        description: `Performance updated for ${updated.name}`,
+        entityId: updated._id,
+        entityType: "User",
+      });
+      res.status(200).json({ success: true, user: updated });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+  return finishRes(res);
 }

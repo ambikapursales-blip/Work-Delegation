@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { eventsAPI, usersAPI, api } from "@/lib/api";
 import { Loading } from "@/components/loading";
@@ -8,21 +8,11 @@ import { Button } from "@/components/ui/button";
 import Toast from "@/components/Toast";
 import {
   Plus,
-  Calendar,
-  Link as LinkIcon,
-  Users,
-  Clock,
   Edit,
   Trash2,
-  X,
-  Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Video,
-  Building2,
-  BadgeCheck,
-  AlertCircle,
 } from "lucide-react";
 
 const STATUS_STYLES = {
@@ -76,17 +66,13 @@ export default function EventsPage() {
   const canManage = ["Admin", "Manager", "HR"].includes(user?.role);
 
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
     if (alert) {
       const t = setTimeout(() => setAlert(null), 3500);
       return () => clearTimeout(t);
     }
   }, [alert]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [eventsRes, usersRes] = await Promise.all([
@@ -102,7 +88,9 @@ export default function EventsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canManage]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -479,6 +467,7 @@ export default function EventsPage() {
 
           {sorted.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/nodata.gif"
                 alt="No data"

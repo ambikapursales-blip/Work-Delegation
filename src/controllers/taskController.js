@@ -360,9 +360,6 @@ export const updateTask = async (req, res) => {
               parentTask.isRecurring &&
               parentTask.taskType !== "One-time"
             ) {
-              console.log(
-                `Generating next instance of recurring task: ${parentTask.title}`,
-              );
               await generateNextTaskOccurrence(parentTask);
             }
           } catch (err) {

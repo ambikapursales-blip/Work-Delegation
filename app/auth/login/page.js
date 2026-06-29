@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { authAPI } from "@/lib/api";
@@ -15,15 +15,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   
-  // Memoize form data to prevent unnecessary re-renders
-  const formData = useMemo(() => ({
-    email,
-    password,
-    loading,
-    error,
-    showPassword
-  }), [email, password, loading, error, showPassword]);
-
   const handleLogin = useCallback(async (e) => {
     e.preventDefault();
     

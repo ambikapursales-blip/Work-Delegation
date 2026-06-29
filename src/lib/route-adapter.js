@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+import { getAuthUser } from "@/src/middleware/auth";
 
 /**
  * Build an Express-like `req` object from a NextRequest + route params
@@ -107,7 +108,9 @@ export async function ensureDbConnection() {
 
   if (!cached.promise) {
     cached.promise = mongoose
-      .connect(process.env.MONGODB_URI)
+      .connect(process.env.MONGODB_URI, {
+        bufferCommands: false,
+      })
       .then((mongoose) => {
         cached.conn = mongoose;
         return mongoose;
@@ -116,4 +119,24 @@ export async function ensureDbConnection() {
 
   cached.conn = await cached.promise;
   return cached.conn;
+}
+
+/**
+ * Safely get authenticated user, returning a NextResponse with 401 on failure.
+ * On success returns the user object. On failure returns a NextResponse (use instanceof NextResponse to detect).
+ *
+ * Usage:
+ *   const user = await requireAuth(request);
+ *   if (user instanceof NextResponse) return user;
+ */
+export async function requireAuth(request) {
+  try {
+    return await getAuthUser(request);
+  } catch (err) {
+    const status = err.statusCode || 401;
+    return NextResponse.json(
+      { success: false, message: err.message || "Not authorized to access this route" },
+      { status },
+    );
+  }
 }

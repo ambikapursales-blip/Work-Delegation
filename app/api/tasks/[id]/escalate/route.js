@@ -5,14 +5,14 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import { escalateTask } from "@/src/controllers/taskController";
 
 export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   if (!["Manager", "Admin", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: `Role '${user.role}' is not authorized` },

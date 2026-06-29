@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import dynamic from "next/dynamic";
@@ -159,6 +159,7 @@ export default function TasksPage() {
       setUsers(response.data?.users || []);
     } catch (err) {
       console.error("Failed to fetch users:", err);
+      setError("Failed to load user list for task assignment");
     }
   }, []);
 
@@ -957,9 +958,8 @@ export default function TasksPage() {
                             "bg-white/10 text-white/60 border-white/10";
 
                           return (
-                            <>
+                            <Fragment key={task._id}>
                               <tr
-                                key={task._id}
                                 className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${canAssignTasks && task.status === "Completed" ? "cursor-pointer" : ""}`}
                                 onClick={() =>
                                   canAssignTasks &&
@@ -1089,7 +1089,7 @@ export default function TasksPage() {
                                 </td>
                               </tr>
                               {showCompleteInput === task._id && (
-                                <tr className="bg-[#00FF88]/5">
+                                <tr className="bg-[#00FF88]/5" key="complete-input">
                                   <td colSpan="7" className="px-4 py-4">
                                     <div className="flex items-center gap-3">
                                       <label className="text-sm font-medium text-white/80">
@@ -1174,7 +1174,7 @@ export default function TasksPage() {
                                     </td>
                                   </tr>
                                 )}
-                            </>
+                            </Fragment> 
                           );
                         })
                       )}

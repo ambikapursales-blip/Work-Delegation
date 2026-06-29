@@ -1,0 +1,122 @@
+// Deprecated: replaced by direct Atlas connection via next dev
+const { MongoMemoryServer } = require("mongodb-memory-server");
+const mongoose = require("mongoose");
+const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+require("dotenv").config({ path: ".env.local" });
+require("dotenv").config({ path: ".env" });
+
+async function main() {
+  const mongod = await MongoMemoryServer.create();
+  const uri = mongod.getUri();
+
+  // Write URI to .env.local
+  let envLocal = "";
+  try {
+    envLocal = fs.readFileSync(".env.local", "utf8");
+  } catch {
+    envLocal = "";
+  }
+  const lines = envLocal
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("MONGODB_URI="))
+    .filter((l) => l.trim());
+  lines.push(`MONGODB_URI=${uri}`);
+  fs.writeFileSync(".env.local", lines.join("\n") + "\n");
+
+  console.log(`\n  MongoDB running at ${uri}\n`);
+
+  // Connect and seed
+  await mongoose.connect(uri);
+  const bcrypt = require("bcryptjs");
+  const { default: User } = await import("../src/models/User.js");
+
+  const existing = await User.countDocuments();
+  if (existing === 0) {
+    console.log("  Seeding database...");
+    const adminPassword = await bcrypt.hash("admin123", 10);
+    const managerPassword = await bcrypt.hash("manager123", 10);
+    const userPassword = await bcrypt.hash("user123", 10);
+
+    const admin = await User.create({
+      name: "Admin User", email: "admin@example.com",
+      password: adminPassword, role: "Admin", department: "Management", isActive: true,
+    });
+    const manager = await User.create({
+      name: "Manager User", email: "manager@example.com",
+      password: managerPassword, role: "Manager", department: "Engineering", isActive: true,
+    });
+    await User.create({
+      name: "Sales User", email: "user@example.com",
+      password: userPassword, role: "Sales Executive", department: "Sales", isActive: true,
+    });
+
+    const { default: Task } = await import("../src/models/Task.js");
+    const now = new Date();
+    await Task.create([
+      {
+        title: "Complete Q2 report",
+        description: "Compile and submit the quarterly performance report",
+        assignedTo: [admin._id], assignedBy: manager._id,
+        priority: "High", status: "Pending",
+        deadline: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        taskType: "One-time",
+      },
+      {
+        title: "Review team timesheets",
+        assignedTo: [manager._id], assignedBy: admin._id,
+        priority: "Medium", status: "In Progress",
+        deadline: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+        taskType: "Weekly", isRecurring: true,
+        recurrencePattern: { frequency: "weekly", interval: 1 },
+      },
+      {
+        title: "Update client database",
+        assignedTo: [admin._id], assignedBy: manager._id,
+        priority: "Low", status: "Completed",
+        deadline: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
+        taskType: "One-time",
+      },
+    ]);
+
+    const { default: Activity } = await import("../src/models/Activity.js");
+    await Activity.create([
+      { user: admin._id, type: "login", description: "System initialized" },
+    ]);
+
+    console.log("  Seed complete!\n");
+    console.log("  ┌─────────────────────┬─────────────────────┐");
+    console.log("  │ Email               │ Password            │");
+    console.log("  ├─────────────────────┼─────────────────────┤");
+    console.log("  │ admin@example.com   │ admin123            │");
+    console.log("  │ manager@example.com │ manager123          │");
+    console.log("  │ user@example.com    │ user123             │");
+    console.log("  └─────────────────────┴─────────────────────┘\n");
+  }
+
+  // Start Next.js dev server
+  const next = spawn("npx", ["next", "dev"], {
+    cwd: path.resolve(__dirname, ".."),
+    stdio: "inherit",
+    shell: true,
+    env: { ...process.env, MONGODB_URI: uri },
+  });
+
+  next.on("close", (code) => {
+    mongoose.disconnect();
+    mongod.stop();
+    process.exit(code);
+  });
+
+  process.on("SIGINT", () => {
+    mongoose.disconnect();
+    mongod.stop();
+    process.exit(0);
+  });
+}
+
+main().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});

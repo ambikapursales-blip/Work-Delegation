@@ -5,8 +5,9 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser, authorize, generateToken } from "@/src/middleware/auth";
+import { generateToken } from "@/src/middleware/auth";
 import User from "@/src/models/User";
 import Activity from "@/src/models/Activity";
 
@@ -60,7 +61,7 @@ const register = async (req, res) => {
 export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const roles = ["Admin", "HR"];
   if (!roles.includes(user.role)) {
     return NextResponse.json(

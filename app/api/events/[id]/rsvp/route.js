@@ -5,15 +5,15 @@ import {
   finishRes,
   parseBody,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import Event from "@/src/models/Event";
 import Activity from "@/src/models/Activity";
 
 export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();

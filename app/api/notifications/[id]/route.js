@@ -4,13 +4,13 @@ import {
   createRes,
   finishRes,
   ensureDbConnection,
+  requireAuth,
 } from "@/src/lib/route-adapter";
-import { getAuthUser } from "@/src/middleware/auth";
 import Notification from "@/src/models/Notification";
 
 export async function GET(request, { params }) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();
@@ -39,7 +39,7 @@ export async function GET(request, { params }) {
 
 export async function DELETE(request, { params }) {
   await ensureDbConnection();
-  const user = await getAuthUser(request);
+  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();
