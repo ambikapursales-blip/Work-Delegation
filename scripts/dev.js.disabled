@@ -4,8 +4,7 @@ const mongoose = require("mongoose");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-require("dotenv").config({ path: ".env.local" });
-require("dotenv").config({ path: ".env" });
+require("dotenv").config();
 
 async function main() {
   const mongod = await MongoMemoryServer.create();

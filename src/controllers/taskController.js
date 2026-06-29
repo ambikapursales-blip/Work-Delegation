@@ -21,6 +21,7 @@ export const getTasks = async (req, res) => {
       overdue,
       startDate,
       endDate,
+      period,
     } = req.query;
 
     let query = {};
@@ -56,6 +57,24 @@ export const getTasks = async (req, res) => {
       if (endDate) {
         query.createdAt.$lte = new Date(endDate);
       }
+    } else if (period) {
+      const now = new Date();
+      let start = new Date();
+      switch (period) {
+        case "week":
+          start.setDate(now.getDate() - 7);
+          break;
+        case "month":
+          start.setMonth(now.getMonth() - 1);
+          break;
+        case "quarter":
+          start.setMonth(now.getMonth() - 3);
+          break;
+        case "year":
+          start.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+      query.createdAt = { $gte: start };
     }
 
     if (search) {
@@ -88,6 +107,7 @@ export const getTasks = async (req, res) => {
       tasks,
     });
   } catch (error) {
+    console.error("getTasks error:", error.stack);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

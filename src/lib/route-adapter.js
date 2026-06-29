@@ -33,6 +33,7 @@ export function createRes() {
   let _status = 200;
   let _body = null;
   let _cookie = null;
+  let _headers = {};
 
   const res = {
     status(code) {
@@ -41,6 +42,10 @@ export function createRes() {
     },
     json(data) {
       _body = data;
+    },
+    set(key, value) {
+      _headers[key] = value;
+      return res;
     },
     cookie(name, value, options) {
       _cookie = { name, value, options };
@@ -55,6 +60,9 @@ export function createRes() {
     get cookie() {
       return _cookie;
     },
+    get headers() {
+      return _headers;
+    },
   };
   return res;
 }
@@ -64,7 +72,11 @@ export function createRes() {
  * Call this from every route handler.
  */
 export function finishRes(res) {
-  const response = NextResponse.json(res.body, { status: res.statusCode });
+  const headers = {};
+  for (const key of Object.keys(res.headers)) {
+    headers[key] = res.headers[key];
+  }
+  const response = NextResponse.json(res.body, { status: res.statusCode, headers });
   if (res.cookie) {
     response.cookies.set(res.cookie.name, res.cookie.value, res.cookie.options);
   }

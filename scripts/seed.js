@@ -1,8 +1,7 @@
 import { MongoMemoryServer } from "mongodb-memory-server";
 import mongoose from "mongoose";
 import { config } from "dotenv";
-config({ path: ".env.local" });
-config({ path: ".env" });
+config();
 
 async function seed() {
   const mongod = await MongoMemoryServer.create();
