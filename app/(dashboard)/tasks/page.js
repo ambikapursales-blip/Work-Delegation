@@ -23,8 +23,16 @@ import {
   Trash2,
   CheckCircle2,
   X,
+  Calendar,
+  ChevronDown,
+  Clock,
+  Repeat,
+  ListTodo,
+  Sparkles,
 } from "lucide-react";
 import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -360,6 +368,17 @@ export default function TasksPage() {
 
   const tasksToDisplay = filteredTasks;
 
+  // UI date helpers (no business logic)
+  const toDate = (dateStr) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split("T")[0].split("-");
+    return new Date(+parts[0], +parts[1] - 1, +parts[2]);
+  };
+  const toDateStr = (date) => {
+    if (!date) return "";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
   const handleTaskCreate = () => {
     setActiveTab("create");
   };
@@ -404,33 +423,48 @@ export default function TasksPage() {
 
       {/* Create Task Modal */}
       {canAssignTasks && activeTab === "create" && (
-        <div className="fixed inset-0 bg-black/70 z-50 overflow-y-auto backdrop-blur-sm">
-          <div className="min-h-screen flex items-center justify-center p-4">
-            <Card className="w-full max-w-2xl rounded-2xl border-white/[0.08]">
-              <CardHeader className="bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] rounded-t-2xl">
+        <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in">
+          <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+            <Card
+              className="w-full max-w-3xl rounded-3xl border-white/[0.08] shadow-2xl relative overflow-hidden"
+              style={{ background: "linear-gradient(180deg, #111827 0%, #0B1220 100%)" }}
+            >
+              {/* Ambient glow */}
+              <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#00FF88]/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#00D4FF]/5 rounded-full blur-3xl pointer-events-none" />
+
+              <CardHeader className="border-b border-white/[0.06] px-8 py-6 relative z-10">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-[#0B1220]">
-                      Create New Task
-                    </CardTitle>
-                    <CardDescription className="text-[#0B1220]/70">
-                      Assign tasks to team members
-                    </CardDescription>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00FF88] to-[#00CC70] p-[2px] flex-shrink-0">
+                      <div className="w-full h-full rounded-2xl bg-[#0B1220] flex items-center justify-center">
+                        <Plus className="w-6 h-6 text-[#00FF88]" />
+                      </div>
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl font-bold text-white tracking-tight">
+                        Create New Task
+                      </CardTitle>
+                      <CardDescription className="text-white/50 mt-1 text-base">
+                        Assign tasks to team members
+                      </CardDescription>
+                    </div>
                   </div>
                   <button
                     onClick={() => setActiveTab("view")}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
                   >
-                    <X className="h-6 w-6" />
+                    <X className="w-5 h-5 text-white/40 group-hover:text-white/80 transition-colors" />
                   </button>
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-6">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="title" className="font-medium text-white/80">
-                      Task Title *
+              <CardContent className="px-8 py-6 relative z-10">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Title - Full width */}
+                  <div className="space-y-2">
+                    <Label htmlFor="title" className="text-sm font-semibold text-white/80">
+                      Task Title <span className="text-[#FF6B6B]">*</span>
                     </Label>
                     <Input
                       id="title"
@@ -438,14 +472,254 @@ export default function TasksPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, title: e.target.value })
                       }
-                      placeholder="Enter task title"
+                      placeholder="e.g., Design new landing page"
                       required
-                      className="mt-2 h-11 rounded-xl bg-white/[0.05] border-white/[0.1] text-white"
+                      className="h-[52px] rounded-xl bg-[#111827] border-white/[0.08] text-white placeholder:text-white/30 focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="description" className="font-medium text-white/80">
+                  {/* Row: Assign To | Priority */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-white/80">
+                        Assign To <span className="text-[#FF6B6B]">*</span>
+                      </Label>
+                      <div className="max-h-48 overflow-y-auto space-y-1 bg-[#111827] border border-white/[0.08] rounded-2xl p-2">
+                        {users.length === 0 ? (
+                          <p className="text-sm text-white/40 p-3 text-center">Loading users...</p>
+                        ) : (
+                          users.map((u) => {
+                            const isSelected = formData.assignedTo.includes(u._id);
+                            return (
+                              <label
+                                key={u._id}
+                                className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
+                                  isSelected
+                                    ? "bg-[#00FF88]/10 border border-[#00FF88]/20"
+                                    : "hover:bg-white/[0.05] border border-transparent"
+                                }`}
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                                    isSelected
+                                      ? "bg-[#00FF88] border-[#00FF88]"
+                                      : "border-white/20 bg-white/[0.05]"
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0B1220]" />
+                                  )}
+                                </div>
+                                <div className="flex-1 flex items-center justify-between min-w-0">
+                                  <span
+                                    className={`text-sm font-medium truncate ${isSelected ? "text-white" : "text-white/70"}`}
+                                  >
+                                    {u.name}
+                                  </span>
+                                  <span className="text-xs text-white/40 bg-white/[0.05] px-2 py-0.5 rounded-md flex-shrink-0 ml-2">
+                                    {u.role}
+                                  </span>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({
+                                        ...formData,
+                                        assignedTo: [
+                                          ...formData.assignedTo,
+                                          u._id,
+                                        ],
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        assignedTo: formData.assignedTo.filter(
+                                          (id) => id !== u._id,
+                                        ),
+                                      });
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="priority" className="text-sm font-semibold text-white/80">
+                        Priority
+                      </Label>
+                      <div className="relative">
+                        <select
+                          id="priority"
+                          value={formData.priority}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              priority: e.target.value,
+                            })
+                          }
+                          className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 pr-12 appearance-none cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                        >
+                          <option value="Low">Low</option>
+                          <option value="Medium">Medium</option>
+                          <option value="High">High</option>
+                          <option value="Critical">Critical</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <ChevronDown className="w-4 h-4 text-white/40" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row: Deadline | Task Type */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="deadline" className="text-sm font-semibold text-white/80">
+                        Deadline
+                      </Label>
+                      <DatePicker
+                        selected={toDate(formData.deadline)}
+                        onChange={(date) =>
+                          setFormData({
+                            ...formData,
+                            deadline: toDateStr(date),
+                          })
+                        }
+                        dateFormat="dd MMM yyyy"
+                        placeholderText="Select deadline"
+                        className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                        wrapperClassName="w-full"
+                        popperClassName="react-datepicker-dark"
+                        calendarClassName="react-datepicker-dark-calendar"
+                        isClearable
+                        showPopperArrow={false}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-white/80">
+                        Task Type
+                      </Label>
+                      <div className="flex gap-2 bg-[#111827] border border-white/[0.08] rounded-xl p-1.5">
+                        {[
+                          { value: "One-time", label: "One-time" },
+                          { value: "daily", label: "Daily" },
+                          { value: "weekly", label: "Weekly" },
+                          { value: "monthly", label: "Monthly" },
+                        ].map(({ value, label }) => (
+                          <label
+                            key={value}
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200 text-sm font-medium ${
+                              formData.taskType === value
+                                ? "bg-gradient-to-r from-[#00FF88]/20 to-[#00CC70]/20 text-[#00FF88] border border-[#00FF88]/20 shadow-sm"
+                                : "text-white/50 hover:text-white/70 hover:bg-white/[0.05] border border-transparent"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="taskType"
+                              value={value}
+                              checked={formData.taskType === value}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  taskType: e.target.value,
+                                  isRecurring: value !== "One-time",
+                                  recurrencePattern:
+                                    value !== "One-time"
+                                      ? {
+                                          frequency: value,
+                                          interval: 1,
+                                          daysOfWeek: [],
+                                          dayOfMonth: 1,
+                                        }
+                                      : formData.recurrencePattern,
+                                })
+                              }
+                              className="hidden"
+                            />
+                            {value === "One-time" ? (
+                              <ListTodo className="w-3.5 h-3.5 flex-shrink-0" />
+                            ) : value === "daily" ? (
+                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                            ) : value === "weekly" ? (
+                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                            ) : (
+                              <Repeat className="w-3.5 h-3.5 flex-shrink-0" />
+                            )}
+                            <span className="hidden sm:inline">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recurring Pattern Options */}
+                  {formData.taskType !== "One-time" && (
+                    <div className="space-y-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 animate-fade-in">
+                      <Label className="text-sm font-semibold text-white/80">
+                        Recurrence Details
+                      </Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-white/60">
+                            Repeat every
+                          </Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={formData.recurrencePattern.interval}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                recurrencePattern: {
+                                  ...formData.recurrencePattern,
+                                  interval: parseInt(e.target.value) || 1,
+                                },
+                              })
+                            }
+                            className="h-11 rounded-xl bg-[#111827] border-white/[0.08] text-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-white/60">
+                            End Date
+                          </Label>
+                          <DatePicker
+                            selected={toDate(formData.recurrenceEndDate)}
+                            onChange={(date) =>
+                              setFormData({
+                                ...formData,
+                                recurrenceEndDate: toDateStr(date),
+                              })
+                            }
+                            dateFormat="dd MMM yyyy"
+                            placeholderText="No end date"
+                            className="w-full h-11 rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-sm"
+                            wrapperClassName="w-full"
+                            popperClassName="react-datepicker-dark"
+                            calendarClassName="react-datepicker-dark-calendar"
+                            isClearable
+                            showPopperArrow={false}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="description"
+                      className="text-sm font-semibold text-white/80"
+                    >
                       Description
                     </Label>
                     <textarea
@@ -457,144 +731,48 @@ export default function TasksPage() {
                           description: e.target.value,
                         })
                       }
-                      placeholder="Enter task description"
-                      className="mt-2 w-full px-4 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30 focus:border-[#00FF88]/50"
-                      rows="3"
+                      placeholder="Describe the task, requirements, and any relevant details..."
+                      className="w-full min-h-[140px] px-4 py-3 rounded-xl bg-[#111827] border border-white/[0.08] text-white placeholder:text-white/30 resize-y focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 outline-none transition-all duration-200 text-base"
+                      rows="4"
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="assignedTo" className="font-medium text-white/80">
-                      Assign To *
-                    </Label>
-                    <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border border-white/[0.1] bg-white/[0.03] rounded-xl p-3">
-                      {users.map((u) => (
-                        <label
-                          key={u._id}
-                          className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-white/[0.05] rounded-lg"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={formData.assignedTo.includes(u._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  assignedTo: [...formData.assignedTo, u._id],
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  assignedTo: formData.assignedTo.filter(
-                                    (id) => id !== u._id,
-                                  ),
-                                });
-                              }
-                            }}
-                            className="rounded border-white/30 bg-white/10 w-4 h-4 accent-[#00FF88]"
-                          />
-                          <span className="text-sm font-medium text-white/85">{u.name}</span>
-                          <span className="text-xs text-white/40 ml-auto">
-                            {u.role}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Buttons */}
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                    <Label htmlFor="priority" className="font-medium text-white/80">
-                      Priority
-                    </Label>
-                    <select
-                      id="priority"
-                      value={formData.priority}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          priority: e.target.value,
-                        })
-                      }
-                      className="mt-2 w-full px-4 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30 focus:border-[#00FF88]/50"
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                      <option value="Critical">Critical</option>
-                    </select>
-                    </div>
-
-                    <div>
-                    <Label htmlFor="deadline" className="font-medium text-white/80">
-                      Deadline
-                    </Label>
-                    <Input
-                      id="deadline"
-                      type="date"
-                      value={formData.deadline}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          deadline: e.target.value,
-                        })
-                      }
-                      className="mt-2 h-11 rounded-xl bg-white/[0.05] border-white/[0.1] text-white"
-                    />
-                    </div>
-                  </div>
-
-                  {/* Recurring Task Section */}
-                  <div className="border-t border-white/[0.08] pt-4">
-                    <Label className="font-medium text-white/80 mb-3 block">
-                      Recurring Task
-                    </Label>
-                    <div className="space-y-3">
-                      <div className="flex gap-4 flex-wrap">
-                        {["One-time", "daily", "weekly", "monthly"].map((type) => (
-                          <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="taskType"
-                              value={type}
-                              checked={formData.taskType === type}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  taskType: e.target.value,
-                                  isRecurring: type !== "One-time",
-                                  recurrencePattern: type !== "One-time"
-                                    ? {
-                                        frequency: type,
-                                        interval: 1,
-                                        daysOfWeek: [],
-                                        dayOfMonth: 1,
-                                      }
-                                    : formData.recurrencePattern,
-                                })
-                              }
-                              className="w-4 h-4 text-[#00FF88] accent-[#00FF88]"
-                            />
-                            <span className="text-sm text-white/80">{type.charAt(0).toUpperCase() + type.slice(1)}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/[0.06]">
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-semibold rounded-xl h-11 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-neon"
+                      className="h-[52px] rounded-xl bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-bold text-base hover:shadow-[0_0_30px_rgba(0,255,136,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
                       {isSubmitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-[#0B1220]/30 border-t-[#0B1220] rounded-full animate-spin mr-2" />
+                        <span className="flex items-center gap-2">
+                          <svg
+                            className="animate-spin h-5 w-5"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                              fill="none"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
                           Creating...
-                        </>
+                        </span>
                       ) : (
-                        "Create Task"
+                        <span className="flex items-center gap-2">
+                          <Sparkles className="w-5 h-5" />
+                          Create Task
+                        </span>
                       )}
                     </Button>
                     <Button
@@ -602,7 +780,7 @@ export default function TasksPage() {
                       variant="outline"
                       onClick={() => setActiveTab("view")}
                       disabled={isSubmitting}
-                      className="rounded-xl h-11 border-white/[0.12] text-white/70 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-[52px] rounded-xl border-white/[0.12] text-white/70 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.2] transition-all duration-200 font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </Button>
@@ -616,31 +794,60 @@ export default function TasksPage() {
 
       {/* Edit Task Modal */}
       {editingTask && (
-        <div className="fixed inset-0 bg-black/70 z-50 overflow-y-auto backdrop-blur-sm">
-          <div className="min-h-screen flex items-center justify-center p-4">
-            <Card className="w-full max-w-2xl rounded-2xl border-white/[0.08]">
-              <CardHeader className="bg-gradient-to-r from-[#00D4FF] to-[#0099CC] text-white rounded-t-2xl">
+        <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in">
+          <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+            <Card
+              className="w-full max-w-3xl rounded-3xl border-white/[0.08] shadow-2xl relative overflow-hidden"
+              style={{ background: "linear-gradient(180deg, #111827 0%, #0B1220 100%)" }}
+            >
+              {/* Ambient glow */}
+              <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#00D4FF]/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#00FF88]/5 rounded-full blur-3xl pointer-events-none" />
+
+              <CardHeader className="border-b border-white/[0.06] px-8 py-6 relative z-10">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-white">Edit Task</CardTitle>
-                    <CardDescription className="text-white/70">
-                      Update task details
-                    </CardDescription>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00D4FF] to-[#0099CC] p-[2px] flex-shrink-0">
+                      <div className="w-full h-full rounded-2xl bg-[#0B1220] flex items-center justify-center">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="w-6 h-6 text-[#00D4FF]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </div>
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl font-bold text-white tracking-tight">
+                        Edit Task
+                      </CardTitle>
+                      <CardDescription className="text-white/50 mt-1 text-base">
+                        Update task details
+                      </CardDescription>
+                    </div>
                   </div>
                   <button
                     onClick={() => setEditingTask(null)}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
                   >
-                    <X className="h-6 w-6" />
+                    <X className="w-5 h-5 text-white/40 group-hover:text-white/80 transition-colors" />
                   </button>
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-6">
-                <form onSubmit={handleEditSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="edit-title" className="font-medium text-white/80">
-                      Task Title *
+              <CardContent className="px-8 py-6 relative z-10">
+                <form onSubmit={handleEditSubmit} className="space-y-5">
+                  {/* Title */}
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-title" className="text-sm font-semibold text-white/80">
+                      Task Title <span className="text-[#FF6B6B]">*</span>
                     </Label>
                     <Input
                       id="edit-title"
@@ -651,14 +858,145 @@ export default function TasksPage() {
                           title: e.target.value,
                         })
                       }
-                      placeholder="Enter task title"
+                      placeholder="e.g., Design new landing page"
                       required
-                      className="mt-2 h-11 rounded-xl bg-white/[0.05] border-white/[0.1] text-white"
+                      className="h-[52px] rounded-xl bg-[#111827] border-white/[0.08] text-white placeholder:text-white/30 focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="edit-description" className="font-medium text-white/80">
+                  {/* Row: Assign To | Priority */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-white/80">
+                        Assign To <span className="text-[#FF6B6B]">*</span>
+                      </Label>
+                      <div className="max-h-48 overflow-y-auto space-y-1 bg-[#111827] border border-white/[0.08] rounded-2xl p-2">
+                        {users.length === 0 ? (
+                          <p className="text-sm text-white/40 p-3 text-center">Loading users...</p>
+                        ) : (
+                          users.map((u) => {
+                            const isSelected = editFormData.assignedTo.includes(u._id);
+                            return (
+                              <label
+                                key={u._id}
+                                className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
+                                  isSelected
+                                    ? "bg-[#00FF88]/10 border border-[#00FF88]/20"
+                                    : "hover:bg-white/[0.05] border border-transparent"
+                                }`}
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                                    isSelected
+                                      ? "bg-[#00FF88] border-[#00FF88]"
+                                      : "border-white/20 bg-white/[0.05]"
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0B1220]" />
+                                  )}
+                                </div>
+                                <div className="flex-1 flex items-center justify-between min-w-0">
+                                  <span
+                                    className={`text-sm font-medium truncate ${isSelected ? "text-white" : "text-white/70"}`}
+                                  >
+                                    {u.name}
+                                  </span>
+                                  <span className="text-xs text-white/40 bg-white/[0.05] px-2 py-0.5 rounded-md flex-shrink-0 ml-2">
+                                    {u.role}
+                                  </span>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditFormData({
+                                        ...editFormData,
+                                        assignedTo: [
+                                          ...editFormData.assignedTo,
+                                          u._id,
+                                        ],
+                                      });
+                                    } else {
+                                      setEditFormData({
+                                        ...editFormData,
+                                        assignedTo:
+                                          editFormData.assignedTo.filter(
+                                            (id) => id !== u._id,
+                                          ),
+                                      });
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-priority" className="text-sm font-semibold text-white/80">
+                        Priority <span className="text-[#FF6B6B]">*</span>
+                      </Label>
+                      <div className="relative">
+                        <select
+                          id="edit-priority"
+                          value={editFormData.priority}
+                          onChange={(e) =>
+                            setEditFormData({
+                              ...editFormData,
+                              priority: e.target.value,
+                            })
+                          }
+                          className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 pr-12 appearance-none cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                        >
+                          <option value="Low">Low</option>
+                          <option value="Medium">Medium</option>
+                          <option value="High">High</option>
+                          <option value="Critical">Critical</option>
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <ChevronDown className="w-4 h-4 text-white/40" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row: Deadline | Description */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-deadline" className="text-sm font-semibold text-white/80">
+                        Deadline <span className="text-[#FF6B6B]">*</span>
+                      </Label>
+                      <DatePicker
+                        selected={toDate(editFormData.deadline)}
+                        onChange={(date) =>
+                          setEditFormData({
+                            ...editFormData,
+                            deadline: toDateStr(date),
+                          })
+                        }
+                        dateFormat="dd MMM yyyy"
+                        placeholderText="Select deadline"
+                        className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                        wrapperClassName="w-full"
+                        popperClassName="react-datepicker-dark"
+                        calendarClassName="react-datepicker-dark-calendar"
+                        isClearable
+                        showPopperArrow={false}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="edit-description"
+                      className="text-sm font-semibold text-white/80"
+                    >
                       Description
                     </Label>
                     <textarea
@@ -670,107 +1008,38 @@ export default function TasksPage() {
                           description: e.target.value,
                         })
                       }
-                      placeholder="Enter task description"
-                      className="mt-2 w-full px-4 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
-                      rows="3"
+                      placeholder="Describe the task, requirements, and any relevant details..."
+                      className="w-full min-h-[140px] px-4 py-3 rounded-xl bg-[#111827] border border-white/[0.08] text-white placeholder:text-white/30 resize-y focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 outline-none transition-all duration-200 text-base"
+                      rows="4"
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="edit-priority" className="font-medium text-white/80">
-                      Priority *
-                    </Label>
-                    <select
-                      id="edit-priority"
-                      value={editFormData.priority}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          priority: e.target.value,
-                        })
-                      }
-                      className="mt-2 w-full px-4 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                      <option value="Critical">Critical</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="edit-deadline" className="font-medium text-white/80">
-                      Deadline *
-                    </Label>
-                    <Input
-                      id="edit-deadline"
-                      type="date"
-                      value={editFormData.deadline}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          deadline: e.target.value,
-                        })
-                      }
-                      required
-                      className="mt-2 h-11 rounded-xl bg-white/[0.05] border-white/[0.1] text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="edit-assignedTo" className="font-medium text-white/80">
-                      Assign To *
-                    </Label>
-                    <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border border-white/[0.1] bg-white/[0.03] rounded-xl p-3">
-                      {users.map((u) => (
-                        <label
-                          key={u._id}
-                          className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-white/[0.05] rounded-lg"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={editFormData.assignedTo.includes(u._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditFormData({
-                                  ...editFormData,
-                                  assignedTo: [
-                                    ...editFormData.assignedTo,
-                                    u._id,
-                                  ],
-                                });
-                              } else {
-                                setEditFormData({
-                                  ...editFormData,
-                                  assignedTo: editFormData.assignedTo.filter(
-                                    (id) => id !== u._id,
-                                  ),
-                                });
-                              }
-                            }}
-                            className="rounded border-white/30 bg-white/10 w-4 h-4 accent-[#00FF88]"
-                          />
-                          <span className="text-sm font-medium text-white/85">{u.name}</span>
-                          <span className="text-xs text-white/40 ml-auto">
-                            {u.role}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-2">
+                  {/* Buttons */}
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/[0.06]">
                     <Button
                       type="submit"
-                      className="bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-semibold rounded-xl h-11 hover:shadow-neon"
+                      className="h-[52px] rounded-xl bg-gradient-to-r from-[#00D4FF] to-[#0099CC] text-white font-bold text-base hover:shadow-[0_0_30px_rgba(0,212,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                     >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-5 h-5 mr-2"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path>
+                        <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon>
+                      </svg>
                       Update Task
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setEditingTask(null)}
-                      className="rounded-xl h-11 border-white/[0.12] text-white/70 hover:text-white"
+                      className="h-[52px] rounded-xl border-white/[0.12] text-white/70 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.2] transition-all duration-200 font-medium text-base"
                     >
                       Cancel
                     </Button>
