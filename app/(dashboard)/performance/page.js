@@ -81,7 +81,13 @@ export default function PerformancePage() {
 
   if (!canView) {
     return (
-      <Alert className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-xl p-4 flex items-center gap-3">
+      <Alert
+        className="backdrop-blur-xl rounded-xl p-4 flex items-center gap-3"
+        style={{
+          backgroundColor: "var(--bg-muted)",
+          border: "1px solid var(--border)",
+        }}
+      >
         <AlertDescription>
           You don&apos;t have permission to view performance data.
         </AlertDescription>
@@ -92,56 +98,72 @@ export default function PerformancePage() {
   if (loading) return <Loading />;
 
   const getRankColor = (index) => {
-    if (index === 0) return "text-[#FFB84D]";
-    if (index === 1) return "text-white/50";
-    if (index === 2) return "text-[#FF6B6B]";
-    return "text-white/40";
+    if (index === 0) return { color: "var(--color-warning)" };
+    if (index === 1) return { color: "var(--text-secondary)" };
+    if (index === 2) return { color: "var(--color-danger)" };
+    return { color: "var(--text-muted)" };
   };
 
   const getPerformanceColor = (score) => {
-    if (score >= 80) return "text-[#00FF88]";
-    if (score >= 60) return "text-[#FFB84D]";
-    return "text-[#FF6B6B]";
+    if (score >= 80) return { color: "var(--color-success)" };
+    if (score >= 60) return { color: "var(--color-warning)" };
+    return { color: "var(--color-danger)" };
   };
 
   const getGradeColor = (grade) => {
-    const colors = {
-      "A+": "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
-      A: "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
-      "B+": "bg-[#00D4FF]/15 text-[#00D4FF] border-[#00D4FF]/25",
-      B: "bg-[#00D4FF]/15 text-[#00D4FF] border-[#00D4FF]/25",
-      C: "bg-[#FFB84D]/15 text-[#FFB84D] border-[#FFB84D]/25",
-      D: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
-      F: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
+    const map = {
+      "A+": "var(--color-success)",
+      A: "var(--color-success)",
+      "B+": "var(--color-info)",
+      B: "var(--color-info)",
+      C: "var(--color-warning)",
+      D: "var(--color-danger)",
+      F: "var(--color-danger)",
     };
-    return colors[grade] || "bg-white/[0.08] text-white/60 border-white/[0.1]";
+    const color = map[grade];
+    if (color) {
+      return {
+        backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
+        color,
+        borderColor: `color-mix(in srgb, ${color} 25%, transparent)`,
+      };
+    }
+    return {
+      backgroundColor: "var(--bg-muted)",
+      color: "var(--text-secondary)",
+      borderColor: "var(--border)",
+    };
   };
 
   const getCompletionBarColor = (percentage) => {
-    if (percentage >= 80) return "bg-[#00FF88]";
-    if (percentage >= 60) return "bg-[#FFB84D]";
-    if (percentage >= 40) return "bg-[#FF6B6B]";
-    return "bg-red-500";
+    if (percentage >= 80) return { backgroundColor: "var(--color-success)" };
+    if (percentage >= 60) return { backgroundColor: "var(--color-warning)" };
+    if (percentage >= 40) return { backgroundColor: "var(--color-danger)" };
+    return { backgroundColor: "var(--color-danger)" };
   };
 
   const getCompletionTextColor = (percentage) => {
-    if (percentage >= 80) return "text-[#00FF88]";
-    if (percentage >= 60) return "text-[#FFB84D]";
-    if (percentage >= 40) return "text-[#FF6B6B]";
-    return "text-red-500";
+    if (percentage >= 80) return { color: "var(--color-success)" };
+    if (percentage >= 60) return { color: "var(--color-warning)" };
+    if (percentage >= 40) return { color: "var(--color-danger)" };
+    return { color: "var(--color-danger)" };
   };
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0]?.payload;
       return (
-        <div className="bg-[#0B1220]/95 backdrop-blur-xl p-3 rounded-lg shadow-lg border border-white/[0.06]">
-          <p className="font-semibold text-white/85 mb-1">{label}</p>
-          <p className="text-sm text-[#B366FF]">Assigned: {data?.assigned}</p>
-          <p className="text-sm text-[#00FF88]">Completed: {data?.completed}</p>
-          <p
-            className={`text-sm font-bold ${getCompletionTextColor(data?.completionRate)}`}
-          >
+        <div
+          className="backdrop-blur-xl p-3 rounded-lg shadow-lg"
+          style={{
+            backgroundColor: "color-mix(in srgb, var(--bg-base) 95%, transparent)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p className="mb-1" style={{ fontWeight: 600, color: "var(--text-primary)" }}>{label}</p>
+          <p className="text-sm" style={{ color: "var(--color-purple)" }}>Assigned: {data?.assigned}</p>
+          <p className="text-sm" style={{ color: "var(--color-success)" }}>Completed: {data?.completed}</p>
+          <p className="text-sm font-bold" style={getCompletionTextColor(data?.completionRate)}>
             Completion: {data?.completionRate?.toFixed(1)}%
           </p>
         </div>
@@ -154,8 +176,8 @@ export default function PerformancePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white/85">Performance</h1>
-          <p className="text-white/50">
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Performance</h1>
+          <p style={{ color: "var(--text-secondary)" }}>
             Employee performance metrics and analytics
           </p>
         </div>
@@ -163,7 +185,7 @@ export default function PerformancePage() {
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="px-3 py-2 border border-white/[0.1] rounded-md text-sm bg-white/[0.05] text-white"
+            className="input-field"
           >
             <option value="week">Last Week</option>
             <option value="month">Last Month</option>
@@ -173,13 +195,19 @@ export default function PerformancePage() {
       </div>
 
       {error && (
-        <Alert className="bg-white/[0.04] backdrop-blur-xl border-red-500/30">
-          <AlertDescription className="text-red-400">{error}</AlertDescription>
+        <Alert
+          className="backdrop-blur-xl"
+          style={{
+            backgroundColor: "var(--bg-muted)",
+            borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)",
+          }}
+        >
+          <AlertDescription style={{ color: "var(--color-danger)" }}>{error}</AlertDescription>
         </Alert>
       )}
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-white/[0.06]">
+      <div className="flex gap-2 border-b" style={{ borderBottomColor: "var(--border)" }}>
         <Button
           variant={activeTab === "leaderboard" ? "default" : "ghost"}
           onClick={() => setActiveTab("leaderboard")}
@@ -195,16 +223,19 @@ export default function PerformancePage() {
       {/* Leaderboard Tab */}
       {activeTab === "leaderboard" && (
         <div className="space-y-4">
-          <Card className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm">
+          <Card className="backdrop-blur-xl rounded-2xl shadow-glass-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-white/85">Performance Leaderboard</CardTitle>
-                  <CardDescription className="text-white/50">
+                  <CardTitle style={{ color: "var(--text-primary)" }}>Performance Leaderboard</CardTitle>
+                  <CardDescription style={{ color: "var(--text-secondary)" }}>
                     Compare task assignments with completions across employees
                   </CardDescription>
                 </div>
-                <div className="flex gap-1 bg-white/[0.08] p-1 rounded-lg">
+                <div
+                  className="flex gap-1 p-1 rounded-lg"
+                  style={{ backgroundColor: "var(--bg-muted)" }}
+                >
                   <Button
                     variant={viewMode === "chart" ? "default" : "ghost"}
                     size="sm"
@@ -236,15 +267,15 @@ export default function PerformancePage() {
                         margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                         barGap={4}
                       >
-                        <Recharts.CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                        <Recharts.CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <Recharts.XAxis
                           dataKey="name"
-                          tick={{ fontSize: 12, fill: "rgba(255,255,255,0.5)" }}
+                          tick={{ fontSize: 12, fill: "var(--text-muted)" }}
                           angle={-35}
                           textAnchor="end"
                           height={80}
                         />
-                        <Recharts.YAxis tick={{ fontSize: 12, fill: "rgba(255,255,255,0.5)" }} />
+                        <Recharts.YAxis tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
                         <Recharts.Tooltip content={<CustomTooltip />} />
                         <Recharts.Legend
                           wrapperStyle={{ fontSize: "13px" }}
@@ -280,36 +311,42 @@ export default function PerformancePage() {
                     {assignVsCompletedData.map((item, index) => (
                       <div
                         key={index}
-                        className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-4 shadow-glass-sm"
+                        className="backdrop-blur-xl rounded-2xl shadow-glass-sm p-4"
+                        style={{
+                          backgroundColor: "var(--bg-muted)",
+                          border: "1px solid var(--border)",
+                        }}
                       >
                         <div className="flex items-center gap-2 mb-3">
                           <div
                             className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: item.color }}
                           />
-                          <p className="font-semibold text-sm text-white/85 truncate">
+                          <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
                             {item.name}
                           </p>
                         </div>
                         <div className="flex items-end justify-between mb-2">
                           <div>
-                            <p className="text-xs text-white/50">Completion</p>
+                            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Completion</p>
                             <p
-                              className={`text-2xl font-bold ${getCompletionTextColor(item.completionRate)}`}
+                              className="text-2xl font-bold"
+                              style={getCompletionTextColor(item.completionRate)}
                             >
                               {item.completionRate.toFixed(1)}%
                             </p>
                           </div>
-                          <div className="text-right text-xs text-white/50">
+                          <div className="text-right text-xs" style={{ color: "var(--text-secondary)" }}>
                             <p>
                               {item.completed}/{item.assigned}
                             </p>
                           </div>
                         </div>
-                        <div className="w-full bg-white/[0.08] rounded-full h-2">
+                        <div className="w-full rounded-full h-2" style={{ backgroundColor: "var(--bg-muted)" }}>
                           <div
-                            className={`h-2 rounded-full ${getCompletionBarColor(item.completionRate)}`}
+                            className="h-2 rounded-full"
                             style={{
+                              ...getCompletionBarColor(item.completionRate),
                               width: `${Math.min(item.completionRate, 100)}%`,
                             }}
                           />
@@ -322,26 +359,26 @@ export default function PerformancePage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/[0.04] bg-white/[0.02]">
-                        <th className="text-left py-3 px-4 font-semibold text-white/40">
+                      <tr className="table-head">
+                        <th className="text-left py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           #
                         </th>
-                        <th className="text-left py-3 px-4 font-semibold text-white/40">
+                        <th className="text-left py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           Employee
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold text-white/40">
+                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           Assigned
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold text-white/40">
+                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           Completed
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold text-white/40">
+                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           Pending
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold text-white/40">
+                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           Completion %
                         </th>
-                        <th className="text-left py-3 px-4 font-semibold text-white/40">
+                        <th className="text-left py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
                           Progress
                         </th>
                       </tr>
@@ -357,12 +394,10 @@ export default function PerformancePage() {
                         return (
                           <tr
                             key={item?.user?._id || index}
-                            className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                            className="table-row-hover"
                           >
                             <td className="py-3 px-4">
-                              <span
-                                className={`font-bold ${getRankColor(index)}`}
-                              >
+                              <span className="font-bold" style={getRankColor(index)}>
                                 {index + 1}
                               </span>
                             </td>
@@ -377,13 +412,14 @@ export default function PerformancePage() {
                                       : `https://api.dicebear.com/7.x/avataaars/svg?seed=${item?.user?.name || "user"}`)
                                   }
                                   alt={item?.user?.name || "User"}
-                                  className="w-10 h-10 rounded-full object-cover border-2 border-white/[0.1]"
+                                  className="w-10 h-10 rounded-full object-cover border-2"
+                                  style={{ borderColor: "color-mix(in srgb, var(--border) 50%, transparent)" }}
                                 />
                                 <div>
-                                  <p className="font-medium">
+                                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>
                                     {item?.user?.name || "Unknown"}
                                   </p>
-                                  <p className="text-xs text-white/50">
+                                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                                     {item?.user?.department || "N/A"} •{" "}
                                     {item?.user?.role || "N/A"}
                                   </p>
@@ -391,38 +427,37 @@ export default function PerformancePage() {
                               </div>
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <span className="font-semibold text-[#B366FF]">
+                              <span className="font-semibold" style={{ color: "var(--color-purple)" }}>
                                 {assigned}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <span className="font-semibold text-[#00FF88]">
+                              <span className="font-semibold" style={{ color: "var(--color-success)" }}>
                                 {completed}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <span className="font-semibold text-[#FFB84D]">
+                              <span className="font-semibold" style={{ color: "var(--color-warning)" }}>
                                 {pending}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <span
-                                className={`font-bold ${getCompletionTextColor(completionRate)}`}
-                              >
+                              <span className="font-bold" style={getCompletionTextColor(completionRate)}>
                                 {completionRate.toFixed(1)}%
                               </span>
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-2">
-                                <div className="w-24 bg-white/[0.08] rounded-full h-2.5">
+                                <div className="w-24 rounded-full h-2.5" style={{ backgroundColor: "var(--bg-muted)" }}>
                                   <div
-                                    className={`h-2.5 rounded-full ${getCompletionBarColor(completionRate)}`}
+                                    className="h-2.5 rounded-full"
                                     style={{
+                                      ...getCompletionBarColor(completionRate),
                                       width: `${Math.min(completionRate, 100)}%`,
                                     }}
                                   />
                                 </div>
-                                <span className="text-xs text-white/50">
+                                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                                   {completionRate.toFixed(0)}%
                                 </span>
                               </div>
@@ -434,7 +469,8 @@ export default function PerformancePage() {
                         <tr>
                           <td
                             colSpan={7}
-                            className="py-8 text-center text-white/50"
+                            className="py-8 text-center"
+                            style={{ color: "var(--text-secondary)" }}
                           >
                             No performance data available
                           </td>

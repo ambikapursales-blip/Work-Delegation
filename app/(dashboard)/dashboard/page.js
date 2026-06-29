@@ -18,109 +18,80 @@ import { dashboardAPI, reportsAPI, taskAPI, usersAPI } from "@/lib/api";
 import Link from "next/link";
 import Toast from "@/components/Toast";
 
-/* ─── Design Tokens ─────────────────────────────────────────────── */
-const T = {
-  primary: "#00FF88",
-  primaryDark: "#00CC70",
-  primaryLight: "#33FFA3",
-  primaryGradStart: "#00FF88",
-  primaryGradEnd: "#00CC70",
-  primaryBg: "rgba(0,255,136,0.1)",
-  primaryBorder: "rgba(0,255,136,0.25)",
-
-  pageBg: "#0B1220",
-  surface: "rgba(255,255,255,0.04)",
-  surfaceAlt: "rgba(255,255,255,0.02)",
-
-  ink1: "#FFFFFF",
-  ink2: "rgba(255,255,255,0.85)",
-  ink3: "rgba(255,255,255,0.5)",
-  ink4: "rgba(255,255,255,0.35)",
-
-  emerald: "#00FF88",
-  emeraldLight: "rgba(0,255,136,0.12)",
-  emeraldBorder: "rgba(0,255,136,0.25)",
-
-  amber: "#FFB84D",
-  amberLight: "rgba(255,184,77,0.12)",
-  amberBorder: "rgba(255,184,77,0.25)",
-
-  rose: "#FF6B6B",
-  roseLight: "rgba(255,107,107,0.12)",
-  roseBorder: "rgba(255,107,107,0.25)",
-
-  blue: "#00D4FF",
-  blueLight: "rgba(0,212,255,0.12)",
-  blueBorder: "rgba(0,212,255,0.25)",
-
-  border1: "rgba(255,255,255,0.08)",
-  border2: "rgba(255,255,255,0.12)",
-};
+/* ─── Badge colour helpers ─── */
+const badgeStyle = (clr, bg = "0.12", bd = "0.22") => ({
+  background: `color-mix(in srgb, ${clr} ${Math.round(parseFloat(bg) * 100)}%, transparent)`,
+  color: clr,
+  border: `1px solid color-mix(in srgb, ${clr} ${Math.round(parseFloat(bd) * 100)}%, transparent)`,
+});
 
 /* ─── Stat Card ─────────────────────────────────────────────────── */
 function StatCard({ title, value, icon, trend, trendUp, accent, href }) {
-  const variants = {
-    purple: {
-      gradient: "from-[#00FF88]/20 to-[#00CC70]/10",
-      iconBg: "bg-[#00FF88]/20 text-[#0B1220]",
-      trendBg: "bg-white/10 text-white",
-      textColor: "text-[#00FF88]",
-      border: "border-[#00FF88]/20",
-    },
-    emerald: {
-      gradient: "from-[#00FF88]/20 to-[#00CC70]/10",
-      iconBg: "bg-[#00FF88]/20 text-[#0B1220]",
-      trendBg: "bg-white/10 text-white",
-      textColor: "text-[#00FF88]",
-      border: "border-[#00FF88]/20",
-    },
-    amber: {
-      gradient: "from-[#FFB84D]/20 to-[#FF9500]/10",
-      iconBg: "bg-[#FFB84D]/20 text-[#0B1220]",
-      trendBg: "bg-white/10 text-white",
-      textColor: "text-[#FFB84D]",
-      border: "border-[#FFB84D]/20",
-    },
-    blue: {
-      gradient: "from-[#00D4FF]/20 to-[#0099CC]/10",
-      iconBg: "bg-[#00D4FF]/20 text-[#0B1220]",
-      trendBg: "bg-white/10 text-white",
-      textColor: "text-[#00D4FF]",
-      border: "border-[#00D4FF]/20",
-    },
+  const accentMap = {
+    purple: "var(--color-success)",
+    emerald: "var(--color-success)",
+    amber: "var(--color-warning)",
+    blue: "var(--color-info)",
   };
-  const v = variants[accent] || variants.purple;
+  const a = accentMap[accent] || "var(--color-success)";
 
   const cardContent = (
     <div
-      className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${v.gradient} backdrop-blur-xl border border-white/[0.06] p-5 shadow-glass-sm ${href ? "hover:-translate-y-1 cursor-pointer hover:shadow-glass" : "cursor-default"} transition-all duration-300`}
+      className="relative overflow-hidden rounded-2xl p-5 transition-all duration-300 cursor-default"
+      style={{
+        background: `linear-gradient(135deg, color-mix(in srgb, ${a} 18%, transparent) 0%, color-mix(in srgb, ${a} 8%, transparent) 100%)`,
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-card)",
+        backdropFilter: "blur(20px)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.boxShadow = "var(--shadow-card-hover)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "var(--shadow-card)";
+      }}
     >
-      <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full bg-white/[0.03] pointer-events-none" />
-      <div className="absolute -bottom-6 -left-2 w-16 h-16 rounded-full bg-white/[0.02] pointer-events-none" />
+      <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full pointer-events-none"
+        style={{ background: "var(--bg-muted)" }} />
+      <div className="absolute -bottom-6 -left-2 w-16 h-16 rounded-full pointer-events-none"
+        style={{ background: "color-mix(in srgb, var(--bg-muted) 50%, transparent)" }} />
 
       <div className="relative flex justify-between items-start">
         <div className="flex-1">
-          <p className="text-[11px] font-semibold tracking-widest uppercase text-white/50 mb-2">
+          <p className="text-[11px] font-semibold tracking-widest uppercase mb-2"
+            style={{ color: "var(--text-muted)" }}>
             {title}
           </p>
-          <p className="text-4xl font-bold text-white mb-3 leading-none">
+          <p className="text-4xl font-bold mb-3 leading-none"
+            style={{ color: "var(--text-primary)" }}>
             {value}
           </p>
           <span
-            className={`text-xs font-medium px-2.5 py-1 rounded-full ${v.trendBg}`}
+            className="text-xs font-medium px-2.5 py-1 rounded-full"
+            style={{
+              background: "var(--bg-muted)",
+              color: "var(--text-secondary)",
+            }}
           >
-            {trendUp ? "↑" : "→"} {trend}
+            {trendUp ? "\u2191" : "\u2192"} {trend}
           </span>
         </div>
-        <div className={`p-3 rounded-xl ${v.iconBg} shadow-lg`}>{icon}</div>
+        <div
+          className="p-3 rounded-xl shadow-lg"
+          style={{
+            background: `color-mix(in srgb, ${a} 18%, transparent)`,
+            color: a,
+          }}
+        >
+          {icon}
+        </div>
       </div>
     </div>
   );
 
-  if (href) {
-    return <Link href={href}>{cardContent}</Link>;
-  }
-
+  if (href) return <Link href={href}>{cardContent}</Link>;
   return cardContent;
 }
 
@@ -128,7 +99,13 @@ function StatCard({ title, value, icon, trend, trendUp, accent, href }) {
 function Card({ children, className = "" }) {
   return (
     <div
-      className={`bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm ${className}`}
+      className={`rounded-2xl ${className}`}
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-card)",
+        backdropFilter: "blur(20px)",
+      }}
     >
       {children}
     </div>
@@ -138,11 +115,14 @@ function Card({ children, className = "" }) {
 /* ─── Card Header ────────────────────────────────────────────────── */
 function CardHeader({ title, subtitle, action }) {
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+    <div
+      className="flex items-center justify-between px-6 py-4"
+      style={{ borderBottom: "1px solid var(--border)" }}
+    >
       <div>
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h3>
         {subtitle && (
-          <p className="text-xs text-white/40 mt-0.5">{subtitle}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{subtitle}</p>
         )}
       </div>
       {action}
@@ -153,14 +133,16 @@ function CardHeader({ title, subtitle, action }) {
 /* ─── Status Badge ────────────────────────────────────────────────── */
 function StatusBadge({ status }) {
   const map = {
-    Completed: "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
-    "In Progress": "bg-[#00D4FF]/15 text-[#00D4FF] border-[#00D4FF]/25",
-    Pending: "bg-[#FFB84D]/15 text-[#FFB84D] border-[#FFB84D]/25",
-    Overdue: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
+    Completed:   { clr: "var(--color-success)" },
+    "In Progress": { clr: "var(--color-info)" },
+    Pending:     { clr: "var(--color-warning)" },
+    Overdue:     { clr: "var(--color-danger)" },
   };
+  const c = map[status] || { clr: "var(--text-muted)" };
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || "bg-white/10 text-white/60 border-white/10"}`}
+      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
+      style={badgeStyle(c.clr)}
     >
       {status}
     </span>
@@ -170,14 +152,16 @@ function StatusBadge({ status }) {
 /* ─── Priority Badge ─────────────────────────────────────────────── */
 function PriorityBadge({ priority }) {
   const map = {
-    Critical: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
-    High: "bg-[#FFB84D]/15 text-[#FFB84D] border-[#FFB84D]/25",
-    Medium: "bg-[#00D4FF]/15 text-[#00D4FF] border-[#00D4FF]/25",
-    Low: "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
+    Critical: { clr: "var(--color-danger)" },
+    High:     { clr: "var(--color-warning)" },
+    Medium:   { clr: "var(--color-info)" },
+    Low:      { clr: "var(--color-success)" },
   };
+  const c = map[priority] || { clr: "var(--text-muted)" };
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[priority] || "bg-white/10 text-white/60 border-white/10"}`}
+      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border"
+      style={badgeStyle(c.clr)}
     >
       {priority}
     </span>
@@ -332,11 +316,11 @@ export default function DashboardPage() {
     const { default: Chart } = await import("chart.js/auto");
     const font = { family: "Inter, system-ui, sans-serif", size: 12 };
     const tooltipDefaults = {
-      backgroundColor: "#0F1A2E",
+      backgroundColor: "var(--bg-surface)",
       padding: 12,
-      titleColor: "#FFFFFF",
-      bodyColor: "rgba(255,255,255,0.7)",
-      borderColor: "rgba(0,255,136,0.3)",
+      titleColor: "var(--text-primary)",
+      bodyColor: "var(--text-secondary)",
+      borderColor: "var(--border)",
       borderWidth: 1,
       cornerRadius: 10,
     };
@@ -355,8 +339,8 @@ export default function DashboardPage() {
                 analytics?.tasks?.pending || 0,
                 analytics?.tasks?.inProgress || 0,
               ],
-              backgroundColor: ["#00FF88", "#FFB84D", "#00D4FF"],
-              borderColor: "#0B1220",
+              backgroundColor: ["var(--color-success)", "var(--color-warning)", "var(--color-info)"],
+              borderColor: "var(--bg-base)",
               borderWidth: 4,
               hoverOffset: 6,
             },
@@ -370,7 +354,7 @@ export default function DashboardPage() {
             legend: {
               position: "bottom",
               labels: {
-                color: "#6B7280",
+                color: "var(--text-muted)",
                 font,
                 padding: 16,
                 usePointStyle: true,
@@ -397,14 +381,13 @@ export default function DashboardPage() {
         }),
       );
 
-      // Create gradient
       const gradPurple = ctx.createLinearGradient(0, 0, 0, 300);
-      gradPurple.addColorStop(0, "rgba(0,255,136,0.2)");
-      gradPurple.addColorStop(1, "rgba(0,255,136,0)");
+      gradPurple.addColorStop(0, "color-mix(in srgb, var(--color-success) 20%, transparent)");
+      gradPurple.addColorStop(1, "color-mix(in srgb, var(--color-success) 0%, transparent)");
 
       const gradBlue = ctx.createLinearGradient(0, 0, 0, 300);
-      gradBlue.addColorStop(0, "rgba(0,212,255,0.15)");
-      gradBlue.addColorStop(1, "rgba(0,212,255,0)");
+      gradBlue.addColorStop(0, "color-mix(in srgb, var(--color-info) 15%, transparent)");
+      gradBlue.addColorStop(1, "color-mix(in srgb, var(--color-info) 0%, transparent)");
 
       chartInstances.current.taskTrend = new Chart(ctx, {
         type: "line",
@@ -414,27 +397,27 @@ export default function DashboardPage() {
             {
               label: "Completed",
               data: trendData.map((t) => t.completed),
-              borderColor: "#00FF88",
+              borderColor: "var(--color-success)",
               backgroundColor: gradPurple,
               borderWidth: 2.5,
               tension: 0.4,
               fill: true,
               pointRadius: 4,
-              pointBackgroundColor: "#00FF88",
-              pointBorderColor: "#0B1220",
+              pointBackgroundColor: "var(--color-success)",
+              pointBorderColor: "var(--bg-base)",
               pointBorderWidth: 2,
             },
             {
               label: "New Tasks",
               data: trendData.map((t) => t.created),
-              borderColor: "#00D4FF",
+              borderColor: "var(--color-info)",
               backgroundColor: gradBlue,
               borderWidth: 2.5,
               tension: 0.4,
               fill: true,
               pointRadius: 4,
-              pointBackgroundColor: "#00D4FF",
-              pointBorderColor: "#0B1220",
+              pointBackgroundColor: "var(--color-info)",
+              pointBorderColor: "var(--bg-base)",
               pointBorderWidth: 2,
             },
           ],
@@ -446,7 +429,7 @@ export default function DashboardPage() {
             legend: {
               position: "top",
               labels: {
-                color: "#6B7280",
+                color: "var(--text-muted)",
                 font,
                 padding: 16,
                 usePointStyle: true,
@@ -458,13 +441,13 @@ export default function DashboardPage() {
           scales: {
                   y: {
                     beginAtZero: true,
-                    grid: { color: "rgba(255,255,255,0.05)" },
-                    ticks: { color: "rgba(255,255,255,0.4)", font },
+                    grid: { color: "var(--border)" },
+                    ticks: { color: "var(--text-muted)", font },
                     border: { display: false },
                   },
                   x: {
                     grid: { display: false },
-                    ticks: { color: "rgba(255,255,255,0.4)", font },
+                    ticks: { color: "var(--text-muted)", font },
                     border: { display: false },
                   },
           },
@@ -488,11 +471,11 @@ export default function DashboardPage() {
               label: "Tasks",
               data: deptData.map((d) => d.value),
               backgroundColor: [
-                "#00FF88",
-                "#00D4FF",
-                "#B366FF",
-                "#FFB84D",
-                "#FF6B6B",
+                "var(--color-success)",
+                "var(--color-info)",
+                "var(--color-purple)",
+                "var(--color-warning)",
+                "var(--color-danger)",
               ],
               borderRadius: 8,
               borderSkipped: false,
@@ -507,13 +490,13 @@ export default function DashboardPage() {
           scales: {
                   x: {
                     beginAtZero: true,
-                    grid: { color: "rgba(255,255,255,0.05)" },
-                    ticks: { color: "rgba(255,255,255,0.4)", font },
+                    grid: { color: "var(--border)" },
+                    ticks: { color: "var(--text-muted)", font },
                     border: { display: false },
                   },
                   y: {
                     grid: { display: false },
-                    ticks: { color: "rgba(255,255,255,0.6)", font: { ...font, weight: "500" } },
+                    ticks: { color: "var(--text-secondary)", font: { ...font, weight: "500" } },
                     border: { display: false },
                   },
           },
@@ -524,29 +507,37 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B1220] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: "var(--bg-base)" }}>
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#00FF88] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm font-medium text-white/60">
-            Loading dashboard…
+          <div className="w-12 h-12 rounded-full border-4 animate-spin mx-auto mb-4"
+            style={{
+              borderColor: "var(--border)",
+              borderTopColor: "var(--color-success)",
+            }} />
+          <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+            Loading dashboard\u2026
           </p>
         </div>
       </div>
     );
   }
 
-  const selectClass =
-    "w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30 focus:border-[#00FF88]/50 transition-all";
-  const inputClass =
-    "w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30 focus:border-[#00FF88]/50 transition-all";
-
   return (
-    <div className="min-h-screen bg-[#0B1220]">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)" }}>
       {/* ── Top Header Bar ── */}
-      <div className="bg-[#0A0F1A]/80 backdrop-blur-xl border-b border-white/[0.06] px-8 py-4 flex items-center justify-between sticky top-0 z-20 shadow-glass-sm">
+      <div
+        className="sticky top-0 z-20 backdrop-blur-xl px-8 py-4 flex items-center justify-between"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderBottom: "1px solid var(--border)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs font-semibold tracking-widest uppercase text-white/40">
+            <span className="text-xs font-semibold tracking-widest uppercase"
+              style={{ color: "var(--text-muted)" }}>
               {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "long",
@@ -554,32 +545,61 @@ export default function DashboardPage() {
               })}
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-white leading-tight">
+          <h1 className="text-2xl font-bold leading-tight"
+            style={{ color: "var(--text-primary)" }}>
             Dashboard
           </h1>
         </div>
 
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center bg-white/[0.05] rounded-xl p-1 gap-1 border border-white/[0.06]">
+          <div className="flex items-center rounded-xl p-1 gap-1"
+            style={{
+              backgroundColor: "var(--bg-muted)",
+              border: "1px solid var(--border)",
+            }}>
             <button
               onClick={() => setViewMode("table")}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200"
+              style={
                 viewMode === "table"
-                  ? "bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-semibold shadow-neon"
-                  : "text-white/50 hover:text-white/80"
-              }`}
+                  ? {
+                      background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                      color: "var(--active-text)",
+                      fontWeight: 600,
+                      boxShadow: "0 4px 14px color-mix(in srgb, var(--active-end) 40%, transparent)",
+                    }
+                  : { color: "var(--text-muted)" }
+              }
+              onMouseEnter={(e) => {
+                if (viewMode !== "table") e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                if (viewMode !== "table") e.currentTarget.style.color = "var(--text-muted)";
+              }}
             >
               <List size={14} />
               Table
             </button>
             <button
               onClick={() => setViewMode("graphs")}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200"
+              style={
                 viewMode === "graphs"
-                  ? "bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-semibold shadow-neon"
-                  : "text-white/50 hover:text-white/80"
-              }`}
+                  ? {
+                      background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                      color: "var(--active-text)",
+                      fontWeight: 600,
+                      boxShadow: "0 4px 14px color-mix(in srgb, var(--active-end) 40%, transparent)",
+                    }
+                  : { color: "var(--text-muted)" }
+              }
+              onMouseEnter={(e) => {
+                if (viewMode !== "graphs") e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                if (viewMode !== "graphs") e.currentTarget.style.color = "var(--text-muted)";
+              }}
             >
               <BarChart2 size={14} />
               Graphs
@@ -590,11 +610,32 @@ export default function DashboardPage() {
           {isAdminOrManager && (
             <button
               onClick={() => setShowFilters((v) => !v)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200 ${
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200"
+              style={
                 showFilters
-                  ? "bg-[#00FF88]/10 border-[#00FF88]/25 text-[#00FF88]"
-                  : "bg-white/[0.04] border-white/[0.1] text-white/60 hover:border-[#00FF88]/30 hover:text-[#00FF88]"
-              }`}
+                  ? {
+                      backgroundColor: "color-mix(in srgb, var(--active-end) 12%, transparent)",
+                      borderColor: "color-mix(in srgb, var(--active-end) 35%, transparent)",
+                      color: "var(--active-text)",
+                    }
+                  : {
+                      backgroundColor: "var(--bg-muted)",
+                      borderColor: "var(--border)",
+                      color: "var(--text-muted)",
+                    }
+              }
+              onMouseEnter={(e) => {
+                if (!showFilters) {
+                  e.currentTarget.style.borderColor = "color-mix(in srgb, var(--active-end) 30%, transparent)";
+                  e.currentTarget.style.color = "var(--active-text)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!showFilters) {
+                  e.currentTarget.style.borderColor = "var(--border)";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }
+              }}
             >
               <Filter size={14} />
               Filters
@@ -603,7 +644,16 @@ export default function DashboardPage() {
 
           {isAdminOrManager && (
             <Link href="/tasks">
-              <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] text-xs font-bold shadow-neon hover:scale-[1.02] hover:shadow-neon-lg transition-all duration-200">
+              <button
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200"
+                style={{
+                  background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                  color: "var(--active-text)",
+                  boxShadow: "0 4px 14px color-mix(in srgb, var(--active-end) 40%, transparent)",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.02)"}
+                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
                 <Plus size={15} />
                 New Task
               </button>
@@ -611,8 +661,13 @@ export default function DashboardPage() {
           )}
 
           {/* User chip */}
-          <div className="flex items-center gap-2 pl-3 border-l border-white/[0.08]">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00FF88] to-[#00CC70] flex items-center justify-center text-[#0B1220] text-xs font-bold shadow-lg">
+          <div className="flex items-center gap-2 pl-3"
+            style={{ borderLeft: "1px solid var(--border)" }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-lg bg-avatar"
+              style={{
+                background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                color: "var(--text-inverse)",
+              }}>
               {user?.name
                 ?.split(" ")
                 .map((n) => n[0])
@@ -621,10 +676,11 @@ export default function DashboardPage() {
                 .slice(0, 2)}
             </div>
             <div className="hidden md:block">
-              <p className="text-xs font-semibold text-white leading-tight">
+              <p className="text-xs font-semibold leading-tight"
+                style={{ color: "var(--text-primary)" }}>
                 {user?.name}
               </p>
-              <p className="text-[10px] text-white/40">{user?.role}</p>
+              <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>{user?.role}</p>
             </div>
           </div>
         </div>
@@ -637,9 +693,15 @@ export default function DashboardPage() {
 
         {/* ── Filters Panel ── */}
         {isAdminOrManager && showFilters && (
-          <div className="mb-6 bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5 shadow-glass-sm">
+          <div className="mb-6 rounded-2xl p-5"
+            style={{
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              boxShadow: "var(--shadow-card)",
+              backdropFilter: "blur(20px)",
+            }}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white">Filters</h3>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Filters</h3>
               <button
                 onClick={() => {
                   setSelectedUser("all");
@@ -648,20 +710,22 @@ export default function DashboardPage() {
                   setStartDate("");
                   setEndDate("");
                 }}
-                className="flex items-center gap-1.5 text-xs text-[#00FF88] font-medium hover:underline"
+                className="flex items-center gap-1.5 text-xs font-medium hover:underline"
+                style={{ color: "var(--color-success)" }}
               >
                 <RefreshCw size={12} /> Reset
               </button>
             </div>
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 min-w-[180px]">
-                <label className="text-[10px] font-semibold tracking-widest uppercase text-white/40 block mb-1.5">
+                <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
+                  style={{ color: "var(--text-muted)" }}>
                   User
                 </label>
                 <select
                   value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
-                  className={selectClass}
+                  className="input-field text-sm"
                 >
                   <option value="all">All Users</option>
                   {usersList
@@ -674,13 +738,14 @@ export default function DashboardPage() {
                 </select>
               </div>
               <div className="flex-1 min-w-[160px]">
-                <label className="text-[10px] font-semibold tracking-widest uppercase text-white/40 block mb-1.5">
+                <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
+                  style={{ color: "var(--text-muted)" }}>
                   Period
                 </label>
                 <select
                   value={timePeriod}
                   onChange={(e) => setTimePeriod(e.target.value)}
-                  className={selectClass}
+                  className="input-field text-sm"
                 >
                   <option value="today">Today</option>
                   <option value="week">This Week</option>
@@ -694,37 +759,40 @@ export default function DashboardPage() {
               {timePeriod === "custom" && (
                 <>
                   <div className="flex-1 min-w-[140px]">
-                    <label className="text-[10px] font-semibold tracking-widest uppercase text-white/40 block mb-1.5">
+                    <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
+                      style={{ color: "var(--text-muted)" }}>
                       Start Date
                     </label>
                     <input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className={inputClass}
+                      className="input-field text-sm"
                     />
                   </div>
                   <div className="flex-1 min-w-[140px]">
-                    <label className="text-[10px] font-semibold tracking-widest uppercase text-white/40 block mb-1.5">
+                    <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
+                      style={{ color: "var(--text-muted)" }}>
                       End Date
                     </label>
                     <input
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className={inputClass}
+                      className="input-field text-sm"
                     />
                   </div>
                 </>
               )}
               <div className="flex-1 min-w-[160px]">
-                <label className="text-[10px] font-semibold tracking-widest uppercase text-white/40 block mb-1.5">
+                <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
+                  style={{ color: "var(--text-muted)" }}>
                   Status
                 </label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className={selectClass}
+                  className="input-field text-sm"
                 >
                   <option value="all">All Status</option>
                   <option value="completed">Completed</option>
@@ -739,7 +807,8 @@ export default function DashboardPage() {
 
         {/* ── Stats Row ── */}
         <div className="mb-6">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-white/40 mb-3">
+          <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"
+            style={{ color: "var(--text-muted)" }}>
             Overview
           </p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -794,7 +863,12 @@ export default function DashboardPage() {
                   title="Tasks Overview"
                   subtitle={`Showing ${dashboardTasks.length} tasks`}
                   action={
-                    <span className="text-[10px] font-medium tracking-widest uppercase px-2.5 py-1 rounded-full bg-[#00FF88]/10 text-[#00FF88] border border-[#00FF88]/20">
+                    <span className="text-[10px] font-medium tracking-widest uppercase px-2.5 py-1 rounded-full border"
+                      style={{
+                        color: "var(--color-success)",
+                        backgroundColor: "color-mix(in srgb, var(--color-success) 8%, transparent)",
+                        borderColor: "color-mix(in srgb, var(--color-success) 20%, transparent)",
+                      }}>
                       {timePeriod === "all"
                         ? "All Time"
                         : timePeriod.charAt(0).toUpperCase() +
@@ -805,7 +879,7 @@ export default function DashboardPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-white/[0.02]">
+                      <tr className="table-head">
                         {[
                           "Task",
                           "Status",
@@ -815,28 +889,32 @@ export default function DashboardPage() {
                         ].map((h) => (
                           <th
                             key={h}
-                            className="px-5 py-3 text-left text-[10px] font-semibold text-white/40 uppercase tracking-widest first:pl-6 last:pr-6"
+                            className="px-5 py-3 text-left first:pl-6 last:pr-6"
                           >
                             {h}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
+                    <tbody className="divide-y"
+                      style={{ borderColor: "var(--border)" }}>
                       {dashboardTasks.length === 0 ? (
                         <tr>
                           <td colSpan="5" className="px-6 py-16 text-center">
                             <div className="flex flex-col items-center gap-3">
-                              <div className="w-16 h-16 rounded-2xl bg-white/[0.05] flex items-center justify-center">
+                              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                style={{ backgroundColor: "var(--bg-muted)" }}>
                                 <CheckSquare
                                   size={28}
-                                  className="text-white/20"
+                                  style={{ color: "var(--text-muted)" }}
                                 />
                               </div>
-                              <p className="text-sm font-medium text-white/50">
+                              <p className="text-sm font-medium"
+                                style={{ color: "var(--text-secondary)" }}>
                                 No tasks found
                               </p>
-                              <p className="text-xs text-white/30">
+                              <p className="text-xs"
+                                style={{ color: "var(--text-muted)" }}>
                                 Try adjusting your filters
                               </p>
                             </div>
@@ -856,14 +934,16 @@ export default function DashboardPage() {
                           return (
                             <tr
                               key={task._id}
-                              className="hover:bg-white/[0.03] transition-colors group"
+                              className="table-row-hover transition-colors group"
                             >
                               <td className="px-5 py-3.5 pl-6 max-w-xs">
-                                <p className="font-medium text-white/85 text-sm truncate">
+                                <p className="font-medium text-sm truncate"
+                                  style={{ color: "var(--text-primary)" }}>
                                   {task.title}
                                 </p>
                                 {task.description && (
-                                  <p className="text-xs text-white/40 mt-0.5 truncate">
+                                  <p className="text-xs mt-0.5 truncate"
+                                    style={{ color: "var(--text-muted)" }}>
                                     {task.description}
                                   </p>
                                 )}
@@ -880,25 +960,36 @@ export default function DashboardPage() {
                                     {task.assignedTo.slice(0, 2).map((u, i) => (
                                       <span
                                         key={u._id || u.name || i}
-                                        className="text-xs font-medium text-[#00D4FF] bg-[#00D4FF]/10 px-2 py-0.5 rounded-md border border-[#00D4FF]/20"
+                                        className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                        style={{
+                                          color: "var(--color-info)",
+                                          backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                          borderColor: "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                                        }}
                                       >
                                         {u.name || "User"}
                                       </span>
                                     ))}
                                     {task.assignedTo.length > 2 && (
-                                      <span className="text-xs font-medium text-white/50 bg-white/[0.05] px-2 py-0.5 rounded-md border border-white/[0.06]">
+                                      <span className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                        style={{
+                                          color: "var(--text-secondary)",
+                                          backgroundColor: "var(--bg-muted)",
+                                          borderColor: "var(--border)",
+                                        }}>
                                         +{task.assignedTo.length - 2}
                                       </span>
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-xs text-white/30">
+                                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                                     Unassigned
                                   </span>
                                 )}
                               </td>
                               <td className="px-5 py-3.5 pr-6">
-                                <span className="text-xs font-medium text-white/50">
+                                <span className="text-xs font-medium"
+                                  style={{ color: "var(--text-secondary)" }}>
                                   {task.deadline
                                     ? new Date(
                                         task.deadline,
@@ -944,7 +1035,7 @@ export default function DashboardPage() {
                 </Card>
 
                 {/* Bar Chart */}
-                <Card className="lg:col-span-2">
+                <Card>
                   <CardHeader
                     title="Department Statistics"
                     subtitle="Tasks per department"
@@ -968,25 +1059,43 @@ export default function DashboardPage() {
                     {
                       label: "Attendance Records",
                       href: "/attendance",
-                      icon: "📋",
+                      icon: "\uD83D\uDCCB",
                     },
                     {
                       label: "Performance Data",
                       href: "/performance",
-                      icon: "📊",
+                      icon: "\uD83D\uDCCA",
                     },
                   ].map(({ label, href, icon }) => (
                     <Link key={href} href={href} className="no-underline">
-                      <div className="px-4 py-4 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between hover:border-[#00FF88]/30 hover:bg-white/[0.06] transition-all group">
+                      <div
+                        className="px-4 py-4 rounded-xl flex items-center justify-between transition-all group"
+                        style={{
+                          backgroundColor: "var(--bg-muted)",
+                          border: "1px solid var(--border)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "color-mix(in srgb, var(--color-success) 30%, transparent)";
+                          e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "var(--border)";
+                          e.currentTarget.style.backgroundColor = "var(--bg-muted)";
+                        }}
+                      >
                         <div className="flex items-center gap-3">
                           <span className="text-xl">{icon}</span>
-                          <span className="text-sm font-medium text-white/85">
+                          <span className="text-sm font-medium"
+                            style={{ color: "var(--text-primary)" }}>
                             {label}
                           </span>
                         </div>
                         <ArrowUpRight
                           size={16}
-                          className="text-white/30 group-hover:text-[#00FF88] transition-colors"
+                          style={{ color: "var(--text-muted)" }}
+                          className="transition-colors"
+                          onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
+                          onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
                         />
                       </div>
                     </Link>
@@ -999,14 +1108,26 @@ export default function DashboardPage() {
           {/* ── Sidebar ── */}
           <div className="flex flex-col gap-5">
             {/* Today's Snapshot */}
-            <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-[#00FF88]/20 to-[#00CC70]/10 backdrop-blur-xl border border-[#00FF88]/20 shadow-glass">
-              <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-white/[0.03] pointer-events-none" />
-              <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full bg-white/[0.02] pointer-events-none" />
+            <div
+              className="relative overflow-hidden rounded-2xl p-5"
+              style={{
+                background: "linear-gradient(135deg, color-mix(in srgb, var(--color-success) 18%, transparent) 0%, color-mix(in srgb, var(--color-success) 8%, transparent) 100%)",
+                border: "1px solid color-mix(in srgb, var(--color-success) 22%, transparent)",
+                boxShadow: "var(--shadow-card)",
+                backdropFilter: "blur(20px)",
+              }}
+            >
+              <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
+                style={{ background: "var(--bg-muted)" }} />
+              <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full pointer-events-none"
+                style={{ background: "color-mix(in srgb, var(--bg-muted) 50%, transparent)" }} />
               <div className="relative">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-[#00FF88]/60 mb-1">
+                <p className="text-[10px] font-semibold tracking-widest uppercase mb-1"
+                  style={{ color: "color-mix(in srgb, var(--color-success) 60%, transparent)" }}>
                   Live
                 </p>
-                <h2 className="text-base font-bold text-white mb-4">
+                <h2 className="text-base font-bold mb-4"
+                  style={{ color: "var(--text-primary)" }}>
 Today&apos;s Snapshot
                 </h2>
                 <div className="flex flex-col gap-3">
@@ -1014,25 +1135,28 @@ Today&apos;s Snapshot
                     {
                       label: "Present Today",
                       value: analytics?.users?.active || 0,
-                      icon: "👥",
+                      icon: "\uD83D\uDC65",
                     },
                     {
                       label: "Overdue Tasks",
                       value: analytics?.tasks?.overdue || 0,
-                      icon: "⚠️",
+                      icon: "\u26A0\uFE0F",
                     },
                   ].map(({ label, value, icon }) => (
                     <div
                       key={label}
-                      className="px-4 py-3 rounded-xl bg-white/[0.06] flex items-center justify-between"
+                      className="px-4 py-3 rounded-xl flex items-center justify-between"
+                      style={{ backgroundColor: "var(--bg-muted)" }}
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-base">{icon}</span>
-                        <span className="text-xs font-medium text-white/70">
+                        <span className="text-xs font-medium"
+                          style={{ color: "var(--text-secondary)" }}>
                           {label}
                         </span>
                       </div>
-                      <span className="text-2xl font-bold text-white">
+                      <span className="text-2xl font-bold"
+                        style={{ color: "var(--text-primary)" }}>
                         {value}
                       </span>
                     </div>
@@ -1040,19 +1164,26 @@ Today&apos;s Snapshot
                 </div>
 
                 {/* Completion ring */}
-                <div className="mt-4 pt-4 border-t border-white/[0.08]">
+                <div className="mt-4 pt-4"
+                  style={{ borderTop: "1px solid var(--border)" }}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-white/60">
+                    <span className="text-xs font-medium"
+                      style={{ color: "var(--text-muted)" }}>
                       Completion Rate
                     </span>
-                    <span className="text-sm font-bold text-[#00FF88]">
+                    <span className="text-sm font-bold"
+                      style={{ color: "var(--color-success)" }}>
                       {completionRate}%
                     </span>
                   </div>
-                  <div className="h-2 bg-white/[0.08] rounded-full overflow-hidden">
+                  <div className="h-2 rounded-full overflow-hidden"
+                    style={{ backgroundColor: "var(--bg-muted)" }}>
                     <div
-                      className="h-full bg-gradient-to-r from-[#00FF88] to-[#00CC70] rounded-full transition-all duration-700"
-                      style={{ width: `${completionRate}%` }}
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${completionRate}%`,
+                        background: "linear-gradient(90deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                      }}
                     />
                   </div>
                 </div>
@@ -1062,11 +1193,18 @@ Today&apos;s Snapshot
             {/* Profile Card */}
             <Card>
               <div className="px-5 py-4">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-3">
+                <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"
+                  style={{ color: "var(--text-muted)" }}>
                   Account
                 </p>
-                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/[0.06]">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#00FF88] to-[#00CC70] flex items-center justify-center text-[#0B1220] text-sm font-bold flex-shrink-0 shadow-lg shadow-[#00FF88]/20">
+                <div className="flex items-center gap-3 mb-4 pb-4"
+                  style={{ borderBottom: "1px solid var(--border)" }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-lg bg-avatar"
+                    style={{
+                      background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                      color: "var(--text-inverse)",
+                      boxShadow: "0 4px 12px color-mix(in srgb, var(--color-success) 20%, transparent)",
+                    }}>
                     {user?.name
                       ?.split(" ")
                       .map((n) => n[0])
@@ -1075,10 +1213,11 @@ Today&apos;s Snapshot
                       .slice(0, 2)}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-white">
+                    <p className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}>
                       {user?.name}
                     </p>
-                    <p className="text-xs text-white/50">{user?.email}</p>
+                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{user?.email}</p>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2.5">
@@ -1090,17 +1229,36 @@ Today&apos;s Snapshot
                       key={label}
                       className="flex justify-between items-center"
                     >
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest"
+                        style={{ color: "var(--text-muted)" }}>
                         {label}
                       </span>
-                      <span className="text-xs font-medium text-white/80">
+                      <span className="text-xs font-medium"
+                        style={{ color: "var(--text-primary)" }}>
                         {value}
                       </span>
                     </div>
                   ))}
                 </div>
                 <Link href="/profile" className="no-underline block mt-4">
-                  <button className="w-full py-2.5 rounded-xl bg-white/[0.05] border border-white/[0.1] text-white/70 text-xs font-medium hover:bg-white/[0.08] hover:border-white/[0.15] hover:text-white transition-all duration-150">
+                  <button
+                    className="w-full py-2.5 rounded-xl text-xs font-medium transition-all duration-150"
+                    style={{
+                      backgroundColor: "var(--bg-muted)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-secondary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
+                      e.currentTarget.style.borderColor = "var(--border-hover)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--bg-muted)";
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                    }}
+                  >
                     View Full Profile
                   </button>
                 </Link>
@@ -1111,7 +1269,8 @@ Today&apos;s Snapshot
             {isAdminOrManager && (
               <Card>
                 <div className="px-5 py-4">
-                  <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-3">
+                  <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"
+                    style={{ color: "var(--text-muted)" }}>
                     Shortcuts
                   </p>
                   <div className="flex flex-col gap-2">
@@ -1120,7 +1279,7 @@ Today&apos;s Snapshot
                         label: "Manage Tasks",
                         href: "/tasks",
                         icon: <CheckSquare size={15} />,
-                        color: "text-[#00FF88] bg-[#00FF88]/10",
+                        accent: "var(--color-success)",
                       },
                       ...(user?.role === "Admin"
                         ? [
@@ -1128,22 +1287,46 @@ Today&apos;s Snapshot
                               label: "Manage Users",
                               href: "/users",
                               icon: <Users size={15} />,
-                              color: "text-[#00D4FF] bg-[#00D4FF]/10",
+                              accent: "var(--color-info)",
                             },
                           ]
                         : []),
-                    ].map(({ label, href, icon, color }) => (
+                    ].map(({ label, href, icon, accent }) => (
                       <Link key={href} href={href} className="no-underline">
-                        <div className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-3 hover:border-[#00FF88]/25 hover:bg-white/[0.06] transition-all group cursor-pointer">
-                          <span className={`p-1.5 rounded-lg ${color}`}>
+                        <div
+                          className="px-4 py-3 rounded-xl flex items-center gap-3 transition-all group cursor-pointer"
+                          style={{
+                            backgroundColor: "var(--bg-muted)",
+                            border: "1px solid var(--border)",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = "color-mix(in srgb, var(--color-success) 25%, transparent)";
+                            e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "var(--border)";
+                            e.currentTarget.style.backgroundColor = "var(--bg-muted)";
+                          }}
+                        >
+                          <span
+                            className="p-1.5 rounded-lg"
+                            style={{
+                              backgroundColor: `color-mix(in srgb, ${accent} 10%, transparent)`,
+                              color: accent,
+                            }}
+                          >
                             {icon}
                           </span>
-                          <span className="text-sm font-medium text-white/85 flex-1">
+                          <span className="text-sm font-medium flex-1"
+                            style={{ color: "var(--text-primary)" }}>
                             {label}
                           </span>
                           <ArrowUpRight
                             size={14}
-                            className="text-white/30 group-hover:text-[#00FF88] transition-colors"
+                            style={{ color: "var(--text-muted)" }}
+                            className="transition-colors"
+                            onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
+                            onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
                           />
                         </div>
                       </Link>
@@ -1156,22 +1339,30 @@ Today&apos;s Snapshot
             {/* Recent Activity */}
             <Card>
               <div className="px-5 py-4">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-white/30 mb-1">
+                <p className="text-[10px] font-semibold tracking-widest uppercase mb-1"
+                  style={{ color: "var(--text-muted)" }}>
                   Updates
                 </p>
-                <h3 className="text-sm font-semibold text-white mb-3">
+                <h3 className="text-sm font-semibold mb-3"
+                  style={{ color: "var(--text-primary)" }}>
                   Recent Activity
                 </h3>
                 <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
                   {recentActivities.slice(0, 5).map((activity, i) => (
                     <div
                       key={activity._id || i}
-                      className="px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] border-l-2 border-l-[#00FF88]"
+                      className="px-3 py-2.5 rounded-xl"
+                      style={{
+                        backgroundColor: "var(--bg-muted)",
+                        border: "1px solid var(--border)",
+                        borderLeft: "3px solid var(--color-success)",
+                      }}
                     >
-                      <p className="text-xs font-medium text-white/85 mb-0.5 leading-snug">
+                      <p className="text-xs font-medium mb-0.5 leading-snug"
+                        style={{ color: "var(--text-primary)" }}>
                         {activity.description}
                       </p>
-                      <p className="text-[10px] text-white/40">
+                      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                         {activity.createdAt
                           ? new Date(activity.createdAt).toLocaleString()
                           : "Just now"}
@@ -1179,7 +1370,8 @@ Today&apos;s Snapshot
                     </div>
                   ))}
                   {recentActivities.length === 0 && (
-                    <p className="text-xs text-white/30 text-center py-6">
+                    <p className="text-xs text-center py-6"
+                      style={{ color: "var(--text-muted)" }}>
                       No recent activity
                     </p>
                   )}

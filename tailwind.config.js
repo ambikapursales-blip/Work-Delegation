@@ -56,10 +56,10 @@ const config = {
         sidebar: {
           DEFAULT: "#0A0F1A",
           hover: "#111827",
-          active: "#00FF88",
+          active: "#1E3A8A",
         },
         neon: {
-          green: "#00FF88",
+          blue: "#1E3A8A",
           cyan: "#00D4FF",
           red: "#FF6B6B",
           amber: "#FFB84D",
@@ -85,8 +85,8 @@ const config = {
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         "glow-pulse": {
-          "0%, 100%": { boxShadow: "0 0 20px rgba(0,255,136,0.15)" },
-          "50%": { boxShadow: "0 0 40px rgba(0,255,136,0.3)" },
+          "0%, 100%": { boxShadow: "0 0 20px rgba(37,99,235,0.15)" },
+          "50%": { boxShadow: "0 0 40px rgba(37,99,235,0.3)" },
         },
         "slide-in-left": {
           "0%": { opacity: "0", transform: "translateX(-20px)" },
@@ -106,8 +106,8 @@ const config = {
       boxShadow: {
         glass: "0 8px 32px rgba(0,0,0,0.3)",
         "glass-sm": "0 4px 16px rgba(0,0,0,0.2)",
-        neon: "0 0 20px rgba(0,255,136,0.15)",
-        "neon-lg": "0 0 40px rgba(0,255,136,0.25)",
+        neon: "0 0 20px rgba(37,99,235,0.20)",
+        "neon-lg": "0 0 40px rgba(37,99,235,0.30)",
       },
     },
   },

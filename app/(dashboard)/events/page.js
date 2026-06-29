@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { eventsAPI, usersAPI, api } from "@/lib/api";
 import { Loading } from "@/components/loading";
@@ -15,27 +15,33 @@ import {
   ChevronUp,
 } from "lucide-react";
 
-const STATUS_STYLES = {
-  Upcoming: "bg-[#00D4FF]/15 text-[#00D4FF] ring-1 ring-[#00D4FF]/25",
-  Ongoing: "bg-[#00FF88]/15 text-[#00FF88] ring-1 ring-[#00FF88]/25",
-  Completed: "bg-white/[0.08] text-white/60 ring-1 ring-white/[0.1]",
-  Cancelled: "bg-[#FF6B6B]/15 text-[#FF6B6B] ring-1 ring-[#FF6B6B]/25",
+const STATUS_STYLE = {
+  Upcoming: { clr: "var(--color-info)" },
+  Ongoing: { clr: "var(--color-success)" },
+  Completed: { clr: "var(--text-muted)" },
+  Cancelled: { clr: "var(--color-danger)" },
 };
 
 const STATUS_DOT = {
-  Upcoming: "bg-[#00D4FF]",
-  Ongoing: "bg-[#00FF88]",
-  Completed: "bg-white/30",
-  Cancelled: "bg-[#FF6B6B]",
+  Upcoming: { background: "var(--color-info)" },
+  Ongoing: { background: "var(--color-success)" },
+  Completed: { background: "var(--text-muted)" },
+  Cancelled: { background: "var(--color-danger)" },
 };
 
-const RSVP_STATUS = {
-  Pending: "bg-[#FFB84D]/15 text-[#FFB84D] ring-1 ring-[#FFB84D]/25",
-  Accepted: "bg-[#00FF88]/15 text-[#00FF88] ring-1 ring-[#00FF88]/25",
-  Declined: "bg-[#FF6B6B]/15 text-[#FF6B6B] ring-1 ring-[#FF6B6B]/25",
-  Attended: "bg-[#00D4FF]/15 text-[#00D4FF] ring-1 ring-[#00D4FF]/25",
-  Absent: "bg-white/[0.08] text-white/60 ring-1 ring-white/[0.1]",
+const RSVP_STYLE = {
+  Pending: { clr: "var(--color-warning)" },
+  Accepted: { clr: "var(--color-success)" },
+  Declined: { clr: "var(--color-danger)" },
+  Attended: { clr: "var(--color-info)" },
+  Absent: { clr: "var(--text-muted)" },
 };
+
+const badgeStyle = (clr) => ({
+  background: `color-mix(in srgb, ${clr} 12%, transparent)`,
+  color: clr,
+  border: `1px solid color-mix(in srgb, ${clr} 22%, transparent)`,
+});
 
 export default function EventsPage() {
   const { user } = useAuth();
@@ -48,6 +54,7 @@ export default function EventsPage() {
   const [alert, setAlert] = useState(null);
   const [sortField, setSortField] = useState("startDate");
   const [sortDir, setSortDir] = useState("asc");
+  const [hoverEl, setHoverEl] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -121,7 +128,7 @@ export default function EventsPage() {
     if (!confirm("Are you sure you want to delete this event?")) return;
     try {
       await eventsAPI.delete(id);
-      setAlert({ type: "success", msg: "Event deleted successfully!" });
+      setAlert({ type: "error", msg: "Event deleted successfully!" });
       fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to delete event" });
@@ -176,13 +183,32 @@ export default function EventsPage() {
 
   const SortIcon = ({ field }) => {
     if (sortField !== field)
-      return <ChevronDown className="w-3 h-3 text-white/30" />;
+      return <ChevronDown className="w-3 h-3" style={{ color: "var(--text-muted)" }} />;
     return sortDir === "asc" ? (
-      <ChevronUp className="w-3 h-3 text-[#00FF88]" />
+      <ChevronUp className="w-3 h-3" style={{ color: "var(--color-success)" }} />
     ) : (
-      <ChevronDown className="w-3 h-3 text-[#00FF88]" />
+      <ChevronDown className="w-3 h-3" style={{ color: "var(--color-success)" }} />
     );
   };
+
+  const getPriorityStyle = (priority) => {
+    const map = {
+      High: "var(--color-danger)",
+      Medium: "var(--color-warning)",
+      Low: "var(--color-success)",
+    };
+    return badgeStyle(map[priority] || "var(--text-muted)");
+  };
+
+  const actionBtnStyle = (hoverClr, isHover) => ({
+    padding: "0.375rem",
+    borderRadius: "0.375rem",
+    color: isHover ? hoverClr : "var(--text-muted)",
+    background: isHover ? `color-mix(in srgb, ${hoverClr} 10%, transparent)` : "transparent",
+    border: "none",
+    cursor: "pointer",
+    transition: "color 0.2s ease, background 0.2s ease",
+  });
 
   const sorted = [...events].sort((a, b) => {
     let av = a[sortField],
@@ -214,13 +240,18 @@ export default function EventsPage() {
   if (loading) return <Loading />;
 
   return (
-    <div className="w-full min-h-screen bg-[#0B1220]">
+    <div className="w-full min-h-screen" style={{ background: "var(--bg-base)" }}>
       {/* Header */}
-      <div className="w-full bg-white/[0.02] backdrop-blur-xl border-b border-white/[0.06] px-6 py-4">
+      <div
+        className="w-full backdrop-blur-xl px-6 py-4"
+        style={{ background: "var(--bg-muted)", borderBottom: "1px solid var(--border)" }}
+      >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white/85">Events</h1>
-            <p className="text-sm text-white/50 mt-1">
+            <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+              Events
+            </h1>
+            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
               Manage organizational events and RSVPs
             </p>
           </div>
@@ -230,7 +261,8 @@ export default function EventsPage() {
                 resetForm();
                 setShowForm(true);
               }}
-              className="gap-2 bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] hover:opacity-90 w-full sm:w-auto justify-center"
+              className="btn-create-task gap-2 w-full sm:w-auto justify-center"
+              style={{ color: "var(--active-text)" }}
             >
               <Plus className="h-4 w-4" />
               New Event
@@ -251,17 +283,26 @@ export default function EventsPage() {
       <div className="w-full px-6 py-5">
         {/* Event Form */}
         {showForm && (
-          <div className="w-full bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl mb-5 overflow-hidden shadow-glass-sm">
-            <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
-              <h2 className="text-base font-bold text-white/85">
+          <div
+            className="w-full backdrop-blur-xl rounded-2xl mb-5 overflow-hidden shadow-glass-sm"
+            style={{ background: "var(--bg-muted)", border: "1px solid var(--border)" }}
+          >
+            <div
+              className="px-6 py-4"
+              style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}
+            >
+              <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
                 {editingEvent ? "Edit Event" : "Create New Event"}
               </h2>
             </div>
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
-                    Event Title <span className="text-red-400">*</span>
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Event Title <span style={{ color: "var(--color-danger)" }}>*</span>
                   </label>
                   <input
                     type="text"
@@ -269,12 +310,15 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, title: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                     placeholder="Enter event title"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     Event Type
                   </label>
                   <select
@@ -282,7 +326,7 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, type: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                   >
                     <option value="Meeting">Meeting</option>
                     <option value="Training">Training</option>
@@ -293,7 +337,10 @@ export default function EventsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     Priority
                   </label>
                   <select
@@ -301,7 +348,7 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, priority: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                   >
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
@@ -309,8 +356,11 @@ export default function EventsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
-                    Start Date <span className="text-red-400">*</span>
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Start Date <span style={{ color: "var(--color-danger)" }}>*</span>
                   </label>
                   <input
                     type="datetime-local"
@@ -318,12 +368,15 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, startDate: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
-                    End Date <span className="text-red-400">*</span>
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    End Date <span style={{ color: "var(--color-danger)" }}>*</span>
                   </label>
                   <input
                     type="datetime-local"
@@ -331,11 +384,14 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, endDate: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     Location
                   </label>
                   <input
@@ -344,7 +400,7 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, location: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                     placeholder="Physical location (if not virtual)"
                   />
                 </div>
@@ -356,15 +412,19 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, isVirtual: e.target.checked })
                     }
-                    className="w-4 h-4 rounded border-white/30 text-[#00FF88] focus:ring-[#00FF88] bg-white/[0.05]"
+                    className="w-4 h-4 rounded"
+                    style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
                   />
-                  <label htmlFor="isVirtual" className="text-sm text-white/60">
+                  <label htmlFor="isVirtual" className="text-sm" style={{ color: "var(--text-secondary)" }}>
                     Virtual Event
                   </label>
                 </div>
                 {formData.isVirtual && (
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
+                    <label
+                      className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       Meeting Link
                     </label>
                     <input
@@ -376,13 +436,16 @@ export default function EventsPage() {
                           meetingLink: e.target.value,
                         })
                       }
-                      className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                      className="input-field"
                       placeholder="https://meet.google.com/..."
                     />
                   </div>
                 )}
                 <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
+                  <label
+                    className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     Description
                   </label>
                   <textarea
@@ -391,20 +454,30 @@ export default function EventsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/30 resize-y focus:outline-none focus:border-[#00FF88] focus:bg-white/[0.08] transition-colors"
+                    className="input-field"
                     placeholder="Event description and agenda..."
                   />
                 </div>
                 {canManage && (
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-xs font-semibold text-white/80 font-medium uppercase tracking-wide mb-1.5">
+                    <label
+                      className="block text-xs font-semibold uppercase tracking-wide mb-1.5"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       Assign To
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {users.map((u) => (
                         <label
                           key={u._id}
-                          className="flex items-center gap-2 bg-white/[0.05] px-3 py-2 rounded-lg cursor-pointer hover:bg-white/[0.08] transition-colors"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
+                          style={{ background: "var(--bg-muted)" }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "color-mix(in srgb, white 4%, var(--bg-muted))")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "var(--bg-muted)")
+                          }
                         >
                           <input
                             type="checkbox"
@@ -424,9 +497,10 @@ export default function EventsPage() {
                                 });
                               }
                             }}
-                            className="w-4 h-4 rounded border-white/30 text-[#00FF88] focus:ring-[#00FF88] bg-white/[0.05]"
+                            className="w-4 h-4 rounded"
+                            style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
                           />
-                          <span className="text-sm text-white/70">
+                          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
                             {u.name}
                           </span>
                         </label>
@@ -435,17 +509,26 @@ export default function EventsPage() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 justify-end pt-3 border-t border-white/[0.06]">
+              <div
+                className="flex flex-col sm:flex-row gap-2 justify-end pt-3"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 text-sm font-medium text-white/50 border border-white/[0.1] rounded-lg hover:bg-white/[0.06] hover:text-white/70 transition-colors w-full sm:w-auto"
+                  className="btn-secondary w-full sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-sm font-semibold bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] hover:opacity-90 rounded-lg transition-colors w-full sm:w-auto"
+                  className="btn-create-task px-5 py-2 text-sm font-semibold rounded-lg w-full sm:w-auto"
+                  style={{
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
                 >
                   {editingEvent ? "Update Event" : "Create Event"}
                 </button>
@@ -455,12 +538,18 @@ export default function EventsPage() {
         )}
 
         {/* Events Table */}
-        <div className="bg-white/[0.04] backdrop-blur-xl rounded-2xl border border-white/[0.06] shadow-glass-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
-            <h2 className="text-lg font-bold text-white/85">
+        <div
+          className="backdrop-blur-xl rounded-2xl shadow-glass-sm overflow-hidden"
+          style={{ background: "var(--bg-muted)", border: "1px solid var(--border)" }}
+        >
+          <div
+            className="px-6 py-4"
+            style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}
+          >
+            <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
               Events Overview
             </h2>
-            <p className="text-sm text-white/50 mt-1">
+            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
               Showing {sorted.length} events
             </p>
           </div>
@@ -473,162 +562,165 @@ export default function EventsPage() {
                 alt="No data"
                 className="w-32 h-32 object-contain"
               />
-              <p className="text-white/50 font-medium">No events found</p>
+              <p className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                No events found
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-white/[0.04] bg-white/[0.02]">
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                  <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                    <th className="px-4 py-3 text-left table-head">
                       Event
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left table-head">
                       Type
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left table-head">
                       Start Date
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left table-head">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left table-head">
                       Priority
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left table-head">
                       Attendees
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-white/40 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left table-head">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((event) => {
-                    const getPriorityColor = (priority) => {
-                      const colors = {
-                        High: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
-                        Medium:
-                          "bg-[#FFB84D]/15 text-[#FFB84D] border-[#FFB84D]/25",
-                        Low: "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
-                      };
-                      return (
-                        colors[priority] ||
-                        "bg-white/[0.08] text-white/60 border-white/[0.1]"
-                      );
-                    };
-
-                    return (
-                      <tr
-                        key={event._id}
-                        className="bg-transparent border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
-                      >
-                        <td className="px-4 py-3 max-w-xs">
-                          <div>
-                            <p className="font-semibold text-white/85 text-sm truncate">
-                              {event.title}
+                  {sorted.map((event) => (
+                    <tr
+                      key={event._id}
+                      className="table-row-hover"
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                    >
+                      <td className="px-4 py-3 max-w-xs">
+                        <div>
+                          <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
+                            {event.title}
+                          </p>
+                          {event.description && (
+                            <p className="text-xs mt-0.5 line-clamp-1 truncate" style={{ color: "var(--text-secondary)" }}>
+                              {event.description}
                             </p>
-                            {event.description && (
-                              <p className="text-xs text-white/50 mt-0.5 line-clamp-1 truncate">
-                                {event.description}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-medium text-white/60 bg-white/[0.08] px-2 py-1 rounded-md">
-                            {event.type}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs text-white/60">
-                            {fmtDateTime(event.startDate)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${STATUS_STYLES[event.status]}`}
-                          >
-                            {event.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getPriorityColor(event.priority)}`}
-                          >
-                            {event.priority}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {event.assignedTo && event.assignedTo.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {event.assignedTo
-                                  .slice(0, 2)
-                                  .map((user, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="text-xs font-medium text-[#B366FF] bg-[#B366FF]/15 px-2 py-1 rounded-md border border-[#B366FF]/25"
-                                      title={
-                                        typeof user === "object"
-                                          ? user.name
-                                          : user
-                                      }
-                                    >
-                                      {typeof user === "object"
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-xs font-medium px-2 py-1 rounded-md"
+                          style={{ color: "var(--text-secondary)", background: "var(--bg-muted)" }}
+                        >
+                          {event.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                          {fmtDateTime(event.startDate)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                          style={badgeStyle(STATUS_STYLE[event.status]?.clr || "var(--text-muted)")}
+                        >
+                          {event.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                          style={getPriorityStyle(event.priority)}
+                        >
+                          {event.priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {event.assignedTo && event.assignedTo.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {event.assignedTo
+                                .slice(0, 2)
+                                .map((user, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="text-xs font-medium px-2 py-1 rounded-md"
+                                    style={badgeStyle("var(--color-purple)")}
+                                    title={
+                                      typeof user === "object"
                                         ? user.name
-                                        : user}
-                                    </span>
-                                  ))}
-                                {event.assignedTo.length > 2 && (
-                                  <span className="text-xs font-medium text-white/50 bg-white/[0.08] px-2 py-1 rounded-md">
-                                    +{event.assignedTo.length - 2}
+                                        : user
+                                    }
+                                  >
+                                    {typeof user === "object"
+                                      ? user.name
+                                      : user}
                                   </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-white/40">
-                                No attendees
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            {event.status !== "Completed" && (
+                                ))}
+                              {event.assignedTo.length > 2 && (
+                                <span
+                                  className="text-xs font-medium px-2 py-1 rounded-md"
+                                  style={{ color: "var(--text-secondary)", background: "var(--bg-muted)" }}
+                                >
+                                  +{event.assignedTo.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                              No attendees
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          {event.status !== "Completed" && (
+                            <button
+                              onClick={() => handleMarkComplete(event._id)}
+                              style={actionBtnStyle("var(--color-success)", hoverEl === "complete-" + event._id)}
+                              onMouseEnter={() => setHoverEl("complete-" + event._id)}
+                              onMouseLeave={() => setHoverEl(null)}
+                              title="Mark as completed"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canManage && (
+                            <>
                               <button
-                                onClick={() => handleMarkComplete(event._id)}
-                                className="p-1.5 text-white/50 hover:text-[#00FF88] hover:bg-[#00FF88]/10 rounded-md transition-colors"
-                                title="Mark as completed"
+                                onClick={() => {
+                                  setEditingEvent(event);
+                                  setFormData(event);
+                                  setShowForm(true);
+                                }}
+                                style={actionBtnStyle("var(--color-info)", hoverEl === "edit-" + event._id)}
+                                onMouseEnter={() => setHoverEl("edit-" + event._id)}
+                                onMouseLeave={() => setHoverEl(null)}
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <Edit className="w-3.5 h-3.5" />
                               </button>
-                            )}
-                            {canManage && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setEditingEvent(event);
-                                    setFormData(event);
-                                    setShowForm(true);
-                                  }}
-                                  className="p-1.5 text-white/50 hover:text-[#00D4FF] hover:bg-[#00D4FF]/10 rounded-md transition-colors"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(event._id)}
-                                  className="p-1.5 text-white/50 hover:text-[#FF6B6B] hover:bg-[#FF6B6B]/10 rounded-md transition-colors"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                              <button
+                                onClick={() => handleDelete(event._id)}
+                                style={actionBtnStyle("var(--color-danger)", hoverEl === "delete-" + event._id)}
+                                onMouseEnter={() => setHoverEl("delete-" + event._id)}
+                                onMouseLeave={() => setHoverEl(null)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

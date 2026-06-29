@@ -34,6 +34,38 @@ import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+/* ─── Badge / tag colour helpers ─── */
+const priorityStyle = (p) => {
+  const m = {
+    Critical: { bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)", clr: "var(--color-danger)",  bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)" },
+    High:     { bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)",  clr: "var(--color-warning)", bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)" },
+    Medium:   { bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",  clr: "var(--color-info)",   bd: "color-mix(in srgb, var(--color-info) 22%, transparent)" },
+    Low:      { bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",  clr: "var(--color-success)", bd: "color-mix(in srgb, var(--color-success) 22%, transparent)" },
+  };
+  const c = m[p];
+  return c
+    ? { background: c.bg, color: c.clr, border: `1px solid ${c.bd}` }
+    : { background: "var(--bg-muted)", color: "var(--text-muted)", border: "1px solid var(--border)" };
+};
+
+const statusStyle = (s) => {
+  const m = {
+    Completed:   { bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",  clr: "var(--color-success)", bd: "color-mix(in srgb, var(--color-success) 22%, transparent)" },
+    "In Progress": { bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",  clr: "var(--color-info)",   bd: "color-mix(in srgb, var(--color-info) 22%, transparent)" },
+    Pending:     { bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)",  clr: "var(--color-warning)", bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)" },
+    Overdue:     { bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)", clr: "var(--color-danger)",  bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)" },
+  };
+  const c = m[s];
+  return c
+    ? { background: c.bg, color: c.clr, border: `1px solid ${c.bd}` }
+    : { background: "var(--bg-muted)", color: "var(--text-muted)", border: "1px solid var(--border)" };
+};
+
+const tagStyle = (clrVar, bgOpacity = "0.12", bdOpacity = "0.22") => {
+  // Return a partial style – caller provides the variable value at usage time
+  return { background: `color-mix(in srgb, ${clrVar} 12%, transparent)`, color: clrVar, border: `1px solid color-mix(in srgb, ${clrVar} 22%, transparent)` };
+};
+
 export default function TasksPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -341,22 +373,6 @@ export default function TasksPage() {
     }
   };
 
-  const getPriorityColor = (priority) => {
-    const colors = {
-      Critical: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
-      High: "bg-[#FFB84D]/15 text-[#FFB84D] border-[#FFB84D]/25",
-      Medium: "bg-[#00D4FF]/15 text-[#00D4FF] border-[#00D4FF]/25",
-      Low: "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
-    };
-    return colors[priority] || "bg-white/10 text-white/60 border-white/10";
-  };
-
-  const getStatusColor = (status) => {
-    return status === "completed"
-      ? "bg-white/[0.04] border-white/[0.06]"
-      : "bg-white/[0.02] border-white/[0.06]";
-  };
-
   const filteredTasks = canAssignTasks
     ? tasks
     : tasks.filter((task) =>
@@ -384,22 +400,30 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1220]">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)" }}>
       {/* Header with Create Task */}
-      <div className="sticky top-0 z-30 bg-[#0A0F1A]/80 backdrop-blur-xl border-b border-white/[0.06] shadow-glass-sm">
+      <div
+        className="sticky top-0 z-30 backdrop-blur-xl"
+        style={{
+          backgroundColor: "var(--bg-surface)",
+          borderBottom: "1px solid var(--border)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
         <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">
+            <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               Tasks
             </h1>
-            <p className="text-white/50 text-base mt-1 font-medium">
+            <p className="text-base mt-1 font-medium" style={{ color: "var(--text-secondary)" }}>
               {canAssignTasks ? "Manage all tasks" : "Your assigned tasks"}
             </p>
           </div>
           {canAssignTasks && (
             <Button
               onClick={handleTaskCreate}
-              className="bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] hover:shadow-neon rounded-xl font-bold text-base px-6 py-3"
+              className="btn-create-task font-bold text-base px-6 py-3 rounded-xl"
+              style={{ color: "var(--active-text)" }}
             >
               <Plus className="h-5 w-5 mr-2" />
               Create Task
@@ -423,38 +447,48 @@ export default function TasksPage() {
 
       {/* Create Task Modal */}
       {canAssignTasks && activeTab === "create" && (
-        <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
           <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
-            <Card
-              className="w-full max-w-3xl rounded-3xl border-white/[0.08] shadow-2xl relative overflow-hidden"
-              style={{ background: "linear-gradient(180deg, #111827 0%, #0B1220 100%)" }}
-            >
+            <Card className="w-full max-w-3xl relative overflow-hidden">
               {/* Ambient glow */}
-              <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#00FF88]/5 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#00D4FF]/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{ background: "color-mix(in srgb, var(--color-success) 6%, transparent)" }} />
+              <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{ background: "color-mix(in srgb, var(--color-info) 6%, transparent)" }} />
 
-              <CardHeader className="border-b border-white/[0.06] px-8 py-6 relative z-10">
+              <CardHeader className="px-8 py-6 relative z-10"
+                style={{ borderBottom: "1px solid var(--border)" }}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00FF88] to-[#00CC70] p-[2px] flex-shrink-0">
-                      <div className="w-full h-full rounded-2xl bg-[#0B1220] flex items-center justify-center">
-                        <Plus className="w-6 h-6 text-[#00FF88]" />
+                    <div className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)" }}>
+                      <div className="w-full h-full rounded-2xl flex items-center justify-center"
+                        style={{ backgroundColor: "var(--bg-card)" }}>
+                        <Plus className="w-6 h-6" style={{ color: "var(--color-success)" }} />
                       </div>
                     </div>
                     <div>
-                      <CardTitle className="text-2xl font-bold text-white tracking-tight">
+                      <CardTitle className="text-2xl font-bold tracking-tight">
                         Create New Task
                       </CardTitle>
-                      <CardDescription className="text-white/50 mt-1 text-base">
+                      <CardDescription className="mt-1 text-base">
                         Assign tasks to team members
                       </CardDescription>
                     </div>
                   </div>
                   <button
                     onClick={() => setActiveTab("view")}
-                    className="w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
+                    style={{
+                      backgroundColor: "var(--bg-muted)",
+                      border: "1px solid var(--border)",
+                    }}
                   >
-                    <X className="w-5 h-5 text-white/40 group-hover:text-white/80 transition-colors" />
+                    <X className="w-5 h-5 transition-colors"
+                      style={{ color: "var(--text-muted)" }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-primary)"}
+                      onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"} />
                   </button>
                 </div>
               </CardHeader>
@@ -463,8 +497,9 @@ export default function TasksPage() {
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {/* Title - Full width */}
                   <div className="space-y-2">
-                    <Label htmlFor="title" className="text-sm font-semibold text-white/80">
-                      Task Title <span className="text-[#FF6B6B]">*</span>
+                    <Label htmlFor="title" className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}>
+                      Task Title <span style={{ color: "var(--color-danger)" }}>*</span>
                     </Label>
                     <Input
                       id="title"
@@ -474,49 +509,59 @@ export default function TasksPage() {
                       }
                       placeholder="e.g., Design new landing page"
                       required
-                      className="h-[52px] rounded-xl bg-[#111827] border-white/[0.08] text-white placeholder:text-white/30 focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                      className="input-field h-[52px] text-base"
                     />
                   </div>
 
                   {/* Row: Assign To | Priority */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-white/80">
-                        Assign To <span className="text-[#FF6B6B]">*</span>
+                      <Label className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Assign To <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
-                      <div className="max-h-48 overflow-y-auto space-y-1 bg-[#111827] border border-white/[0.08] rounded-2xl p-2">
+                      <div className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
+                        style={{
+                          backgroundColor: "var(--bg-surface)",
+                          border: "1px solid var(--border)",
+                        }}>
                         {users.length === 0 ? (
-                          <p className="text-sm text-white/40 p-3 text-center">Loading users...</p>
+                          <p className="text-sm p-3 text-center" style={{ color: "var(--text-muted)" }}>Loading users...</p>
                         ) : (
                           users.map((u) => {
                             const isSelected = formData.assignedTo.includes(u._id);
                             return (
                               <label
                                 key={u._id}
-                                className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
-                                  isSelected
-                                    ? "bg-[#00FF88]/10 border border-[#00FF88]/20"
-                                    : "hover:bg-white/[0.05] border border-transparent"
-                                }`}
+                                className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200"
+                                style={{
+                                  backgroundColor: isSelected ? "color-mix(in srgb, var(--color-success) 8%, transparent)" : "transparent",
+                                  border: isSelected ? "1px solid color-mix(in srgb, var(--color-success) 0.2)" : "1px solid transparent",
+                                }}
                               >
                                 <div
-                                  className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                                    isSelected
-                                      ? "bg-[#00FF88] border-[#00FF88]"
-                                      : "border-white/20 bg-white/[0.05]"
-                                  }`}
+                                  className="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0"
+                                  style={{
+                                    backgroundColor: isSelected ? "var(--color-success)" : "var(--bg-muted)",
+                                    borderColor: isSelected ? "var(--color-success)" : "var(--border)",
+                                  }}
                                 >
                                   {isSelected && (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0B1220]" />
+                                    <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "var(--text-inverse)" }} />
                                   )}
                                 </div>
                                 <div className="flex-1 flex items-center justify-between min-w-0">
                                   <span
-                                    className={`text-sm font-medium truncate ${isSelected ? "text-white" : "text-white/70"}`}
+                                    className="text-sm font-medium truncate"
+                                    style={{ color: isSelected ? "var(--text-primary)" : "var(--text-secondary)" }}
                                   >
                                     {u.name}
                                   </span>
-                                  <span className="text-xs text-white/40 bg-white/[0.05] px-2 py-0.5 rounded-md flex-shrink-0 ml-2">
+                                  <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
+                                    style={{
+                                      color: "var(--text-muted)",
+                                      backgroundColor: "var(--bg-muted)",
+                                    }}>
                                     {u.role}
                                   </span>
                                 </div>
@@ -551,7 +596,8 @@ export default function TasksPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="priority" className="text-sm font-semibold text-white/80">
+                      <Label htmlFor="priority" className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
                         Priority
                       </Label>
                       <div className="relative">
@@ -564,7 +610,7 @@ export default function TasksPage() {
                               priority: e.target.value,
                             })
                           }
-                          className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 pr-12 appearance-none cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                          className="input-field h-[52px] text-base appearance-none cursor-pointer"
                         >
                           <option value="Low">Low</option>
                           <option value="Medium">Medium</option>
@@ -572,7 +618,7 @@ export default function TasksPage() {
                           <option value="Critical">Critical</option>
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                          <ChevronDown className="w-4 h-4 text-white/40" />
+                          <ChevronDown className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
                         </div>
                       </div>
                     </div>
@@ -581,7 +627,8 @@ export default function TasksPage() {
                   {/* Row: Deadline | Task Type */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label htmlFor="deadline" className="text-sm font-semibold text-white/80">
+                      <Label htmlFor="deadline" className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
                         Deadline
                       </Label>
                       <DatePicker
@@ -594,7 +641,7 @@ export default function TasksPage() {
                         }
                         dateFormat="dd MMM yyyy"
                         placeholderText="Select deadline"
-                        className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                        className="input-field h-[52px] text-base cursor-pointer"
                         wrapperClassName="w-full"
                         popperClassName="react-datepicker-dark"
                         calendarClassName="react-datepicker-dark-calendar"
@@ -604,10 +651,15 @@ export default function TasksPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-white/80">
+                      <Label className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
                         Task Type
                       </Label>
-                      <div className="flex gap-2 bg-[#111827] border border-white/[0.08] rounded-xl p-1.5">
+                      <div className="flex gap-2 rounded-xl p-1.5"
+                        style={{
+                          backgroundColor: "var(--bg-surface)",
+                          border: "1px solid var(--border)",
+                        }}>
                         {[
                           { value: "One-time", label: "One-time" },
                           { value: "daily", label: "Daily" },
@@ -616,11 +668,19 @@ export default function TasksPage() {
                         ].map(({ value, label }) => (
                           <label
                             key={value}
-                            className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200 text-sm font-medium ${
+                            className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200 text-sm font-medium"
+                            style={
                               formData.taskType === value
-                                ? "bg-gradient-to-r from-[#00FF88]/20 to-[#00CC70]/20 text-[#00FF88] border border-[#00FF88]/20 shadow-sm"
-                                : "text-white/50 hover:text-white/70 hover:bg-white/[0.05] border border-transparent"
-                            }`}
+                                ? {
+                                    background: "linear-gradient(135deg, color-mix(in srgb, var(--primary-mid) 18%, transparent) 0%, color-mix(in srgb, var(--accent) 18%, transparent) 100%)",
+                                    color: "var(--color-info)",
+                                    border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+                                  }
+                                : {
+                                    color: "var(--text-muted)",
+                                    border: "1px solid transparent",
+                                  }
+                            }
                           >
                             <input
                               type="radio"
@@ -663,13 +723,19 @@ export default function TasksPage() {
 
                   {/* Recurring Pattern Options */}
                   {formData.taskType !== "One-time" && (
-                    <div className="space-y-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 animate-fade-in">
-                      <Label className="text-sm font-semibold text-white/80">
+                    <div className="space-y-3 rounded-2xl p-4 animate-fade-in"
+                      style={{
+                        backgroundColor: "var(--bg-muted)",
+                        border: "1px solid var(--border)",
+                      }}>
+                      <Label className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
                         Recurrence Details
                       </Label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium text-white/60">
+                          <Label className="text-xs font-medium"
+                            style={{ color: "var(--text-muted)" }}>
                             Repeat every
                           </Label>
                           <Input
@@ -685,11 +751,12 @@ export default function TasksPage() {
                                 },
                               })
                             }
-                            className="h-11 rounded-xl bg-[#111827] border-white/[0.08] text-white"
+                            className="input-field h-11"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium text-white/60">
+                          <Label className="text-xs font-medium"
+                            style={{ color: "var(--text-muted)" }}>
                             End Date
                           </Label>
                           <DatePicker
@@ -702,7 +769,7 @@ export default function TasksPage() {
                             }
                             dateFormat="dd MMM yyyy"
                             placeholderText="No end date"
-                            className="w-full h-11 rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-sm"
+                            className="input-field h-11 text-sm cursor-pointer"
                             wrapperClassName="w-full"
                             popperClassName="react-datepicker-dark"
                             calendarClassName="react-datepicker-dark-calendar"
@@ -718,7 +785,8 @@ export default function TasksPage() {
                   <div className="space-y-2">
                     <Label
                       htmlFor="description"
-                      className="text-sm font-semibold text-white/80"
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
                     >
                       Description
                     </Label>
@@ -732,18 +800,23 @@ export default function TasksPage() {
                         })
                       }
                       placeholder="Describe the task, requirements, and any relevant details..."
-                      className="w-full min-h-[140px] px-4 py-3 rounded-xl bg-[#111827] border border-white/[0.08] text-white placeholder:text-white/30 resize-y focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 outline-none transition-all duration-200 text-base"
+                      className="input-field min-h-[140px] resize-y text-base"
                       rows="4"
                     />
                   </div>
 
                   {/* Buttons */}
-
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/[0.06]">
+                  <div className="grid grid-cols-2 gap-4 pt-4"
+                    style={{ borderTop: "1px solid var(--border)" }}>
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="h-[52px] rounded-xl bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-bold text-base hover:shadow-[0_0_30px_rgba(0,255,136,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                      style={{
+                        background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                        color: "var(--text-inverse)",
+                        boxShadow: "0 2px 12px color-mix(in srgb, var(--color-success) 30%, transparent)",
+                      }}
+                      className="h-[52px] font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
                     >
                       {isSubmitting ? (
                         <span className="flex items-center gap-2">
@@ -780,7 +853,7 @@ export default function TasksPage() {
                       variant="outline"
                       onClick={() => setActiveTab("view")}
                       disabled={isSubmitting}
-                      className="h-[52px] rounded-xl border-white/[0.12] text-white/70 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.2] transition-all duration-200 font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-[52px] font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
                     >
                       Cancel
                     </Button>
@@ -794,30 +867,34 @@ export default function TasksPage() {
 
       {/* Edit Task Modal */}
       {editingTask && (
-        <div className="fixed inset-0 bg-black/80 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
           <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
-            <Card
-              className="w-full max-w-3xl rounded-3xl border-white/[0.08] shadow-2xl relative overflow-hidden"
-              style={{ background: "linear-gradient(180deg, #111827 0%, #0B1220 100%)" }}
-            >
+            <Card className="w-full max-w-3xl relative overflow-hidden">
               {/* Ambient glow */}
-              <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#00D4FF]/5 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[#00FF88]/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{ background: "color-mix(in srgb, var(--color-info) 6%, transparent)" }} />
+              <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{ background: "color-mix(in srgb, var(--color-success) 6%, transparent)" }} />
 
-              <CardHeader className="border-b border-white/[0.06] px-8 py-6 relative z-10">
+              <CardHeader className="px-8 py-6 relative z-10"
+                style={{ borderBottom: "1px solid var(--border)" }}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00D4FF] to-[#0099CC] p-[2px] flex-shrink-0">
-                      <div className="w-full h-full rounded-2xl bg-[#0B1220] flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
+style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)" }}>
+          <div className="w-full h-full rounded-2xl flex items-center justify-center"
+                        style={{ backgroundColor: "var(--bg-card)" }}>
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="w-6 h-6 text-[#00D4FF]"
+                          className="w-6 h-6"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
+                          style={{ color: "var(--color-info)" }}
                         >
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -825,19 +902,26 @@ export default function TasksPage() {
                       </div>
                     </div>
                     <div>
-                      <CardTitle className="text-2xl font-bold text-white tracking-tight">
+                      <CardTitle className="text-2xl font-bold tracking-tight">
                         Edit Task
                       </CardTitle>
-                      <CardDescription className="text-white/50 mt-1 text-base">
+                      <CardDescription className="mt-1 text-base">
                         Update task details
                       </CardDescription>
                     </div>
                   </div>
                   <button
                     onClick={() => setEditingTask(null)}
-                    className="w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
+                    style={{
+                      backgroundColor: "var(--bg-muted)",
+                      border: "1px solid var(--border)",
+                    }}
                   >
-                    <X className="w-5 h-5 text-white/40 group-hover:text-white/80 transition-colors" />
+                    <X className="w-5 h-5 transition-colors"
+                      style={{ color: "var(--text-muted)" }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-primary)"}
+                      onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"} />
                   </button>
                 </div>
               </CardHeader>
@@ -846,8 +930,9 @@ export default function TasksPage() {
                 <form onSubmit={handleEditSubmit} className="space-y-5">
                   {/* Title */}
                   <div className="space-y-2">
-                    <Label htmlFor="edit-title" className="text-sm font-semibold text-white/80">
-                      Task Title <span className="text-[#FF6B6B]">*</span>
+                    <Label htmlFor="edit-title" className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}>
+                      Task Title <span style={{ color: "var(--color-danger)" }}>*</span>
                     </Label>
                     <Input
                       id="edit-title"
@@ -860,49 +945,59 @@ export default function TasksPage() {
                       }
                       placeholder="e.g., Design new landing page"
                       required
-                      className="h-[52px] rounded-xl bg-[#111827] border-white/[0.08] text-white placeholder:text-white/30 focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                      className="input-field h-[52px] text-base"
                     />
                   </div>
 
                   {/* Row: Assign To | Priority */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-white/80">
-                        Assign To <span className="text-[#FF6B6B]">*</span>
+                      <Label className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Assign To <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
-                      <div className="max-h-48 overflow-y-auto space-y-1 bg-[#111827] border border-white/[0.08] rounded-2xl p-2">
+                      <div className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
+                        style={{
+                          backgroundColor: "var(--bg-surface)",
+                          border: "1px solid var(--border)",
+                        }}>
                         {users.length === 0 ? (
-                          <p className="text-sm text-white/40 p-3 text-center">Loading users...</p>
+                          <p className="text-sm p-3 text-center" style={{ color: "var(--text-muted)" }}>Loading users...</p>
                         ) : (
                           users.map((u) => {
                             const isSelected = editFormData.assignedTo.includes(u._id);
                             return (
                               <label
                                 key={u._id}
-                                className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200 ${
-                                  isSelected
-                                    ? "bg-[#00FF88]/10 border border-[#00FF88]/20"
-                                    : "hover:bg-white/[0.05] border border-transparent"
-                                }`}
+                                className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200"
+                                style={{
+                                  backgroundColor: isSelected ? "color-mix(in srgb, var(--color-success) 8%, transparent)" : "transparent",
+                                  border: isSelected ? "1px solid color-mix(in srgb, var(--color-success) 0.2)" : "1px solid transparent",
+                                }}
                               >
                                 <div
-                                  className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                                    isSelected
-                                      ? "bg-[#00FF88] border-[#00FF88]"
-                                      : "border-white/20 bg-white/[0.05]"
-                                  }`}
+                                  className="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0"
+                                  style={{
+                                    backgroundColor: isSelected ? "var(--color-success)" : "var(--bg-muted)",
+                                    borderColor: isSelected ? "var(--color-success)" : "var(--border)",
+                                  }}
                                 >
                                   {isSelected && (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0B1220]" />
+                                    <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "var(--text-inverse)" }} />
                                   )}
                                 </div>
                                 <div className="flex-1 flex items-center justify-between min-w-0">
                                   <span
-                                    className={`text-sm font-medium truncate ${isSelected ? "text-white" : "text-white/70"}`}
+                                    className="text-sm font-medium truncate"
+                                    style={{ color: isSelected ? "var(--text-primary)" : "var(--text-secondary)" }}
                                   >
                                     {u.name}
                                   </span>
-                                  <span className="text-xs text-white/40 bg-white/[0.05] px-2 py-0.5 rounded-md flex-shrink-0 ml-2">
+                                  <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
+                                    style={{
+                                      color: "var(--text-muted)",
+                                      backgroundColor: "var(--bg-muted)",
+                                    }}>
                                     {u.role}
                                   </span>
                                 </div>
@@ -938,8 +1033,9 @@ export default function TasksPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="edit-priority" className="text-sm font-semibold text-white/80">
-                        Priority <span className="text-[#FF6B6B]">*</span>
+                      <Label htmlFor="edit-priority" className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Priority <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
                       <div className="relative">
                         <select
@@ -951,7 +1047,7 @@ export default function TasksPage() {
                               priority: e.target.value,
                             })
                           }
-                          className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 pr-12 appearance-none cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                          className="input-field h-[52px] text-base appearance-none cursor-pointer"
                         >
                           <option value="Low">Low</option>
                           <option value="Medium">Medium</option>
@@ -959,7 +1055,7 @@ export default function TasksPage() {
                           <option value="Critical">Critical</option>
                         </select>
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                          <ChevronDown className="w-4 h-4 text-white/40" />
+                          <ChevronDown className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
                         </div>
                       </div>
                     </div>
@@ -968,8 +1064,9 @@ export default function TasksPage() {
                   {/* Row: Deadline | Description */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label htmlFor="edit-deadline" className="text-sm font-semibold text-white/80">
-                        Deadline <span className="text-[#FF6B6B]">*</span>
+                      <Label htmlFor="edit-deadline" className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Deadline <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
                       <DatePicker
                         selected={toDate(editFormData.deadline)}
@@ -981,7 +1078,7 @@ export default function TasksPage() {
                         }
                         dateFormat="dd MMM yyyy"
                         placeholderText="Select deadline"
-                        className="w-full h-[52px] rounded-xl bg-[#111827] border border-white/[0.08] text-white px-4 cursor-pointer focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 transition-all duration-200 text-base"
+                        className="input-field h-[52px] text-base cursor-pointer"
                         wrapperClassName="w-full"
                         popperClassName="react-datepicker-dark"
                         calendarClassName="react-datepicker-dark-calendar"
@@ -995,7 +1092,8 @@ export default function TasksPage() {
                   <div className="space-y-2">
                     <Label
                       htmlFor="edit-description"
-                      className="text-sm font-semibold text-white/80"
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
                     >
                       Description
                     </Label>
@@ -1009,16 +1107,22 @@ export default function TasksPage() {
                         })
                       }
                       placeholder="Describe the task, requirements, and any relevant details..."
-                      className="w-full min-h-[140px] px-4 py-3 rounded-xl bg-[#111827] border border-white/[0.08] text-white placeholder:text-white/30 resize-y focus:border-[#00FF88]/50 focus:ring-2 focus:ring-[#00FF88]/20 outline-none transition-all duration-200 text-base"
+                      className="input-field min-h-[140px] resize-y text-base"
                       rows="4"
                     />
                   </div>
 
                   {/* Buttons */}
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/[0.06]">
+                  <div className="grid grid-cols-2 gap-4 pt-4"
+                    style={{ borderTop: "1px solid var(--border)" }}>
                     <Button
                       type="submit"
-                      className="h-[52px] rounded-xl bg-gradient-to-r from-[#00D4FF] to-[#0099CC] text-white font-bold text-base hover:shadow-[0_0_30px_rgba(0,212,255,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                      style={{
+                        background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)",
+                        color: "white",
+                        boxShadow: "0 2px 12px color-mix(in srgb, var(--color-info) 0.3)",
+                      }}
+                      className="h-[52px] font-bold text-base rounded-xl"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -1039,7 +1143,7 @@ export default function TasksPage() {
                       type="button"
                       variant="outline"
                       onClick={() => setEditingTask(null)}
-                      className="h-[52px] rounded-xl border-white/[0.12] text-white/70 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.2] transition-all duration-200 font-medium text-base"
+                      className="h-[52px] font-medium text-base rounded-xl"
                     >
                       Cancel
                     </Button>
@@ -1057,8 +1161,12 @@ export default function TasksPage() {
           {loading ? (
             <div className="flex items-center justify-center min-h-[60vh]">
               <div className="text-center">
-                <div className="w-12 h-12 rounded-full border-4 border-white/10 border-t-[#00FF88] animate-spin mx-auto mb-4" />
-                <p className="text-white/60 font-medium">Loading tasks...</p>
+                <div className="w-12 h-12 rounded-full border-4 animate-spin mx-auto mb-4"
+                  style={{
+                    borderColor: "var(--border)",
+                    borderTopColor: "var(--color-success)",
+                  }} />
+                <p className="font-medium" style={{ color: "var(--text-muted)" }}>Loading tasks...</p>
               </div>
             </div>
           ) : (
@@ -1067,7 +1175,7 @@ export default function TasksPage() {
               <div className="glass-card p-5 mb-6">
                 <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
                   <div className="flex flex-wrap gap-3 items-center">
-                    <span className="text-sm font-medium text-white/70">
+                    <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                       Status:
                     </span>
                     <div className="flex gap-2">
@@ -1081,11 +1189,32 @@ export default function TasksPage() {
                         <button
                           key={status}
                           onClick={() => setTaskViewTab(status)}
-                          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                          className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                          style={
                             taskViewTab === status
-                              ? "bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] font-semibold shadow-neon"
-                              : "bg-white/[0.05] text-white/60 hover:bg-white/[0.1] hover:text-white/90"
-                          }`}
+                              ? {
+                                  background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                                  color: "var(--active-text)",
+                                  fontWeight: 600,
+                                  boxShadow: "0 4px 14px color-mix(in srgb, var(--active-end) 40%, transparent)",
+                                }
+                              : {
+                                  backgroundColor: "var(--bg-muted)",
+                                  color: "var(--text-muted)",
+                                }
+                          }
+                          onMouseEnter={(e) => {
+                            if (taskViewTab !== status) {
+                              e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
+                              e.currentTarget.style.color = "var(--text-primary)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (taskViewTab !== status) {
+                              e.currentTarget.style.backgroundColor = "var(--bg-muted)";
+                              e.currentTarget.style.color = "var(--text-muted)";
+                            }
+                          }}
                         >
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </button>
@@ -1094,13 +1223,14 @@ export default function TasksPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-3 items-center">
-                    <span className="text-sm font-medium text-white/70">
+                    <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                       Period:
                     </span>
                     <select
                       value={dateFilter}
                       onChange={(e) => setDateFilter(e.target.value)}
-                      className="px-4 py-2 rounded-xl text-sm font-medium bg-white/[0.08] text-white border border-white/[0.1] focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
+                      className="input-field text-sm font-medium"
+                      style={{ width: "auto", minWidth: "140px" }}
                     >
                       <option value="all">All Time</option>
                       <option value="today">Today</option>
@@ -1112,13 +1242,14 @@ export default function TasksPage() {
 
                   {canAssignTasks && (
                     <div className="flex flex-wrap gap-3 items-center">
-                      <span className="text-sm font-medium text-white/70">
+                      <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                         User:
                       </span>
                       <select
                         value={userFilter}
                         onChange={(e) => setUserFilter(e.target.value)}
-                        className="px-4 py-2 rounded-xl text-sm font-medium bg-white/[0.08] text-white border border-white/[0.1] focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
+                        className="input-field text-sm font-medium"
+                        style={{ width: "auto", minWidth: "140px" }}
                       >
                         <option value="">All Users</option>
                         {users.map((u) => (
@@ -1133,27 +1264,30 @@ export default function TasksPage() {
 
                 {/* Custom Date Range */}
                 {dateFilter === "custom" && (
-                  <div className="flex gap-4 mt-4 pt-4 border-t border-white/[0.08]">
+                  <div className="flex gap-4 mt-4 pt-4"
+                    style={{ borderTop: "1px solid var(--border)" }}>
                     <div className="flex-1">
-                      <label className="text-xs font-medium text-white/60 mb-1 block">
+                      <label className="text-xs font-medium mb-1 block"
+                        style={{ color: "var(--text-muted)" }}>
                         Start Date
                       </label>
                       <input
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg text-sm bg-white/[0.08] text-white border border-white/[0.1] focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
+                        className="input-field text-sm"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="text-xs font-medium text-white/60 mb-1 block">
+                      <label className="text-xs font-medium mb-1 block"
+                        style={{ color: "var(--text-muted)" }}>
                         End Date
                       </label>
                       <input
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg text-sm bg-white/[0.08] text-white border border-white/[0.1] focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
+                        className="input-field text-sm"
                       />
                     </div>
                   </div>
@@ -1165,28 +1299,14 @@ export default function TasksPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-white/[0.02] border-b border-white/[0.06]">
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Task
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Priority
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Assigned To
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Deadline
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-white/40 uppercase tracking-wider">
-                          Actions
-                        </th>
+                      <tr className="table-head">
+                        <th className="px-4 py-3 text-left">Task</th>
+                        <th className="px-4 py-3 text-left">Status</th>
+                        <th className="px-4 py-3 text-left">Priority</th>
+                        <th className="px-4 py-3 text-left">Assigned To</th>
+                        <th className="px-4 py-3 text-left">Deadline</th>
+                        <th className="px-4 py-3 text-left">Type</th>
+                        <th className="px-4 py-3 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1194,10 +1314,11 @@ export default function TasksPage() {
                         <tr>
                           <td colSpan="7" className="px-4 py-12 text-center">
                             <div className="flex flex-col items-center gap-3">
-                              <div className="w-16 h-16 rounded-2xl bg-white/[0.05] flex items-center justify-center">
-                                <CheckCircle2 size={28} className="text-white/20" />
+                              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                style={{ backgroundColor: "var(--bg-muted)" }}>
+                                <CheckCircle2 size={28} style={{ color: "var(--text-muted)" }} />
                               </div>
-                              <p className="text-white/50 font-medium">
+                              <p className="font-medium" style={{ color: "var(--text-secondary)" }}>
                                 No tasks found
                               </p>
                             </div>
@@ -1214,22 +1335,13 @@ export default function TasksPage() {
                                   ? "In Progress"
                                   : "Pending";
 
-                          const statusColor =
-                            {
-                              Completed:
-                                "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25",
-                              "In Progress":
-                                "bg-[#00D4FF]/15 text-[#00D4FF] border-[#00D4FF]/25",
-                              Pending:
-                                "bg-[#FFB84D]/15 text-[#FFB84D] border-[#FFB84D]/25",
-                              Overdue: "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25",
-                            }[status] ||
-                            "bg-white/10 text-white/60 border-white/10";
-
                           return (
                             <Fragment key={task._id}>
                               <tr
-                                className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${canAssignTasks && task.status === "Completed" ? "cursor-pointer" : ""}`}
+                                className="table-row-hover transition-colors"
+                                style={{
+                                  borderBottom: "1px solid var(--border)",
+                                }}
                                 onClick={() =>
                                   canAssignTasks &&
                                   task.status === "Completed" &&
@@ -1240,11 +1352,13 @@ export default function TasksPage() {
                               >
                                 <td className="px-4 py-3 max-w-xs">
                                   <div>
-                                    <p className="font-medium text-white/85 text-sm truncate">
+                                    <p className="font-medium text-sm truncate"
+                                      style={{ color: "var(--text-primary)" }}>
                                       {task.title}
                                     </p>
                                     {task.description && (
-                                      <p className="text-xs text-white/40 mt-0.5 line-clamp-2 truncate">
+                                      <p className="text-xs mt-0.5 line-clamp-2 truncate"
+                                        style={{ color: "var(--text-muted)" }}>
                                         {task.description}
                                       </p>
                                     )}
@@ -1252,14 +1366,16 @@ export default function TasksPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <span
-                                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${statusColor}`}
+                                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+                                    style={statusStyle(status)}
                                   >
                                     {status}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3">
                                   <span
-                                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}
+                                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+                                    style={priorityStyle(task.priority)}
                                   >
                                     {task.priority}
                                   </span>
@@ -1274,27 +1390,37 @@ export default function TasksPage() {
                                           .map((user, idx) => (
                                             <span
                                               key={idx}
-                                              className="text-xs font-medium text-[#00D4FF] bg-[#00D4FF]/10 px-2 py-1 rounded-md border border-[#00D4FF]/20"
+                                              className="text-xs font-medium px-2 py-1 rounded-md border"
+                                              style={{
+                                                color: "var(--color-info)",
+                                                backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                                borderColor: "color-mix(in srgb, var(--color-info) 0.2)",
+                                              }}
                                               title={user.name || user}
                                             >
                                               {user.name || "User"}
                                             </span>
                                           ))}
                                         {task.assignedTo.length > 3 && (
-                                          <span className="text-xs font-medium text-white/50 bg-white/[0.05] px-2 py-1 rounded-md border border-white/[0.06]">
+                                          <span className="text-xs font-medium px-2 py-1 rounded-md border"
+                                            style={{
+                                              color: "var(--text-secondary)",
+                                              backgroundColor: "var(--bg-muted)",
+                                              borderColor: "var(--border)",
+                                            }}>
                                             +{task.assignedTo.length - 3} more
                                           </span>
                                         )}
                                       </div>
                                     ) : (
-                                      <span className="text-xs text-white/30">
+                                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                                         Unassigned
                                       </span>
                                     )}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <span className="text-xs text-white/50">
+                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                                     {task.deadline
                                       ? new Date(
                                           task.deadline,
@@ -1308,7 +1434,16 @@ export default function TasksPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <span
-                                    className={`text-xs font-medium ${task.isRecurring ? "text-[#B366FF] bg-[#B366FF]/10 px-2 py-1 rounded-md border border-[#B366FF]/20" : "text-white/40"}`}
+                                    className="text-xs font-medium px-2 py-1 rounded-md border"
+                                    style={
+                                      task.isRecurring
+                                        ? {
+                                            color: "var(--color-purple)",
+                                            backgroundColor: "color-mix(in srgb, var(--color-purple) 8%, transparent)",
+                                            borderColor: "color-mix(in srgb, var(--color-purple) 20%, transparent)",
+                                          }
+                                        : { color: "var(--text-muted)" }
+                                    }
                                   >
                                     {task.taskType || "One-time"}
                                   </span>
@@ -1320,8 +1455,11 @@ export default function TasksPage() {
                                       task.status !== "Completed" && (
                                         <button
                                           onClick={() => handleEdit(task)}
-                                          className="p-1.5 text-[#00D4FF] hover:bg-[#00D4FF]/10 rounded-md transition-colors"
+                                          className="p-1.5 rounded-md transition-colors"
                                           title="Edit task"
+                                          style={{ color: "var(--color-info)" }}
+                                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-info) 8%, transparent)"}
+                                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                                         >
                                           <svg
                                             xmlns="http://www.w3.org/2000/svg"
@@ -1341,16 +1479,22 @@ export default function TasksPage() {
                                     {task.status !== "Completed" && (
                                       <button
                                         onClick={() => handleComplete(task._id)}
-                                        className="p-1.5 text-[#00FF88] hover:bg-[#00FF88]/10 rounded-md transition-colors"
+                                        className="p-1.5 rounded-md transition-colors"
                                         title="Mark as complete"
+                                        style={{ color: "var(--color-success)" }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-success) 8%, transparent)"}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                                       >
                                         <CheckCircle2 className="w-4 h-4" />
                                       </button>
                                     )}
                                     <button
                                       onClick={() => handleDelete(task._id)}
-                                      className="p-1.5 text-[#FF6B6B] hover:bg-[#FF6B6B]/10 rounded-md transition-colors"
+                                      className="p-1.5 rounded-md transition-colors"
                                       title="Delete task"
+                                      style={{ color: "var(--color-danger)" }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-danger) 8%, transparent)"}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
@@ -1358,12 +1502,14 @@ export default function TasksPage() {
                                 </td>
                               </tr>
                               {showCompleteInput === task._id && (
-                                <tr className="bg-[#00FF88]/5" key="complete-input">
+                                <tr key="complete-input"
+                                  style={{ backgroundColor: "color-mix(in srgb, var(--color-success) 4%, transparent)" }}>
                                   <td colSpan="7" className="px-4 py-4">
                                     <div className="flex items-center gap-3">
-                                      <label className="text-sm font-medium text-white/80">
+                                      <label className="text-sm font-medium"
+                                        style={{ color: "var(--text-primary)" }}>
                                         Completion Proof{" "}
-                                        <span className="text-[#FF6B6B]">*</span>
+                                        <span style={{ color: "var(--color-danger)" }}>*</span>
                                       </label>
                                       <input
                                         type="text"
@@ -1372,7 +1518,7 @@ export default function TasksPage() {
                                           setCompletionProof(e.target.value)
                                         }
                                         placeholder="Enter proof (URL, description...)"
-                                        className="flex-1 max-w-md px-3 py-2 text-sm bg-white/[0.08] border border-white/[0.1] rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#00FF88]/30"
+                                        className="input-field flex-1 max-w-md text-sm"
                                         autoFocus
                                         onKeyDown={(e) => {
                                           if (e.key === "Enter") {
@@ -1396,7 +1542,7 @@ export default function TasksPage() {
                                           setShowCompleteInput(null);
                                           setCompletionProof("");
                                         }}
-                                        className="btn-outline px-4 py-2 text-sm"
+                                        className="btn-secondary px-4 py-2 text-sm"
                                       >
                                         Cancel
                                       </button>
@@ -1407,17 +1553,24 @@ export default function TasksPage() {
                               {expandedTask === task._id &&
                                 canAssignTasks &&
                                 task.status === "Completed" && (
-                                  <tr className="bg-white/[0.02]">
+                                  <tr style={{ backgroundColor: "var(--bg-muted)" }}>
                                     <td colSpan="7" className="px-4 py-4">
                                       <div className="space-y-3">
-                                        <h4 className="text-sm font-semibold text-white">
+                                        <h4 className="text-sm font-semibold"
+                                          style={{ color: "var(--text-primary)" }}>
                                           Completion Details
                                         </h4>
-                                        <div className="bg-white/[0.05] rounded-lg p-4 border border-white/[0.08]">
-                                          <p className="text-xs font-medium text-white/50 mb-2">
+                                        <div className="rounded-lg p-4"
+                                          style={{
+                                            backgroundColor: "var(--bg-muted)",
+                                            border: "1px solid var(--border)",
+                                          }}>
+                                          <p className="text-xs font-medium mb-2"
+                                            style={{ color: "var(--text-secondary)" }}>
                                             Completion Proof:
                                           </p>
-                                          <p className="text-sm text-white/70">
+                                          <p className="text-sm"
+                                            style={{ color: "var(--text-secondary)" }}>
                                             {(task.history &&
                                               task.history.find(
                                                 (h) => h.status === "Completed",
@@ -1428,7 +1581,8 @@ export default function TasksPage() {
                                             task.history.find(
                                               (h) => h.status === "Completed",
                                             )?.changedAt && (
-                                              <p className="text-xs text-white/40 mt-2">
+                                              <p className="text-xs mt-2"
+                                                style={{ color: "var(--text-muted)" }}>
                                                 Completed on:{" "}
                                                 {new Date(
                                                   task.history.find(
@@ -1443,7 +1597,7 @@ export default function TasksPage() {
                                     </td>
                                   </tr>
                                 )}
-                            </Fragment> 
+                            </Fragment>
                           );
                         })
                       )}

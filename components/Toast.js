@@ -15,10 +15,12 @@ export default function Toast({ type = "success", message, onClose, duration = 3
     return () => clearTimeout(timer);
   }, [duration, onClose]);
 
-  const bgClass = "bg-white/[0.04] backdrop-blur-xl border shadow-glass-sm";
-  const borderColor = type === "success" ? "border-[#00FF88]/30" : "border-[#FF6B6B]/30";
-  const textColor = type === "success" ? "text-[#00FF88]" : "text-[#FF6B6B]";
-  const icon = type === "success" ? <CheckCircle2 className="w-5 h-5 text-[#00FF88]" /> : <AlertCircle className="w-5 h-5 text-[#FF6B6B]" />;
+  const isSuccess = type === "success";
+  const themeVar = isSuccess ? "var(--color-success)" : "var(--color-danger)";
+  const bgClass = "backdrop-blur-xl border shadow-glass-sm";
+  const icon = isSuccess
+    ? <CheckCircle2 className="w-5 h-5" style={{ color: themeVar }} />
+    : <AlertCircle className="w-5 h-5" style={{ color: themeVar }} />;
 
   return (
     <div
@@ -26,15 +28,16 @@ export default function Toast({ type = "success", message, onClose, duration = 3
         isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[-20px]"
       }`}
     >
-      <div className={`${bgClass} ${borderColor} rounded-xl px-4 py-3 flex items-center gap-3 min-w-[300px]`}>
+      <div className={`${bgClass} rounded-xl px-4 py-3 flex items-center gap-3 min-w-[300px]`} style={{ borderColor: `color-mix(in srgb, ${themeVar} 30%, transparent)`, backgroundColor: "var(--bg-card)" }}>
         {icon}
-        <p className={`text-sm font-medium flex-1 ${textColor}`}>{message}</p>
+        <p className="text-sm font-medium flex-1" style={{ color: themeVar }}>{message}</p>
         <button
           onClick={() => {
             setIsVisible(false);
             setTimeout(onClose, 300);
           }}
-          className="text-white/50 hover:text-white/70 transition-opacity"
+          style={{ color: "var(--text-muted)" }}
+          className="transition-opacity hover:opacity-70"
         >
           <X className="w-4 h-4" />
         </button>

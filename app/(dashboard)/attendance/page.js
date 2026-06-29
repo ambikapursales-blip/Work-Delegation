@@ -66,73 +66,87 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white/85">Attendance</h1>
-        <p className="text-white/50 mt-1">
+        <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>Attendance</h1>
+        <p className="mt-1" style={{ color: "var(--text-secondary)" }}>
           Your attendance records and statistics
         </p>
       </div>
 
       {error && (
-        <Alert className="bg-white/[0.04] backdrop-blur-xl border-red-500/30">
-          <AlertDescription className="text-red-400">{error}</AlertDescription>
+        <Alert style={{
+          backgroundColor: "var(--bg-muted)",
+          borderColor: "color-mix(in srgb, var(--color-danger) 30%, transparent)",
+          color: "var(--color-danger)",
+        }}>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
       {success && (
-        <Alert className="bg-white/[0.04] backdrop-blur-xl border-[#00FF88]/30">
-          <AlertDescription className="text-[#00FF88]">
-            {success}
-          </AlertDescription>
+        <Alert style={{
+          backgroundColor: "var(--bg-muted)",
+          borderColor: "color-mix(in srgb, var(--color-success) 30%, transparent)",
+          color: "var(--color-success)",
+        }}>
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm">
+        <Card>
           <CardContent className="pt-6">
             <div className="space-y-2">
-              <p className="text-xs text-white/50 font-medium">
+              <p className="text-xs font-medium"
+                style={{ color: "var(--text-muted)" }}>
                 Present Days
               </p>
-              <p className="text-3xl font-bold text-[#00FF88]">
+              <p className="text-3xl font-bold"
+                style={{ color: "var(--color-success)" }}>
                 {presentCount}
               </p>
-              <p className="text-xs text-white/50">days present</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>days present</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm">
+        <Card>
           <CardContent className="pt-6">
             <div className="space-y-2">
-              <p className="text-xs text-white/50 font-medium">
+              <p className="text-xs font-medium"
+                style={{ color: "var(--text-muted)" }}>
                 Absent Days
               </p>
-              <p className="text-3xl font-bold text-[#FF6B6B]">{absentCount}</p>
-              <p className="text-xs text-white/50">days absent</p>
+              <p className="text-3xl font-bold"
+                style={{ color: "var(--color-danger)" }}>{absentCount}</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>days absent</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm">
+        <Card>
           <CardContent className="pt-6">
             <div className="space-y-2">
-              <p className="text-xs text-white/50 font-medium">
+              <p className="text-xs font-medium"
+                style={{ color: "var(--text-muted)" }}>
                 Total Days
               </p>
-              <p className="text-3xl font-bold text-white/85">{totalDays}</p>
-              <p className="text-xs text-white/50">record days</p>
+              <p className="text-3xl font-bold"
+                style={{ color: "var(--text-primary)" }}>{totalDays}</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>record days</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm">
+        <Card>
           <CardContent className="pt-6">
             <div className="space-y-2">
-              <p className="text-xs text-[#00D4FF] font-medium">Attendance %</p>
-              <p className="text-3xl font-bold text-[#00D4FF]">
+              <p className="text-xs font-medium"
+                style={{ color: "var(--color-info)" }}>Attendance %</p>
+              <p className="text-3xl font-bold"
+                style={{ color: "var(--color-info)" }}>
                 {attendancePercentage}%
               </p>
-              <p className="text-xs text-[#00D4FF]/80">of working days</p>
+              <p className="text-xs" style={{ color: "var(--color-info)" }}>of working days</p>
             </div>
           </CardContent>
         </Card>
@@ -140,14 +154,19 @@ export default function AttendancePage() {
 
       {/* Mark Attendance Button */}
       {!isHROrAdmin && (
-        <Card className="bg-white/[0.04] backdrop-blur-xl border border-[#00FF88]/30 rounded-2xl shadow-glass-sm">
+        <Card className="border"
+          style={{
+            borderColor: "color-mix(in srgb, var(--color-success) 30%, transparent)",
+          }}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-[#00FF88]">
+                <h3 className="font-semibold"
+                  style={{ color: "var(--color-success)" }}>
                   Mark Today&apos;s Attendance
                 </h3>
-                <p className="text-sm text-white/60 mt-1">
+                <p className="text-sm mt-1"
+                  style={{ color: "var(--text-secondary)" }}>
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",
                     year: "numeric",
@@ -158,7 +177,11 @@ export default function AttendancePage() {
               </div>
               <Button
                 onClick={handleMarkAttendance}
-                className="bg-gradient-to-r from-[#00FF88] to-[#00CC70] text-[#0B1220] hover:opacity-90"
+                style={{
+                  background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                  color: "var(--text-inverse)",
+                  boxShadow: "0 2px 8px color-mix(in srgb, var(--color-success) 30%, transparent)",
+                }}
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Mark Present
@@ -169,35 +192,43 @@ export default function AttendancePage() {
       )}
 
       {/* Attendance Records */}
-      <Card className="bg-white/[0.04] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass-sm">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white/85">Attendance History</CardTitle>
-          <CardDescription className="text-white/50">Your daily attendance records</CardDescription>
+          <CardTitle>Attendance History</CardTitle>
+          <CardDescription>Your daily attendance records</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-center text-white/50">
+            <p className="text-center" style={{ color: "var(--text-secondary)" }}>
               Loading records...
             </p>
           ) : records.length === 0 ? (
-            <Alert className="bg-white/[0.04] backdrop-blur-xl border-white/[0.08]">
-              <AlertDescription className="text-white/50">No attendance records yet</AlertDescription>
+            <Alert style={{
+              backgroundColor: "var(--bg-muted)",
+              borderColor: "var(--border)",
+            }}>
+              <AlertDescription style={{ color: "var(--text-secondary)" }}>No attendance records yet</AlertDescription>
             </Alert>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {records.map((record, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 bg-white/[0.02] rounded-lg border border-white/[0.06]"
+                  className="flex items-center justify-between p-3 rounded-lg"
+                  style={{
+                    backgroundColor: "var(--bg-muted)",
+                    border: "1px solid var(--border)",
+                  }}
                 >
                   <div className="flex items-center gap-3">
                     {record.status === "Present" ? (
-                      <CheckCircle2 className="h-5 w-5 text-[#00FF88]" />
+                      <CheckCircle2 className="h-5 w-5" style={{ color: "var(--color-success)" }} />
                     ) : (
-                      <XCircle className="h-5 w-5 text-[#FF6B6B]" />
+                      <XCircle className="h-5 w-5" style={{ color: "var(--color-danger)" }} />
                     )}
                     <div>
-                      <p className="text-sm font-medium text-white/85">
+                      <p className="text-sm font-medium"
+                        style={{ color: "var(--text-primary)" }}>
                         {new Date(record.date).toLocaleDateString("en-US", {
                           weekday: "short",
                           year: "numeric",
@@ -206,7 +237,7 @@ export default function AttendancePage() {
                         })}
                       </p>
                       {record.loginTime && (
-                        <p className="text-xs text-white/50">
+                        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
                           Login:{" "}
                           {new Date(record.loginTime).toLocaleTimeString()}
                         </p>
@@ -214,11 +245,20 @@ export default function AttendancePage() {
                     </div>
                   </div>
                   <Badge
-                    className={
+                    style={
                       record.status === "Present"
-                        ? "bg-[#00FF88]/15 text-[#00FF88] border-[#00FF88]/25"
-                        : "bg-[#FF6B6B]/15 text-[#FF6B6B] border-[#FF6B6B]/25"
+                        ? {
+                            backgroundColor: "color-mix(in srgb, var(--color-success) 12%, transparent)",
+                            color: "var(--color-success)",
+                            border: "1px solid color-mix(in srgb, var(--color-success) 22%, transparent)",
+                          }
+                        : {
+                            backgroundColor: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+                            color: "var(--color-danger)",
+                            border: "1px solid color-mix(in srgb, var(--color-danger) 22%, transparent)",
+                          }
                     }
+                    className="rounded-full"
                   >
                     {record.status}
                   </Badge>
