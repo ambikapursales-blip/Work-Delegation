@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useTheme } from "@/lib/theme-context";
 import {
   CheckCircle2,
   Users,
@@ -193,6 +194,7 @@ export default function DashboardPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const { theme } = useTheme();
 
   const chartRefs = {
     taskProgress: useRef(null),
@@ -310,17 +312,39 @@ export default function DashboardPage() {
     selectedUser,
     statusFilter,
     viewMode,
+    theme,
   ]);
 
   const initializeCharts = async () => {
     const { default: Chart } = await import("chart.js/auto");
+    const cssVar = (name) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const hexToRgba = (hex, alpha) => {
+      const clean = hex.replace("#", "");
+      const bigint = parseInt(clean, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    const chartSuccess = cssVar("--chart-success");
+    const chartWarning = cssVar("--chart-warning");
+    const chartInfo = cssVar("--chart-info");
+    const chartDanger = cssVar("--chart-danger");
+    const chartPurple = cssVar("--chart-purple");
+    const chartGrid = cssVar("--chart-grid");
+    const chartTooltipBg = cssVar("--chart-tooltip-bg");
+    const chartAxis = cssVar("--chart-axis");
+    const bgBase = cssVar("--bg-base");
+    const textMuted = cssVar("--text-muted");
+    const border = cssVar("--border");
     const font = { family: "Inter, system-ui, sans-serif", size: 12 };
     const tooltipDefaults = {
-      backgroundColor: "var(--bg-surface)",
+      backgroundColor: chartTooltipBg,
       padding: 12,
-      titleColor: "var(--text-primary)",
-      bodyColor: "var(--text-secondary)",
-      borderColor: "var(--border)",
+      titleColor: chartAxis,
+      bodyColor: chartAxis,
+      borderColor: border,
       borderWidth: 1,
       cornerRadius: 10,
     };
@@ -339,8 +363,8 @@ export default function DashboardPage() {
                 analytics?.tasks?.pending || 0,
                 analytics?.tasks?.inProgress || 0,
               ],
-              backgroundColor: ["var(--color-success)", "var(--color-warning)", "var(--color-info)"],
-              borderColor: "var(--bg-base)",
+              backgroundColor: [chartSuccess, chartWarning, chartInfo],
+              borderColor: bgBase,
               borderWidth: 4,
               hoverOffset: 6,
             },
@@ -354,7 +378,7 @@ export default function DashboardPage() {
             legend: {
               position: "bottom",
               labels: {
-                color: "var(--text-muted)",
+                color: textMuted,
                 font,
                 padding: 16,
                 usePointStyle: true,
@@ -382,12 +406,12 @@ export default function DashboardPage() {
       );
 
       const gradPurple = ctx.createLinearGradient(0, 0, 0, 300);
-      gradPurple.addColorStop(0, "color-mix(in srgb, var(--color-success) 20%, transparent)");
-      gradPurple.addColorStop(1, "color-mix(in srgb, var(--color-success) 0%, transparent)");
+      gradPurple.addColorStop(0, hexToRgba(chartSuccess, 0.20));
+      gradPurple.addColorStop(1, hexToRgba(chartSuccess, 0));
 
       const gradBlue = ctx.createLinearGradient(0, 0, 0, 300);
-      gradBlue.addColorStop(0, "color-mix(in srgb, var(--color-info) 15%, transparent)");
-      gradBlue.addColorStop(1, "color-mix(in srgb, var(--color-info) 0%, transparent)");
+      gradBlue.addColorStop(0, hexToRgba(chartInfo, 0.15));
+      gradBlue.addColorStop(1, hexToRgba(chartInfo, 0));
 
       chartInstances.current.taskTrend = new Chart(ctx, {
         type: "line",
@@ -397,27 +421,27 @@ export default function DashboardPage() {
             {
               label: "Completed",
               data: trendData.map((t) => t.completed),
-              borderColor: "var(--color-success)",
+              borderColor: chartSuccess,
               backgroundColor: gradPurple,
-              borderWidth: 2.5,
+              borderWidth: 3,
               tension: 0.4,
               fill: true,
               pointRadius: 4,
-              pointBackgroundColor: "var(--color-success)",
-              pointBorderColor: "var(--bg-base)",
+              pointBackgroundColor: chartSuccess,
+              pointBorderColor: bgBase,
               pointBorderWidth: 2,
             },
             {
               label: "New Tasks",
               data: trendData.map((t) => t.created),
-              borderColor: "var(--color-info)",
+              borderColor: chartInfo,
               backgroundColor: gradBlue,
-              borderWidth: 2.5,
+              borderWidth: 3,
               tension: 0.4,
               fill: true,
               pointRadius: 4,
-              pointBackgroundColor: "var(--color-info)",
-              pointBorderColor: "var(--bg-base)",
+              pointBackgroundColor: chartInfo,
+              pointBorderColor: bgBase,
               pointBorderWidth: 2,
             },
           ],
@@ -429,7 +453,7 @@ export default function DashboardPage() {
             legend: {
               position: "top",
               labels: {
-                color: "var(--text-muted)",
+                color: textMuted,
                 font,
                 padding: 16,
                 usePointStyle: true,
@@ -441,13 +465,13 @@ export default function DashboardPage() {
           scales: {
                   y: {
                     beginAtZero: true,
-                    grid: { color: "var(--border)" },
-                    ticks: { color: "var(--text-muted)", font },
+                    grid: { color: chartGrid },
+                    ticks: { color: chartAxis, font },
                     border: { display: false },
                   },
                   x: {
                     grid: { display: false },
-                    ticks: { color: "var(--text-muted)", font },
+                    ticks: { color: chartAxis, font },
                     border: { display: false },
                   },
           },
@@ -471,11 +495,11 @@ export default function DashboardPage() {
               label: "Tasks",
               data: deptData.map((d) => d.value),
               backgroundColor: [
-                "var(--color-success)",
-                "var(--color-info)",
-                "var(--color-purple)",
-                "var(--color-warning)",
-                "var(--color-danger)",
+                chartSuccess,
+                chartInfo,
+                chartPurple,
+                chartWarning,
+                chartDanger,
               ],
               borderRadius: 8,
               borderSkipped: false,
@@ -490,13 +514,13 @@ export default function DashboardPage() {
           scales: {
                   x: {
                     beginAtZero: true,
-                    grid: { color: "var(--border)" },
-                    ticks: { color: "var(--text-muted)", font },
+                    grid: { color: chartGrid },
+                    ticks: { color: chartAxis, font },
                     border: { display: false },
                   },
                   y: {
                     grid: { display: false },
-                    ticks: { color: "var(--text-secondary)", font: { ...font, weight: "500" } },
+                    ticks: { color: chartAxis, font: { ...font, weight: "500" } },
                     border: { display: false },
                   },
           },

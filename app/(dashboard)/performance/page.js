@@ -13,10 +13,18 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { performanceAPI } from "@/lib/api";
 import { Loading } from "@/components/loading";
-import dynamic from "next/dynamic";
 import { Trophy, BarChart3, Table2 } from "lucide-react";
-
-const Recharts = dynamic(() => import("recharts"), { ssr: false });
+import {
+  ResponsiveContainer,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  Bar,
+  Cell,
+} from "recharts";
 
 const gradeColors = {
   "A+": "#00FF88",
@@ -261,27 +269,27 @@ export default function PerformancePage() {
               {viewMode === "chart" ? (
                 <div className="space-y-6">
                   <div className="w-full">
-                    <Recharts.ResponsiveContainer width="100%" height={400}>
-                      <Recharts.BarChart
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart
                         data={assignVsCompletedData}
                         margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                         barGap={4}
                       >
-                        <Recharts.CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <Recharts.XAxis
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <XAxis
                           dataKey="name"
                           tick={{ fontSize: 12, fill: "var(--text-muted)" }}
                           angle={-35}
                           textAnchor="end"
                           height={80}
                         />
-                        <Recharts.YAxis tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
-                        <Recharts.Tooltip content={<CustomTooltip />} />
-                        <Recharts.Legend
+                        <YAxis tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend
                           wrapperStyle={{ fontSize: "13px" }}
                           iconType="rounded"
                         />
-                        <Recharts.Bar
+                        <Bar
                           dataKey="assigned"
                           name="Assigned"
                           fill="#6366f1"
@@ -289,10 +297,10 @@ export default function PerformancePage() {
                           maxBarSize={50}
                         >
                           {assignVsCompletedData.map((entry, index) => (
-                            <Recharts.Cell key={`assigned-${index}`} fill="#6366f1" />
+                            <Cell key={`assigned-${index}`} fill="#6366f1" />
                           ))}
-                        </Recharts.Bar>
-                        <Recharts.Bar
+                        </Bar>
+                        <Bar
                           dataKey="completed"
                           name="Completed"
                           fill="#22c55e"
@@ -300,11 +308,11 @@ export default function PerformancePage() {
                           maxBarSize={50}
                         >
                           {assignVsCompletedData.map((entry, index) => (
-                            <Recharts.Cell key={`completed-${index}`} fill="#22c55e" />
+                            <Cell key={`completed-${index}`} fill="#22c55e" />
                           ))}
-                        </Recharts.Bar>
-                      </Recharts.BarChart>
-                    </Recharts.ResponsiveContainer>
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

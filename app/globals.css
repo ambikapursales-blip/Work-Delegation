@@ -52,6 +52,16 @@
   --color-info:     #60A5FA;
   --color-purple:   #A78BFA;
 
+  /* Chart-specific colors (brighter for data visibility) */
+  --chart-success:  #22C55E;
+  --chart-warning:  #F59E0B;
+  --chart-danger:   #EF4444;
+  --chart-info:     #3B82F6;
+  --chart-purple:   #8B5CF6;
+  --chart-grid:     rgba(255,255,255,0.08);
+  --chart-tooltip-bg: #112240;
+  --chart-axis:     #E5E7EB;
+
   /* Shadows */
   --shadow-card:    0 4px 24px rgba(0, 0, 0, 0.35);
   --shadow-card-hover: 0 8px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(59,130,246,0.15);
@@ -120,6 +130,16 @@
   --color-danger:   #C85A54;
   --color-info:     #5B8BA0;
   --color-purple:   #8B7E9E;
+
+  /* Chart-specific colors (crisp for data visibility) */
+  --chart-success:  #4F6F52;
+  --chart-warning:  #C28B00;
+  --chart-danger:   #B85042;
+  --chart-info:     #323232;
+  --chart-purple:   #6B5B95;
+  --chart-grid:     rgba(50,50,50,0.18);
+  --chart-tooltip-bg: #FFFFFF;
+  --chart-axis:     #323232;
 
   /* Shadows — elevated cards, no glow */
   --shadow-card:    0 4px 16px rgba(0,0,0,0.08);
