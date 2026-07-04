@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { authAPI } from "@/lib/api";
-import { Loading } from "@/components/loading";
-import { Edit, CheckCircle, X, Loader2 } from "lucide-react";
+import { Loading, LoadingSpinner } from "@/components/loading";
+import { Edit, CheckCircle, X } from "lucide-react";
 
 const ROLE_STYLES = {
   Admin: { color: "var(--color-danger)", bg: "var(--color-danger)" },
@@ -351,7 +351,7 @@ export default function ProfilePage() {
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                        <LoadingSpinner size="sm" />
                         Saving...
                       </>
                     ) : (

@@ -14,8 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
-  Loader2,
 } from "lucide-react";
+import { LoadingSpinner } from "@/components/loading";
 
 const STATUS_STYLE = {
   Upcoming: { clr: "var(--color-info)" },
@@ -591,7 +591,7 @@ export default function EventsPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                      <LoadingSpinner size="sm" />
                       {editingEvent ? "Updating..." : "Creating..."}
                     </>
                   ) : (
@@ -645,7 +645,7 @@ export default function EventsPage() {
               >
                 {bulkDeleting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingSpinner size="sm" />
                     Deleting...
                   </>
                 ) : (
@@ -822,7 +822,7 @@ export default function EventsPage() {
                               title="Mark as completed"
                             >
                               {completingEventId === event._id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <LoadingSpinner size="sm" />
                               ) : (
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               )}
@@ -858,7 +858,7 @@ export default function EventsPage() {
                                 onMouseLeave={() => setHoverEl(null)}
                               >
                                 {deletingEventId === event._id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <LoadingSpinner size="sm" />
                                 ) : (
                                   <Trash2 className="w-3.5 h-3.5" />
                                 )}

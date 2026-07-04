@@ -22,9 +22,9 @@ import {
   TrendingUp,
   User,
   Calendar,
-  Loader2,
 } from "lucide-react";
 import { teamAPI } from "@/lib/api";
+import { LoadingSpinner } from "@/components/loading";
 
 export default function TeamPage() {
   const { user } = useAuth();

@@ -125,7 +125,7 @@ export default function LoginPage() {
           <div className="flex lg:hidden items-center gap-2.5 mb-9">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center"
               style={{
-                background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                background: "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
               }}>
               <LogIn size={20} style={{ color: "var(--text-inverse)" }} />
             </div>
@@ -165,7 +165,7 @@ export default function LoginPage() {
                 className="flex items-center gap-1.5 text-sm font-medium mb-2"
                 style={{ color: "var(--text-secondary)" }}
               >
-                <Mail size={14} style={{ color: "var(--color-success)" }} />
+                <Mail size={14} style={{ color: "var(--accent)" }} />
                 Email Address
               </label>
               <input
@@ -187,7 +187,7 @@ export default function LoginPage() {
                 className="flex items-center gap-1.5 text-sm font-medium mb-2"
                 style={{ color: "var(--text-secondary)" }}
               >
-                <Lock size={14} style={{ color: "var(--color-success)" }} />
+                <Lock size={14} style={{ color: "var(--accent)" }} />
                 Password
               </label>
               <div className="relative">
@@ -222,7 +222,7 @@ export default function LoginPage() {
                 href="/forgot-password"
                 className="text-xs transition-colors duration-150 no-underline hover:underline"
                 style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
+                onMouseEnter={(e) => e.currentTarget.style.color = "var(--accent)"}
                 onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
               >
                 Forgot Password?
@@ -235,27 +235,28 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full h-12 flex items-center justify-center gap-2 text-sm font-semibold rounded-xl tracking-wide transition-all duration-150 cursor-pointer border-none"
               style={{
-                background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
+                background: "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
                 color: "var(--text-inverse)",
-                boxShadow: "0 4px 14px color-mix(in srgb, var(--color-success) 25%, transparent)",
+                boxShadow: "0 4px 14px var(--accent-glow)",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.opacity = "0.9";
-                e.currentTarget.style.boxShadow = "0 6px 20px color-mix(in srgb, var(--color-success) 35%, transparent)";
+                e.currentTarget.style.boxShadow = "0 6px 20px var(--accent-glow), 0 0 0 1px var(--accent)";
                 e.currentTarget.style.transform = "translateY(-1px)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.opacity = "1";
-                e.currentTarget.style.boxShadow = "0 4px 14px color-mix(in srgb, var(--color-success) 25%, transparent)";
+                e.currentTarget.style.boxShadow = "0 4px 14px var(--accent-glow)";
                 e.currentTarget.style.transform = "translateY(0)";
               }}
             >
               {loading ? (
                 <>
-                  <span className="w-4 h-4 rounded-full border-2 animate-spin"
+                  <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
                     style={{
-                      borderColor: "color-mix(in srgb, var(--text-inverse) 30%, transparent)",
-                      borderTopColor: "var(--text-inverse)",
+                      borderColor: "var(--text-inverse)",
+                      borderTopColor: "transparent",
+                      animationDuration: "1.5s",
                     }} />
                   Signing in\u2026
                 </>

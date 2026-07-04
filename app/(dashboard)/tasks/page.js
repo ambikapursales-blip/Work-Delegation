@@ -30,11 +30,11 @@ import {
   ListTodo,
   Sparkles,
   Check,
-  Loader2,
 } from "lucide-react";
 import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { LoadingSpinner } from "@/components/loading";
 
 /* ─── Badge / tag colour helpers ─── */
 const priorityStyle = (p) => {
@@ -1396,7 +1396,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     >
                       {bulkDeleting ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <LoadingSpinner size="sm" />
                           Deleting...
                         </>
                       ) : (
@@ -1643,7 +1643,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       }}
                                     >
                                       {deletingTaskId === task._id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <LoadingSpinner size="sm" />
                                       ) : (
                                         <Trash2 className="w-4 h-4" />
                                       )}
@@ -1692,7 +1692,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       >
                                         {completingTaskId === task._id ? (
                                           <>
-                                            <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                                            <LoadingSpinner size="sm" />
                                             Submitting...
                                           </>
                                         ) : (

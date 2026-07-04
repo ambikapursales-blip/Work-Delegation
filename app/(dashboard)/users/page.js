@@ -212,8 +212,8 @@
 
 import { useState, useEffect } from "react";
 import { usersAPI } from "@/lib/api";
-import { Loading } from "@/components/loading";
-import { Mail, Building2, Edit, Trash2, Phone, Users, X, Plus, Loader2 } from "lucide-react";
+import { Loading, LoadingSpinner } from "@/components/loading";
+import { Mail, Building2, Edit, Trash2, Phone, Users, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -372,7 +372,7 @@ function UserCard({ user, onEdit, onDelete, deletingUserId }) {
           >
             {deletingUserId === user._id ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <LoadingSpinner size="sm" />
                 Removing...
               </>
             ) : (

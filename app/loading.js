@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "@/components/loading";
 
 export default function RootLoading() {
   return (
@@ -7,7 +7,7 @@ export default function RootLoading() {
         <h1 className="mb-4 text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
           Delegation & DWR System
         </h1>
-        <Loader2 className="mx-auto h-8 w-8 animate-spin" style={{ color: "var(--primary-mid)" }} />
+        <LoadingSpinner size="xl" />
       </div>
     </div>
   );

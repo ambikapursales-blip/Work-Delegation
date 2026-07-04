@@ -19,8 +19,8 @@ import {
   Building2,
   BadgeCheck,
   AlertCircle,
-  Loader2,
 } from "lucide-react";
+import { LoadingSpinner } from "@/components/loading";
 
 const badgeStyle = (clr) => ({
   background: `color-mix(in srgb, ${clr} 12%, transparent)`,
@@ -372,7 +372,7 @@ export default function DWRPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                      <LoadingSpinner size="sm" />
                       Submitting...
                     </>
                   ) : (
@@ -822,7 +822,7 @@ export default function DWRPage() {
                                     >
                                       {approvingId === dwr._id ? (
                                         <>
-                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          <LoadingSpinner size="sm" />
                                           Approving...
                                         </>
                                       ) : (
@@ -845,7 +845,7 @@ export default function DWRPage() {
                                     >
                                       {rejectingId === dwr._id ? (
                                         <>
-                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          <LoadingSpinner size="sm" />
                                           Rejecting...
                                         </>
                                       ) : (

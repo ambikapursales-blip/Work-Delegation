@@ -46,7 +46,7 @@
 
 // export { Button, buttonVariants };
 import * as React from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "@/components/loading";
 
 /*
   Variant styles expressed as inline style objects so they
@@ -168,7 +168,7 @@ const Button = React.forwardRef(
       >
         {loading ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <LoadingSpinner size="sm" />
             <span>{loadingText}</span>
           </>
         ) : (

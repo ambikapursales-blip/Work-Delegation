@@ -12,8 +12,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { attendanceAPI } from "@/lib/api";
+import { LoadingSpinner } from "@/components/loading";
 
 export default function AttendancePage() {
   const { user } = useAuth();
