@@ -16,7 +16,7 @@ export const getTasks = async (req, res) => {
       assignedTo,
       assignedBy,
       page = 1,
-      limit = 20,
+      limit = 15,
       search,
       overdue,
       startDate,
@@ -107,7 +107,6 @@ export const getTasks = async (req, res) => {
       tasks,
     });
   } catch (error) {
-    console.error("getTasks error:", error.stack);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -232,7 +231,7 @@ export const createTask = async (req, res) => {
             deadline,
           });
         } catch (emailError) {
-          console.error("Failed to send email:", emailError);
+          // Silently fail email errors
         }
       }
     }
@@ -367,7 +366,7 @@ export const updateTask = async (req, res) => {
             );
           }
         } catch (emailError) {
-          console.error("Failed to send completion email:", emailError);
+          // Silently fail email errors
         }
 
         if (task.parentTaskId) {
@@ -383,7 +382,7 @@ export const updateTask = async (req, res) => {
               await generateNextTaskOccurrence(parentTask);
             }
           } catch (err) {
-            console.error("Error generating next task occurrence:", err);
+            // Silently fail task generation error
           }
         }
       }
@@ -404,7 +403,6 @@ export const updateTask = async (req, res) => {
 
     res.status(200).json({ success: true, task: updated });
   } catch (error) {
-    console.error("Error updating task:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

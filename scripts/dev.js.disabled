@@ -24,8 +24,6 @@ async function main() {
   lines.push(`MONGODB_URI=${uri}`);
   fs.writeFileSync(".env.local", lines.join("\n") + "\n");
 
-  console.log(`\n  MongoDB running at ${uri}\n`);
-
   // Connect and seed
   await mongoose.connect(uri);
   const bcrypt = require("bcryptjs");
@@ -33,7 +31,6 @@ async function main() {
 
   const existing = await User.countDocuments();
   if (existing === 0) {
-    console.log("  Seeding database...");
     const adminPassword = await bcrypt.hash("admin123", 10);
     const managerPassword = await bcrypt.hash("manager123", 10);
     const userPassword = await bcrypt.hash("user123", 10);
@@ -83,15 +80,6 @@ async function main() {
     await Activity.create([
       { user: admin._id, type: "login", description: "System initialized" },
     ]);
-
-    console.log("  Seed complete!\n");
-    console.log("  ┌─────────────────────┬─────────────────────┐");
-    console.log("  │ Email               │ Password            │");
-    console.log("  ├─────────────────────┼─────────────────────┤");
-    console.log("  │ admin@example.com   │ admin123            │");
-    console.log("  │ manager@example.com │ manager123          │");
-    console.log("  │ user@example.com    │ user123             │");
-    console.log("  └─────────────────────┴─────────────────────┘\n");
   }
 
   // Start Next.js dev server
@@ -116,6 +104,5 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
   process.exit(1);
 });

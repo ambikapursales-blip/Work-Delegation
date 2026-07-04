@@ -62,7 +62,7 @@ const login = async (req, res) => {
         description: `${user.name} logged in`,
         ipAddress: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch((err) => console.error("Activity log error:", err)),
+      }).catch(() => {}),
       (async () => {
         try {
           const today = new Date();
@@ -82,7 +82,7 @@ const login = async (req, res) => {
             .lean()
             .exec();
         } catch (err) {
-          console.error("Attendance update error:", err);
+          // Silently fail attendance update error
         }
       })(),
     ]);
@@ -103,7 +103,6 @@ const login = async (req, res) => {
         user: publicProfile,
       });
   } catch (error) {
-    console.error("Login error:", error);
     res
       .status(500)
       .json({ success: false, message: "Server error during login" });

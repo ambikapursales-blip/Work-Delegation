@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { authAPI } from "@/lib/api";
 import { Loading } from "@/components/loading";
-import { Edit, CheckCircle, X } from "lucide-react";
+import { Edit, CheckCircle, X, Loader2 } from "lucide-react";
 
 const ROLE_STYLES = {
   Admin: { color: "var(--color-danger)", bg: "var(--color-danger)" },
@@ -329,10 +329,13 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => setIsEditing(false)}
+                    disabled={loading}
                     className="px-6 py-2.5 rounded-xl font-medium transition-colors duration-200"
                     style={{
                       color: "var(--text-secondary)",
                       backgroundColor: "var(--bg-muted)",
+                      opacity: loading ? 0.6 : 1,
+                      cursor: loading ? "not-allowed" : "pointer",
                     }}
                   >
                     Cancel
@@ -346,7 +349,14 @@ export default function ProfilePage() {
                       color: "var(--active-text)",
                     }}
                   >
-                    {loading ? "Saving..." : "Save Changes"}
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
                   </button>
                 </div>
               </form>

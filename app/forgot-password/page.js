@@ -1,69 +1,57 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import Link from "next/link";
 import { authAPI } from "@/lib/api";
-import { Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Mail, ArrowLeft, Send, AlertCircle, LogIn } from "lucide-react";
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter();
-  const { login } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  
-  const handleLogin = useCallback(async (e) => {
+  const [success, setSuccess] = useState("");
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter both email and password");
+
+    if (!email.trim()) {
+      setError("Please enter your email address");
       return;
     }
-    
+
     setError("");
+    setSuccess("");
     setLoading(true);
 
     try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Request timeout")), 10000)
       );
-      
-      const response = await Promise.race([
-        authAPI.login(email, password),
-        timeoutPromise
-      ]);
-      
-      const { token, user } = response.data;
 
-      // Optimized login - immediate redirect
-      login(user, token);
-      
-      // Use replace instead of push for faster navigation
-      router.replace("/dashboard");
+      await Promise.race([
+        authAPI.forgotPassword(email),
+        timeoutPromise,
+      ]);
+
+      router.push(`/reset-password?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      setError(
-        err.response?.data?.message || err.message || "Login failed. Please try again.",
-      );
+      setError(err.response?.data?.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [email, password, login, router]);
+  }, [email, router]);
 
   return (
     <div className="min-h-screen flex overflow-hidden"
       style={{ backgroundColor: "var(--bg-base)" }}>
 
-      {/* ── Left decorative panel (hidden on mobile) ── */}
+      {/* ── Left decorative panel ── */}
       <div className="hidden lg:flex flex-1 flex-col items-center justify-center px-12 py-12 relative overflow-hidden"
         style={{
           background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-surface) 50%, var(--bg-card) 100%)",
         }}>
-        {/* Blobs */}
         <div className="absolute w-96 h-96 rounded-full pointer-events-none -top-24 -left-24"
           style={{ backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)" }} />
         <div className="absolute w-64 h-64 rounded-full pointer-events-none bottom-16 -right-20"
@@ -71,7 +59,6 @@ export default function LoginPage() {
         <div className="absolute w-36 h-36 rounded-full pointer-events-none top-[45%] left-[55%]"
           style={{ backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)" }} />
 
-        {/* Brand */}
         <div className="relative z-10 text-center">
           <div
             className="mx-auto mb-7 flex items-center justify-center rounded-2xl border-2 backdrop-blur-sm"
@@ -93,7 +80,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Feature list */}
         <div className="relative z-10 mt-12 flex flex-col gap-3 w-full max-w-xs">
           {[
             "Assign tasks with precision and clarity",
@@ -135,12 +121,24 @@ export default function LoginPage() {
             </span>
           </div>
 
+          {/* Back to login */}
+          <Link
+            href="/auth/login"
+            className="inline-flex items-center gap-1.5 text-xs transition-colors duration-150 no-underline mb-8"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
+          >
+            <ArrowLeft size={14} />
+            Back to login
+          </Link>
+
           <h2 className="font-bold text-3xl tracking-tight mb-1.5"
             style={{ color: "var(--text-primary)" }}>
-            Welcome back
+            Forgot Password?
           </h2>
           <p className="text-sm mb-8" style={{ color: "var(--text-secondary)" }}>
-            Sign in to your account to continue
+            Enter your email and we&apos;ll send you an OTP to reset your password.
           </p>
 
           {/* Error alert */}
@@ -157,7 +155,19 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin}>
+          {/* Success alert */}
+          {success && (
+            <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-3 mb-5"
+              style={{
+                backgroundColor: "var(--bg-muted)",
+                border: "1px solid color-mix(in srgb, var(--color-success) 30%, transparent)",
+              }}>
+              <span className="text-sm leading-snug"
+                style={{ color: "var(--color-success)" }}>{success}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
             {/* Email */}
             <div className="mb-5">
               <label
@@ -178,55 +188,6 @@ export default function LoginPage() {
                 disabled={loading}
                 className="input-field h-11 text-sm"
               />
-            </div>
-
-            {/* Password */}
-            <div className="mb-5">
-              <label
-                htmlFor="password"
-                className="flex items-center gap-1.5 text-sm font-medium mb-2"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                <Lock size={14} style={{ color: "var(--color-success)" }} />
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="input-field h-11 text-sm pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={loading}
-                  tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors duration-150 flex items-center bg-transparent border-none cursor-pointer p-0"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-secondary)"}
-                  onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Forgot Password */}
-            <div className="text-right mb-5 mt-4">
-              <Link
-                href="/forgot-password"
-                className="text-xs transition-colors duration-150 no-underline hover:underline"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
-                onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
-              >
-                Forgot Password?
-              </Link>
             </div>
 
             {/* Submit */}
@@ -257,35 +218,16 @@ export default function LoginPage() {
                       borderColor: "color-mix(in srgb, var(--text-inverse) 30%, transparent)",
                       borderTopColor: "var(--text-inverse)",
                     }} />
-                  Signing in\u2026
+                  Sending OTP\u2026
                 </>
               ) : (
                 <>
-                  <LogIn size={16} />
-                  Sign in
+                  <Send size={16} />
+                  Send OTP
                 </>
               )}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-7 pt-5 text-center"
-            style={{ borderTop: "1px solid var(--border)" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2.5"
-              style={{ color: "var(--text-muted)" }}>
-              Demo Credentials
-            </p>
-            <div className="inline-block rounded-lg px-4 py-2.5 font-mono text-xs leading-relaxed"
-              style={{
-                backgroundColor: "var(--bg-muted)",
-                border: "1px solid var(--border)",
-                color: "var(--text-muted)",
-              }}>
-              test@example.com
-              <br />
-              password123
-            </div>
-          </div>
 
         </div>
       </div>

@@ -115,7 +115,6 @@ export async function GET(request) {
       stats: { tasks: taskStats, users: userStats },
     });
   } catch (error) {
-    console.error("Dashboard stats error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
   return finishRes(res);

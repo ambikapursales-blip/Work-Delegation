@@ -245,6 +245,57 @@
   color: #A8988E;
 }
 
+/* Select dropdowns in light mode */
+.light select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235C5C5C' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+  padding-right: 40px;
+}
+.light select.input-field option {
+  background: #FFFFFF;
+  color: #323232;
+}
+.light select.input-field option:hover,
+.light select.input-field option:focus {
+  background: #F5EEE8;
+  color: #323232;
+}
+.light select.input-field option:checked {
+  background: #323232;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* Date/time inputs in light mode - reset filter */
+.light input[type="date"].input-field::-webkit-calendar-picker-indicator,
+.light input[type="datetime-local"].input-field::-webkit-calendar-picker-indicator,
+.light input[type="time"].input-field::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 1;
+}
+
+/* Checkboxes in light mode */
+.light input[type="checkbox"] {
+  border-color: #8F8F8F;
+  background: #FFFFFF;
+}
+.light input[type="checkbox"]:hover {
+  border-color: #6B6B6B;
+  background: #F5EEE8;
+}
+.light input[type="checkbox"]:checked {
+  background: #323232;
+  border-color: #323232;
+}
+.light input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 2px #323232;
+}
+
 /* Stat card accent line */
 .light .stat-card::before {
   background: linear-gradient(90deg, #1E3A8A, #8B6F5A);
@@ -421,6 +472,86 @@
   .input-field:focus {
     border-color: var(--border-focus);
     box-shadow: var(--shadow-input-focus);
+  }
+
+  /* Select dropdowns - theme-aware */
+  select.input-field {
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23637A9F' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 14px;
+    padding-right: 40px;
+  }
+  select.input-field option {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 0.5rem 1rem;
+  }
+  select.input-field option:hover,
+  select.input-field option:focus {
+    background: var(--bg-muted);
+    color: var(--text-primary);
+  }
+  select.input-field option:checked {
+    background: var(--accent);
+    color: var(--text-inverse);
+    font-weight: 600;
+  }
+
+  /* Date/time inputs - fix calendar icon color */
+  input[type="date"].input-field::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"].input-field::-webkit-calendar-picker-indicator,
+  input[type="time"].input-field::-webkit-calendar-picker-indicator {
+    filter: invert(0.5);
+    opacity: 0.6;
+    cursor: pointer;
+  }
+  input[type="date"].input-field::-webkit-calendar-picker-indicator:hover,
+  input[type="datetime-local"].input-field::-webkit-calendar-picker-indicator:hover,
+  input[type="time"].input-field::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    filter: invert(0.7);
+  }
+
+  /* Checkboxes - dark mode styling */
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--text-muted);
+    border-radius: 4px;
+    background: var(--bg-input);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  input[type="checkbox"]:hover {
+    border-color: var(--text-secondary);
+    background: var(--bg-muted);
+  }
+  input[type="checkbox"]:checked {
+    background: var(--color-success);
+    border-color: var(--color-success);
+  }
+  input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  input[type="checkbox"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-success);
   }
 
   /* Badges */

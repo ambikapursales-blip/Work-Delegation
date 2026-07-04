@@ -22,6 +22,7 @@ import {
   TrendingUp,
   User,
   Calendar,
+  Loader2,
 } from "lucide-react";
 import { teamAPI } from "@/lib/api";
 
@@ -35,6 +36,7 @@ export default function TeamPage() {
   const [memberData, setMemberData] = useState(null);
   const [error, setError] = useState("");
   const [hoveredMember, setHoveredMember] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const canViewTeam = ["Admin", "Manager", "HR"].includes(user?.role);
 
@@ -46,6 +48,7 @@ export default function TeamPage() {
   const fetchTeamData = useCallback(async () => {
     try {
       setLoading(true);
+      setIsRefreshing(true);
       const [membersRes, statsRes] = await Promise.all([
         teamAPI.getMembers(),
         teamAPI.getStats(),
@@ -54,9 +57,9 @@ export default function TeamPage() {
       setStats(statsRes.data?.stats || null);
     } catch (err) {
       setError("Failed to load team data");
-      console.error(err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -80,7 +83,6 @@ export default function TeamPage() {
       setMemberData(response.data);
     } catch (err) {
       setError(`Failed to load ${type}`);
-      console.error(err);
     }
   };
 
@@ -155,7 +157,7 @@ export default function TeamPage() {
             View and manage your team&apos;s performance
           </p>
         </div>
-        <Button onClick={fetchTeamData} variant="outline" className="gap-2">
+        <Button onClick={fetchTeamData} variant="outline" className="gap-2" loading={isRefreshing} loadingText="Refreshing...">
           <Activity className="h-4 w-4" />
           Refresh
         </Button>

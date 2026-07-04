@@ -57,7 +57,7 @@ export function createRes() {
     get body() {
       return _body;
     },
-    get cookie() {
+    get cookieData() {
       return _cookie;
     },
     get headers() {
@@ -77,8 +77,8 @@ export function finishRes(res) {
     headers[key] = res.headers[key];
   }
   const response = NextResponse.json(res.body, { status: res.statusCode, headers });
-  if (res.cookie) {
-    response.cookies.set(res.cookie.name, res.cookie.value, res.cookie.options);
+  if (res.cookieData) {
+    response.cookies.set(res.cookieData.name, res.cookieData.value, res.cookieData.options);
   }
   return response;
 }

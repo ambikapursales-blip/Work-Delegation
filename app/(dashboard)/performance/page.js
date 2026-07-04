@@ -66,7 +66,6 @@ export default function PerformancePage() {
       setLeaderboard(response.data?.leaderboard || []);
     } catch (error) {
       setError("Failed to fetch performance data");
-      console.error(error);
     } finally {
       setLoading(false);
     }

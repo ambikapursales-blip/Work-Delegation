@@ -13,11 +13,8 @@ import {
 } from "@/src/controllers/taskController";
 
 export async function GET(request) {
-  console.log("GET /api/tasks hit");
-  console.log("Query:", Object.fromEntries(new URL(request.url).searchParams));
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  console.log("Auth user:", { id: user._id, role: user.role, name: user.name });
   const req = createReq(request);
   req.user = user;
   const res = createRes();

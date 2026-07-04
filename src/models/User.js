@@ -84,6 +84,10 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    resetPasswordAttempts: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -114,6 +118,7 @@ userSchema.methods.getPublicProfile = function () {
   delete userObject.password;
   delete userObject.resetPasswordToken;
   delete userObject.resetPasswordExpire;
+  delete userObject.resetPasswordAttempts;
   return userObject;
 };
 

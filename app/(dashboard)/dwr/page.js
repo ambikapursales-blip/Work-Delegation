@@ -19,6 +19,7 @@ import {
   Building2,
   BadgeCheck,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 const badgeStyle = (clr) => ({
@@ -46,6 +47,9 @@ export default function DWRPage() {
   const [alert, setAlert] = useState(null);
   const [sortField, setSortField] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
   const [formData, setFormData] = useState({
     workSummary: "",
     challenges: "",
@@ -88,6 +92,7 @@ export default function DWRPage() {
       return;
     }
     try {
+      setIsSubmitting(true);
       await dwrAPI.create(formData);
       setAlert({ type: "success", msg: "DWR submitted successfully!" });
       setFormData({ workSummary: "", challenges: "", nextDayPlan: "", totalHoursWorked: 8 });
@@ -95,16 +100,21 @@ export default function DWRPage() {
       fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to submit DWR" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleApprove = async (id) => {
     try {
+      setApprovingId(id);
       await dwrAPI.approve(id, { reviewNote });
       setAlert({ type: "success", msg: "DWR approved!" });
       setReviewOpen(null); setReviewNote(""); fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to approve DWR" });
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -114,11 +124,14 @@ export default function DWRPage() {
       return;
     }
     try {
+      setRejectingId(id);
       await dwrAPI.reject(id, { reviewNote });
       setAlert({ type: "success", msg: "DWR rejected." });
       setReviewOpen(null); setReviewNote(""); fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to reject DWR" });
+    } finally {
+      setRejectingId(null);
     }
   };
 
@@ -336,22 +349,35 @@ export default function DWRPage() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
+                  disabled={isSubmitting}
                   className="btn-secondary px-4 py-2 text-sm"
+                  style={{
+                    opacity: isSubmitting ? 0.6 : 1,
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="px-5 py-2 text-sm font-semibold rounded-lg transition-colors"
                   style={{
                     background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
                     color: "var(--text-inverse)",
                     boxShadow: "0 2px 8px color-mix(in srgb, var(--color-success) 30%, transparent)",
+                    opacity: isSubmitting ? 0.8 : 1,
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = "0.9"}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
                 >
-                  Submit Report
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Report"
+                  )}
                 </button>
               </div>
             </form>
@@ -784,29 +810,58 @@ export default function DWRPage() {
                                   <div className="flex flex-col gap-2 pt-[22px] shrink-0">
                                     <button
                                       onClick={() => handleApprove(dwr._id)}
+                                      disabled={approvingId === dwr._id}
                                       className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
                                       style={{
                                         background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
                                         color: "var(--text-inverse)",
                                         boxShadow: "0 2px 8px color-mix(in srgb, var(--color-success) 30%, transparent)",
+                                        opacity: approvingId === dwr._id ? 0.6 : 1,
+                                        cursor: approvingId === dwr._id ? "not-allowed" : "pointer",
                                       }}
                                     >
-                                      <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                      {approvingId === dwr._id ? (
+                                        <>
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          Approving...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                        </>
+                                      )}
                                     </button>
                                     <button
                                       onClick={() => handleReject(dwr._id)}
+                                      disabled={rejectingId === dwr._id}
                                       className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
                                       style={{
                                         background: "linear-gradient(135deg, var(--color-danger) 0%, var(--color-danger) 100%)",
                                         color: "white",
                                         boxShadow: "0 2px 8px color-mix(in srgb, var(--color-danger) 30%, transparent)",
+                                        opacity: rejectingId === dwr._id ? 0.6 : 1,
+                                        cursor: rejectingId === dwr._id ? "not-allowed" : "pointer",
                                       }}
                                     >
-                                      <XCircle className="w-3.5 h-3.5" /> Reject
+                                      {rejectingId === dwr._id ? (
+                                        <>
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          Rejecting...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <XCircle className="w-3.5 h-3.5" /> Reject
+                                        </>
+                                      )}
                                     </button>
                                     <button
                                       onClick={() => { setReviewOpen(null); setReviewNote(""); }}
+                                      disabled={approvingId === dwr._id || rejectingId === dwr._id}
                                       className="btn-secondary text-xs px-4 py-2"
+                                      style={{
+                                        opacity: (approvingId === dwr._id || rejectingId === dwr._id) ? 0.6 : 1,
+                                        cursor: (approvingId === dwr._id || rejectingId === dwr._id) ? "not-allowed" : "pointer",
+                                      }}
                                     >
                                       Cancel
                                     </button>

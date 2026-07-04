@@ -6,7 +6,6 @@ config();
 async function seed() {
   const mongod = await MongoMemoryServer.create();
   const uri = mongod.getUri();
-  console.log(`MongoDB started at ${uri}`);
 
   // Write URI to .env.local so Next.js picks it up
   const fs = await import("fs");
@@ -33,7 +32,6 @@ async function seed() {
     department: "Management",
     isActive: true,
   });
-  console.log(`Created admin: admin@example.com / admin123`);
 
   // ── Manager User ──
   const managerPassword = await bcrypt.hash("manager123", 10);
@@ -45,7 +43,6 @@ async function seed() {
     department: "Engineering",
     isActive: true,
   });
-  console.log(`Created manager: manager@example.com / manager123`);
 
   // ── Regular User ──
   const userPassword = await bcrypt.hash("user123", 10);
@@ -57,7 +54,6 @@ async function seed() {
     department: "Sales",
     isActive: true,
   });
-  console.log(`Created user: user@example.com / user123`);
 
   // ── Seed Tasks ──
   const Task = (await import("../src/models/Task.js")).default;
@@ -96,7 +92,6 @@ async function seed() {
       taskType: "One-time",
     },
   ]);
-  console.log("Created 3 sample tasks");
 
   // ── Seed Activity ──
   const Activity = (await import("../src/models/Activity.js")).default;
@@ -117,13 +112,8 @@ async function seed() {
       description: "Sales User completed a task",
     },
   ]);
-  console.log("Created 3 sample activities");
-
-  console.log("\nSeed complete! Press Ctrl+C to stop.");
-  console.log(`\nMongoDB URI: ${uri}`);
 }
 
 seed().catch((err) => {
-  console.error("Seed failed:", err);
   process.exit(1);
 });

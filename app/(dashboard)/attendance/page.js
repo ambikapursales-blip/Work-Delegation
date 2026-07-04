@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { attendanceAPI } from "@/lib/api";
 
 export default function AttendancePage() {
@@ -22,6 +22,7 @@ export default function AttendancePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [filter, setFilter] = useState("month");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchAttendance();
@@ -34,7 +35,6 @@ export default function AttendancePage() {
       setRecords(response.data?.records || []);
     } catch (err) {
       setError("Failed to load attendance records");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -44,6 +44,7 @@ export default function AttendancePage() {
     try {
       setError("");
       setSuccess("");
+      setIsSubmitting(true);
       await attendanceAPI.mark({
         date: new Date(),
         status: "Present",
@@ -52,6 +53,8 @@ export default function AttendancePage() {
       fetchAttendance();
     } catch (err) {
       setError("Failed to mark attendance");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -177,13 +180,14 @@ export default function AttendancePage() {
               </div>
               <Button
                 onClick={handleMarkAttendance}
+                loading={isSubmitting}
+                loadingText="Marking..."
                 style={{
                   background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
                   color: "var(--text-inverse)",
                   boxShadow: "0 2px 8px color-mix(in srgb, var(--color-success) 30%, transparent)",
                 }}
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
                 Mark Present
               </Button>
             </div>

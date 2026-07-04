@@ -213,7 +213,12 @@
 import { useState, useEffect } from "react";
 import { usersAPI } from "@/lib/api";
 import { Loading } from "@/components/loading";
-import { Mail, Building2, Edit, Trash2, Phone, Users } from "lucide-react";
+import { Mail, Building2, Edit, Trash2, Phone, Users, X, Plus, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import Toast from "@/components/Toast";
+import { useAuth } from "@/lib/auth-context";
 
 /* ─── Role colour tokens — accent only, no backgrounds hardcoded ─── */
 const ROLE_COLORS = {
@@ -226,9 +231,10 @@ const ROLE_COLORS = {
 const DEFAULT_COLOR = { accent: "var(--text-muted)", label: "#637A9F" };
 
 const FILTERS = ["All", "Admin", "HR", "Manager", "Sales Executive", "Coordinator"];
+const ROLES = ["Admin", "HR", "Manager", "Sales Executive", "Coordinator"];
 
 /* ─── User Card ─────────────────────────────────────────────────── */
-function UserCard({ user }) {
+function UserCard({ user, onEdit, onDelete, deletingUserId }) {
   const color = ROLE_COLORS[user.role] || DEFAULT_COLOR;
 
   const initials = user.name
@@ -322,6 +328,7 @@ function UserCard({ user }) {
           style={{ borderColor: "var(--border)" }}
         >
           <button
+            onClick={() => onEdit(user)}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200"
             style={{
               background: "var(--bg-muted)",
@@ -342,21 +349,38 @@ function UserCard({ user }) {
           </button>
 
           <button
+            onClick={() => onDelete(user._id)}
+            disabled={deletingUserId === user._id}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200"
             style={{
               background: "color-mix(in srgb, var(--color-danger) 8%, transparent)",
               color: "var(--color-danger)",
               border: "1px solid color-mix(in srgb, var(--color-danger) 18%, transparent)",
+              opacity: deletingUserId === user._id ? 0.6 : 1,
+              cursor: deletingUserId === user._id ? "not-allowed" : "pointer",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 18%, transparent)";
+              if (deletingUserId !== user._id) {
+                e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 18%, transparent)";
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
+              if (deletingUserId !== user._id) {
+                e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
+              }
             }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove
+            {deletingUserId === user._id ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Removing...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -366,10 +390,32 @@ function UserCard({ user }) {
 
 /* ─── Page ───────────────────────────────────────────────────────── */
 export default function UsersPage() {
+  const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("All");
+  const [editingUser, setEditingUser] = useState(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [alert, setAlert] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "Sales Executive",
+    department: "",
+    phone: "",
+    isActive: true,
+  });
+
+  useEffect(() => {
+    if (alert) {
+      const t = setTimeout(() => setAlert(null), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [alert]);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -379,11 +425,72 @@ export default function UsersPage() {
       const response = await usersAPI.getAll();
       setUsers(response.data.users || []);
     } catch (err) {
-      console.error("Failed to fetch users:", err);
       setError("Failed to load team members. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (user) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      department: user.department || "",
+      phone: user.phone || "",
+      isActive: user.isActive,
+    });
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to remove this user?")) return;
+    try {
+      setDeletingUserId(id);
+      await usersAPI.delete(id);
+      setAlert({ type: "success", msg: "User removed successfully!" });
+      fetchUsers();
+    } catch (err) {
+      setAlert({ type: "error", msg: "Failed to remove user" });
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      if (editingUser) {
+        await usersAPI.update(editingUser._id, formData);
+        setAlert({ type: "success", msg: "User updated successfully!" });
+        setEditingUser(null);
+      } else {
+        await usersAPI.create(formData);
+        setAlert({ type: "success", msg: "User created successfully!" });
+        setShowCreateForm(false);
+      }
+      fetchUsers();
+      resetForm();
+    } catch (err) {
+      setAlert({ type: "error", msg: err.response?.data?.message || "Failed to save user" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEditingUser(null);
+    setShowCreateForm(false);
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      role: "Sales Executive",
+      department: "",
+      phone: "",
+      isActive: true,
+    });
   };
 
   const filtered =
@@ -391,7 +498,261 @@ export default function UsersPage() {
       ? users
       : users.filter((u) => u.role === activeFilter);
 
+  const canCreateUser = user?.role === "Admin" || user?.role === "HR";
+
   if (loading) return <Loading />;
+
+  if (showCreateForm) {
+    return (
+      <div className="animate-fade-in space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1
+              className="text-2xl font-bold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Create New User
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+              Add a new team member to your organization
+            </p>
+          </div>
+          <button
+            onClick={resetForm}
+            className="rounded-lg p-2 transition-colors"
+            style={{ background: "var(--bg-muted)", color: "var(--text-secondary)" }}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div
+            className="rounded-2xl p-6 space-y-4"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+                minLength={6}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <select
+                id="role"
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                className="input-field"
+                required
+              >
+                {ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="h-4 w-4 rounded"
+              />
+              <Label htmlFor="isActive" className="cursor-pointer">
+                Active User
+              </Label>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button type="submit" className="flex-1" loading={isSubmitting} loadingText={editingUser ? "Saving..." : "Creating..."}>
+              {editingUser ? "Save Changes" : "Create User"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resetForm}
+              className="flex-1"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  if (editingUser) {
+    return (
+      <div className="animate-fade-in space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1
+              className="text-2xl font-bold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Edit User
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+              Update user permissions and information
+            </p>
+          </div>
+          <button
+            onClick={resetForm}
+            className="rounded-lg p-2 transition-colors"
+            style={{ background: "var(--bg-muted)", color: "var(--text-secondary)" }}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div
+            className="rounded-2xl p-6 space-y-4"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <select
+                id="role"
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                className="input-field"
+                required
+              >
+                {ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="h-4 w-4 rounded"
+              />
+              <Label htmlFor="isActive" className="cursor-pointer">
+                Active User
+              </Label>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button type="submit" className="flex-1" loading={isSubmitting} loadingText="Saving...">
+              Save Changes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={resetForm}
+              className="flex-1"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -432,25 +793,36 @@ export default function UsersPage() {
           </p>
         </div>
 
-        <div
-          className="flex flex-col items-end rounded-xl px-4 py-3"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <span
-            className="text-2xl font-bold tabular-nums"
-            style={{ color: "var(--text-primary)" }}
+        <div className="flex items-center gap-3">
+          {canCreateUser && (
+            <Button
+              onClick={() => setShowCreateForm(true)}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add User
+            </Button>
+          )}
+          <div
+            className="flex flex-col items-end rounded-xl px-4 py-3"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
           >
-            {filtered.length}
-          </span>
-          <span
-            className="text-[11px] uppercase tracking-widest"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {activeFilter === "All" ? "Total" : activeFilter}
-          </span>
+            <span
+              className="text-2xl font-bold tabular-nums"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {filtered.length}
+            </span>
+            <span
+              className="text-[11px] uppercase tracking-widest"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {activeFilter === "All" ? "Total" : activeFilter}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -500,7 +872,7 @@ export default function UsersPage() {
       {filtered.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((user) => (
-            <UserCard key={user._id} user={user} />
+            <UserCard key={user._id} user={user} onEdit={handleEdit} onDelete={handleDelete} deletingUserId={deletingUserId} />
           ))}
         </div>
       ) : (
@@ -524,6 +896,8 @@ export default function UsersPage() {
           </p>
         </div>
       )}
+
+      {alert && <Toast type={alert.type} message={alert.msg} />}
     </div>
   );
 }

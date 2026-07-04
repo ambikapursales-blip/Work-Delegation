@@ -46,6 +46,7 @@
 
 // export { Button, buttonVariants };
 import * as React from "react";
+import { Loader2 } from "lucide-react";
 
 /*
   Variant styles expressed as inline style objects so they
@@ -102,6 +103,15 @@ const VARIANT_HOVER_STYLES = {
   link: {},
 };
 
+const VARIANT_ACTIVE_STYLES = {
+  default: { transform: "scale(0.97)" },
+  secondary: { transform: "scale(0.97)" },
+  destructive: { transform: "scale(0.97)" },
+  outline: { transform: "scale(0.97)" },
+  ghost: { transform: "scale(0.97)" },
+  link: {},
+};
+
 const SIZE_CLASSES = {
   default: "h-10 px-4 py-2 text-sm",
   sm:      "h-8 px-3 py-1.5 text-xs",
@@ -110,11 +120,24 @@ const SIZE_CLASSES = {
 };
 
 const Button = React.forwardRef(
-  ({ className, variant = "default", size = "default", style, ...props }, ref) => {
+  ({ 
+    className, 
+    variant = "default", 
+    size = "default", 
+    style, 
+    loading = false,
+    loadingText = "Loading...",
+    children,
+    disabled,
+    ...props 
+  }, ref) => {
     const [hovered, setHovered] = React.useState(false);
+    const [pressed, setPressed] = React.useState(false);
 
     const baseStyle = VARIANT_STYLES[variant] || VARIANT_STYLES.default;
-    const hoverStyle = hovered ? (VARIANT_HOVER_STYLES[variant] || {}) : {};
+    const hoverStyle = hovered && !loading ? (VARIANT_HOVER_STYLES[variant] || {}) : {};
+    const activeStyle = pressed && !loading ? (VARIANT_ACTIVE_STYLES[variant] || {}) : {};
+    const isDisabled = disabled || loading;
 
     return (
       <button
@@ -123,19 +146,35 @@ const Button = React.forwardRef(
           "inline-flex items-center justify-center gap-1.5 rounded-xl",
           "transition-all duration-200 cursor-pointer",
           "focus-visible:outline-none focus-visible:ring-2",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
+          "disabled:opacity-60 disabled:cursor-not-allowed",
           SIZE_CLASSES[size] || SIZE_CLASSES.default,
           className || "",
         ].join(" ")}
         style={{
           ...baseStyle,
           ...hoverStyle,
+          ...activeStyle,
           ...style,
         }}
         onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseLeave={() => {
+          setHovered(false);
+          setPressed(false);
+        }}
+        onMouseDown={() => setPressed(true)}
+        onMouseUp={() => setPressed(false)}
+        disabled={isDisabled}
         {...props}
-      />
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{loadingText}</span>
+          </>
+        ) : (
+          children
+        )}
+      </button>
     );
   },
 );

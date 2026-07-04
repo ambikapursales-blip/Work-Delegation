@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Check,
+  Loader2,
 } from "lucide-react";
 
 const STATUS_STYLE = {
@@ -55,6 +57,12 @@ export default function EventsPage() {
   const [sortField, setSortField] = useState("startDate");
   const [sortDir, setSortDir] = useState("asc");
   const [hoverEl, setHoverEl] = useState(null);
+  const [selectedEvents, setSelectedEvents] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingEventId, setDeletingEventId] = useState(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [rsvpingEventId, setRsvpingEventId] = useState(null);
+  const [completingEventId, setCompletingEventId] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -101,6 +109,7 @@ export default function EventsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!formData.title || !formData.startDate || !formData.endDate) {
       setAlert({
         type: "error",
@@ -110,6 +119,7 @@ export default function EventsPage() {
     }
 
     try {
+      setIsSubmitting(true);
       if (editingEvent) {
         await eventsAPI.update(editingEvent._id, formData);
         setAlert({ type: "success", msg: "Event updated successfully!" });
@@ -119,39 +129,83 @@ export default function EventsPage() {
       }
       resetForm();
       fetchData();
-    } catch {
+    } catch (error) {
       setAlert({ type: "error", msg: "Failed to save event" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this event?")) return;
     try {
+      setDeletingEventId(id);
       await eventsAPI.delete(id);
-      setAlert({ type: "error", msg: "Event deleted successfully!" });
+      setAlert({ type: "success", msg: "Event deleted successfully!" });
       fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to delete event" });
+    } finally {
+      setDeletingEventId(null);
+    }
+  };
+
+  const handleSelectEvent = (eventId) => {
+    setSelectedEvents(prev =>
+      prev.includes(eventId)
+        ? prev.filter(id => id !== eventId)
+        : [...prev, eventId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedEvents.length === sorted.length) {
+      setSelectedEvents([]);
+    } else {
+      setSelectedEvents(sorted.map(event => event._id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedEvents.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedEvents.length} event(s)?`)) return;
+    
+    try {
+      setBulkDeleting(true);
+      await Promise.all(selectedEvents.map(id => eventsAPI.delete(id)));
+      setAlert({ type: "success", msg: `${selectedEvents.length} event(s) deleted successfully!` });
+      setSelectedEvents([]);
+      fetchData();
+    } catch {
+      setAlert({ type: "error", msg: "Failed to delete some events" });
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
   const handleRSVP = async (eventId, status) => {
     try {
+      setRsvpingEventId(eventId);
       await api.put(`/events/${eventId}/rsvp`, { status });
       setAlert({ type: "success", msg: "RSVP updated!" });
       fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to update RSVP" });
+    } finally {
+      setRsvpingEventId(null);
     }
   };
 
   const handleMarkComplete = async (eventId) => {
     try {
+      setCompletingEventId(eventId);
       await eventsAPI.update(eventId, { status: "Completed" });
       setAlert({ type: "success", msg: "Event marked as completed!" });
       fetchData();
     } catch {
       setAlert({ type: "error", msg: "Failed to mark event as completed" });
+    } finally {
+      setCompletingEventId(null);
     }
   };
 
@@ -516,21 +570,33 @@ export default function EventsPage() {
                 <button
                   type="button"
                   onClick={resetForm}
+                  disabled={isSubmitting}
                   className="btn-secondary w-full sm:w-auto"
+                  style={{
+                    opacity: isSubmitting ? 0.6 : 1,
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="btn-create-task px-5 py-2 text-sm font-semibold rounded-lg w-full sm:w-auto"
                   style={{
                     border: "none",
-                    cursor: "pointer",
+                    cursor: isSubmitting ? "not-allowed" : "pointer",
+                    opacity: isSubmitting ? 0.8 : 1,
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
                 >
-                  {editingEvent ? "Update Event" : "Create Event"}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                      {editingEvent ? "Updating..." : "Creating..."}
+                    </>
+                  ) : (
+                    editingEvent ? "Update Event" : "Create Event"
+                  )}
                 </button>
               </div>
             </form>
@@ -543,15 +609,53 @@ export default function EventsPage() {
           style={{ background: "var(--bg-muted)", border: "1px solid var(--border)" }}
         >
           <div
-            className="px-6 py-4"
+            className="px-6 py-4 flex items-center justify-between"
             style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}
           >
-            <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-              Events Overview
-            </h2>
-            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-              Showing {sorted.length} events
-            </p>
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                Events Overview
+              </h2>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+                Showing {sorted.length} events
+              </p>
+            </div>
+            {selectedEvents.length > 0 && canManage && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{
+                  background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+                  color: "var(--color-danger)",
+                  border: "1px solid color-mix(in srgb, var(--color-danger) 22%, transparent)",
+                  opacity: bulkDeleting ? 0.6 : 1,
+                  cursor: bulkDeleting ? "not-allowed" : "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  if (!bulkDeleting) {
+                    e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 20%, transparent)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!bulkDeleting) {
+                    e.currentTarget.style.background = "color-mix(in srgb, var(--color-danger) 12%, transparent)";
+                  }
+                }}
+              >
+                {bulkDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete {selectedEvents.length} Event{selectedEvents.length > 1 ? 's' : ''}
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {sorted.length === 0 ? (
@@ -571,6 +675,15 @@ export default function EventsPage() {
               <table className="w-full">
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                    <th className="px-4 py-3 text-left table-head w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedEvents.length === sorted.length && sorted.length > 0}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 rounded cursor-pointer"
+                        style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
+                      />
+                    </th>
                     <th className="px-4 py-3 text-left table-head">
                       Event
                     </th>
@@ -601,6 +714,15 @@ export default function EventsPage() {
                       className="table-row-hover"
                       style={{ borderBottom: "1px solid var(--border)" }}
                     >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedEvents.includes(event._id)}
+                          onChange={() => handleSelectEvent(event._id)}
+                          className="w-4 h-4 rounded cursor-pointer"
+                          style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
+                        />
+                      </td>
                       <td className="px-4 py-3 max-w-xs">
                         <div>
                           <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
@@ -685,12 +807,25 @@ export default function EventsPage() {
                           {event.status !== "Completed" && (
                             <button
                               onClick={() => handleMarkComplete(event._id)}
-                              style={actionBtnStyle("var(--color-success)", hoverEl === "complete-" + event._id)}
-                              onMouseEnter={() => setHoverEl("complete-" + event._id)}
+                              disabled={completingEventId === event._id}
+                              style={{
+                                ...actionBtnStyle("var(--color-success)", hoverEl === "complete-" + event._id),
+                                opacity: completingEventId === event._id ? 0.6 : 1,
+                                cursor: completingEventId === event._id ? "not-allowed" : "pointer",
+                              }}
+                              onMouseEnter={() => {
+                                if (completingEventId !== event._id) {
+                                  setHoverEl("complete-" + event._id);
+                                }
+                              }}
                               onMouseLeave={() => setHoverEl(null)}
                               title="Mark as completed"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {completingEventId === event._id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
                             </button>
                           )}
                           {canManage && (
@@ -709,11 +844,24 @@ export default function EventsPage() {
                               </button>
                               <button
                                 onClick={() => handleDelete(event._id)}
-                                style={actionBtnStyle("var(--color-danger)", hoverEl === "delete-" + event._id)}
-                                onMouseEnter={() => setHoverEl("delete-" + event._id)}
+                                disabled={deletingEventId === event._id}
+                                style={{
+                                  ...actionBtnStyle("var(--color-danger)", hoverEl === "delete-" + event._id),
+                                  opacity: deletingEventId === event._id ? 0.6 : 1,
+                                  cursor: deletingEventId === event._id ? "not-allowed" : "pointer",
+                                }}
+                                onMouseEnter={() => {
+                                  if (deletingEventId !== event._id) {
+                                    setHoverEl("delete-" + event._id);
+                                  }
+                                }}
                                 onMouseLeave={() => setHoverEl(null)}
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                {deletingEventId === event._id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
                               </button>
                             </>
                           )}

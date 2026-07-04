@@ -36,7 +36,7 @@ export async function GET(request) {
           query.employee = { $in: teamIds };
         }
       } catch (userError) {
-        console.error("Error fetching team members:", userError);
+        // Silently fail team member fetch error
       }
     }
 
@@ -49,7 +49,6 @@ export async function GET(request) {
 
     res.status(200).json({ success: true, total, count: dwrs.length, dwrs });
   } catch (error) {
-    console.error("Error fetching pending review DWRs:", error);
     res
       .status(500)
       .json({ success: false, message: error.message || "Server error" });

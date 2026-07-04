@@ -282,12 +282,11 @@ export default function DashboardPage() {
           const usersRes = await usersAPI.getAll();
           setUsersList(usersRes.data?.users || []);
         } catch (err) {
-          console.error("Failed to fetch users:", err);
+          // Silently fail users fetch
         }
       }
     } catch (err) {
       setError("Failed to load dashboard data");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -299,7 +298,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!loading && analytics && viewMode === "graphs") {
-      initializeCharts().catch(console.error);
+      initializeCharts().catch(() => {});
     }
     const instances = chartInstances.current;
     return () => Object.values(instances).forEach((c) => c?.destroy());

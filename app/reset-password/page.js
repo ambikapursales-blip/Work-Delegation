@@ -1,69 +1,89 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
 import { authAPI } from "@/lib/api";
-import { Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from "lucide-react";
+import {
+  Key,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  LogIn,
+  CheckCircle2,
+} from "lucide-react";
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
-  const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") || "";
+
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  
-  const handleLogin = useCallback(async (e) => {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!email) {
+      router.replace("/forgot-password");
+    }
+  }, [email, router]);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter both email and password");
+
+    if (!otp.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      setError("Please fill in all fields");
       return;
     }
-    
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
     setError("");
+    setSuccess("");
     setLoading(true);
 
     try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Request timeout")), 10000)
       );
-      
-      const response = await Promise.race([
-        authAPI.login(email, password),
-        timeoutPromise
-      ]);
-      
-      const { token, user } = response.data;
 
-      // Optimized login - immediate redirect
-      login(user, token);
-      
-      // Use replace instead of push for faster navigation
-      router.replace("/dashboard");
+      await Promise.race([
+        authAPI.resetPassword(email, otp, newPassword),
+        timeoutPromise,
+      ]);
+
+      setSuccess("Password has been reset successfully! Redirecting to login...");
+      setTimeout(() => router.replace("/auth/login"), 2000);
     } catch (err) {
-      setError(
-        err.response?.data?.message || err.message || "Login failed. Please try again.",
-      );
+      setError(err.response?.data?.message || "Failed to reset password. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [email, password, login, router]);
+  }, [email, otp, newPassword, confirmPassword, router]);
 
   return (
     <div className="min-h-screen flex overflow-hidden"
       style={{ backgroundColor: "var(--bg-base)" }}>
 
-      {/* ── Left decorative panel (hidden on mobile) ── */}
+      {/* ── Left decorative panel ── */}
       <div className="hidden lg:flex flex-1 flex-col items-center justify-center px-12 py-12 relative overflow-hidden"
         style={{
           background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-surface) 50%, var(--bg-card) 100%)",
         }}>
-        {/* Blobs */}
         <div className="absolute w-96 h-96 rounded-full pointer-events-none -top-24 -left-24"
           style={{ backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)" }} />
         <div className="absolute w-64 h-64 rounded-full pointer-events-none bottom-16 -right-20"
@@ -71,7 +91,6 @@ export default function LoginPage() {
         <div className="absolute w-36 h-36 rounded-full pointer-events-none top-[45%] left-[55%]"
           style={{ backgroundColor: "color-mix(in srgb, var(--text-primary) 8%, transparent)" }} />
 
-        {/* Brand */}
         <div className="relative z-10 text-center">
           <div
             className="mx-auto mb-7 flex items-center justify-center rounded-2xl border-2 backdrop-blur-sm"
@@ -93,7 +112,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Feature list */}
         <div className="relative z-10 mt-12 flex flex-col gap-3 w-full max-w-xs">
           {[
             "Assign tasks with precision and clarity",
@@ -135,12 +153,24 @@ export default function LoginPage() {
             </span>
           </div>
 
+          {/* Back to forgot password */}
+          <Link
+            href="/forgot-password"
+            className="inline-flex items-center gap-1.5 text-xs transition-colors duration-150 no-underline mb-8"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
+          >
+            <Key size={14} />
+            Request new OTP
+          </Link>
+
           <h2 className="font-bold text-3xl tracking-tight mb-1.5"
             style={{ color: "var(--text-primary)" }}>
-            Welcome back
+            Reset Password
           </h2>
           <p className="text-sm mb-8" style={{ color: "var(--text-secondary)" }}>
-            Sign in to your account to continue
+            Enter the OTP sent to <strong style={{ color: "var(--text-primary)" }}>{email}</strong>
           </p>
 
           {/* Error alert */}
@@ -157,46 +187,62 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin}>
-            {/* Email */}
+          {/* Success alert */}
+          {success && (
+            <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-3 mb-5"
+              style={{
+                backgroundColor: "var(--bg-muted)",
+                border: "1px solid color-mix(in srgb, var(--color-success) 30%, transparent)",
+              }}>
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5"
+                style={{ color: "var(--color-success)" }} />
+              <span className="text-sm leading-snug"
+                style={{ color: "var(--color-success)" }}>{success}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            {/* OTP */}
             <div className="mb-5">
               <label
-                htmlFor="email"
+                htmlFor="otp"
                 className="flex items-center gap-1.5 text-sm font-medium mb-2"
                 style={{ color: "var(--text-secondary)" }}
               >
-                <Mail size={14} style={{ color: "var(--color-success)" }} />
-                Email Address
+                <Key size={14} style={{ color: "var(--color-success)" }} />
+                One-Time Password (OTP)
               </label>
               <input
-                id="email"
-                type="email"
-                placeholder="your.email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter 6-digit OTP"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                 required
                 disabled={loading}
-                className="input-field h-11 text-sm"
+                className="input-field h-11 text-sm text-center tracking-[8px] font-mono"
               />
             </div>
 
-            {/* Password */}
+            {/* New Password */}
             <div className="mb-5">
               <label
-                htmlFor="password"
+                htmlFor="newPassword"
                 className="flex items-center gap-1.5 text-sm font-medium mb-2"
                 style={{ color: "var(--text-secondary)" }}
               >
                 <Lock size={14} style={{ color: "var(--color-success)" }} />
-                Password
+                New Password
               </label>
               <div className="relative">
                 <input
-                  id="password"
+                  id="newPassword"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                   required
                   disabled={loading}
                   className="input-field h-11 text-sm pr-11"
@@ -216,23 +262,46 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Forgot Password */}
-            <div className="text-right mb-5 mt-4">
-              <Link
-                href="/forgot-password"
-                className="text-xs transition-colors duration-150 no-underline hover:underline"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
-                onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
+            {/* Confirm Password */}
+            <div className="mb-5">
+              <label
+                htmlFor="confirmPassword"
+                className="flex items-center gap-1.5 text-sm font-medium mb-2"
+                style={{ color: "var(--text-secondary)" }}
               >
-                Forgot Password?
-              </Link>
+                <Lock size={14} style={{ color: "var(--color-success)" }} />
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  id="confirmPassword"
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="input-field h-11 text-sm pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  disabled={loading}
+                  tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors duration-150 flex items-center bg-transparent border-none cursor-pointer p-0"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-secondary)"}
+                  onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             {/* Submit */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !!success}
               className="w-full h-12 flex items-center justify-center gap-2 text-sm font-semibold rounded-xl tracking-wide transition-all duration-150 cursor-pointer border-none"
               style={{
                 background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
@@ -257,35 +326,16 @@ export default function LoginPage() {
                       borderColor: "color-mix(in srgb, var(--text-inverse) 30%, transparent)",
                       borderTopColor: "var(--text-inverse)",
                     }} />
-                  Signing in\u2026
+                  Resetting\u2026
                 </>
               ) : (
                 <>
-                  <LogIn size={16} />
-                  Sign in
+                  <Lock size={16} />
+                  Reset Password
                 </>
               )}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-7 pt-5 text-center"
-            style={{ borderTop: "1px solid var(--border)" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2.5"
-              style={{ color: "var(--text-muted)" }}>
-              Demo Credentials
-            </p>
-            <div className="inline-block rounded-lg px-4 py-2.5 font-mono text-xs leading-relaxed"
-              style={{
-                backgroundColor: "var(--bg-muted)",
-                border: "1px solid var(--border)",
-                color: "var(--text-muted)",
-              }}>
-              test@example.com
-              <br />
-              password123
-            </div>
-          </div>
 
         </div>
       </div>

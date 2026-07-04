@@ -77,7 +77,6 @@ export async function PUT(request, { params }) {
 
     res.status(200).json({ success: true, event });
   } catch (error) {
-    console.error("Error updating event:", error);
     res
       .status(500)
       .json({ success: false, message: error.message || "Server error" });

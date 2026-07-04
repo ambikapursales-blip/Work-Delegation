@@ -29,6 +29,8 @@ import {
   Repeat,
   ListTodo,
   Sparkles,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
 import DatePicker from "react-datepicker";
@@ -72,6 +74,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("view"); // "create" or "view"
+  const [selectedTasks, setSelectedTasks] = useState([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -98,7 +101,14 @@ export default function TasksPage() {
   const [escalationReason, setEscalationReason] = useState("");
   const [showCompleteInput, setShowCompleteInput] = useState(null);
   const [completionProof, setCompletionProof] = useState("");
+  const [selectedTaskForModal, setSelectedTaskForModal] = useState(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [expandedTask, setExpandedTask] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [editFormData, setEditFormData] = useState({
     title: "",
@@ -111,6 +121,13 @@ export default function TasksPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState(null);
+  const [commentingTaskId, setCommentingTaskId] = useState(null);
+  const [reassigningTaskId, setReassigningTaskId] = useState(null);
+  const [escalatingTaskId, setEscalatingTaskId] = useState(null);
+  const [completingTaskId, setCompletingTaskId] = useState(null);
+  const [editingSubmitting, setEditingSubmitting] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   // Initialize taskViewTab from URL params to avoid race condition
   const getInitialTab = () => {
     const statusParam = searchParams.get("status");
@@ -134,10 +151,30 @@ export default function TasksPage() {
 
   const canAssignTasks = ["Admin", "Manager"].includes(user?.role);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setIsSearching(false);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Show searching state when typing
+  useEffect(() => {
+    if (searchQuery !== debouncedSearchQuery) {
+      setIsSearching(true);
+    }
+  }, [searchQuery, debouncedSearchQuery]);
+
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const filters = {};
+      const filters = {
+        page: currentPage,
+        limit: 15,
+      };
 
       if (taskViewTab !== "all") {
         if (taskViewTab === "completed") filters.status = "Completed";
@@ -183,22 +220,25 @@ export default function TasksPage() {
         filters.assignedTo = userFilter;
       }
 
+      if (debouncedSearchQuery.trim()) {
+        filters.search = debouncedSearchQuery.trim();
+      }
+
       const response = await taskAPI.getTasks(filters);
       setTasks(response.data?.tasks || []);
+      setTotalTasks(response.data?.total || 0);
     } catch (err) {
       setError("Failed to load tasks");
-      console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [taskViewTab, dateFilter, startDate, endDate, userFilter, canAssignTasks]);
+  }, [taskViewTab, dateFilter, startDate, endDate, userFilter, canAssignTasks, currentPage, debouncedSearchQuery]);
 
   const fetchUsers = useCallback(async () => {
     try {
       const response = await usersAPI.getAll();
       setUsers(response.data?.users || []);
     } catch (err) {
-      console.error("Failed to fetch users:", err);
       setError("Failed to load user list for task assignment");
     }
   }, []);
@@ -259,6 +299,7 @@ export default function TasksPage() {
   const handleAddComment = async (taskId) => {
     if (!commentText.trim()) return;
     try {
+      setCommentingTaskId(taskId);
       await taskAPI.addComment(taskId, { text: commentText });
       setSuccess("Comment added successfully");
       setCommentText("");
@@ -266,12 +307,15 @@ export default function TasksPage() {
       fetchTasks();
     } catch (err) {
       setError("Failed to add comment");
+    } finally {
+      setCommentingTaskId(null);
     }
   };
 
   const handleReassign = async (taskId) => {
     if (!reassignTo) return;
     try {
+      setReassigningTaskId(taskId);
       const task = tasks.find((t) => t._id === taskId);
       await taskAPI.reassign(taskId, {
         fromUserId: task.assignedTo[0]?._id,
@@ -284,6 +328,8 @@ export default function TasksPage() {
       fetchTasks();
     } catch (err) {
       setError("Failed to reassign task");
+    } finally {
+      setReassigningTaskId(null);
     }
   };
 
@@ -293,6 +339,7 @@ export default function TasksPage() {
       return;
     }
     try {
+      setEscalatingTaskId(taskId);
       await taskAPI.escalate(taskId, {
         escalatedTo: escalateTo,
         reason: escalationReason,
@@ -304,6 +351,8 @@ export default function TasksPage() {
       fetchTasks();
     } catch (err) {
       setError("Failed to escalate task");
+    } finally {
+      setEscalatingTaskId(null);
     }
   };
 
@@ -318,6 +367,7 @@ export default function TasksPage() {
     }
 
     try {
+      setCompletingTaskId(taskId);
       await taskAPI.updateTask(taskId, {
         status: "completed",
         completionProof,
@@ -328,16 +378,62 @@ export default function TasksPage() {
       fetchTasks();
     } catch (err) {
       setError("Failed to mark task as completed");
+    } finally {
+      setCompletingTaskId(null);
     }
   };
 
   const handleDelete = async (taskId) => {
     if (!confirm("Are you sure you want to delete this task?")) return;
     try {
+      setDeletingTaskId(taskId);
       await taskAPI.deleteTask(taskId);
+      setSuccess("Task deleted successfully");
       fetchTasks();
     } catch (err) {
       setError("Failed to delete task");
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
+  const handleSelectTask = (taskId) => {
+    setSelectedTasks(prev =>
+      prev.includes(taskId)
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    );
+  };
+
+  const handleSelectAllTasks = () => {
+    if (selectedTasks.length === tasksToDisplay.length) {
+      setSelectedTasks([]);
+    } else {
+      setSelectedTasks(tasksToDisplay.map(task => task._id));
+    }
+  };
+
+  const handleFilterChange = (filterType, value) => {
+    setCurrentPage(1);
+    if (filterType === "taskViewTab") setTaskViewTab(value);
+    if (filterType === "dateFilter") setDateFilter(value);
+    if (filterType === "userFilter") setUserFilter(value);
+  };
+
+  const handleBulkDeleteTasks = async () => {
+    if (selectedTasks.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedTasks.length} task(s)?`)) return;
+    
+    try {
+      setBulkDeleting(true);
+      await Promise.all(selectedTasks.map(id => taskAPI.deleteTask(id)));
+      setSuccess(`${selectedTasks.length} task(s) deleted successfully!`);
+      setSelectedTasks([]);
+      fetchTasks();
+    } catch (err) {
+      setError("Failed to delete some tasks");
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -357,6 +453,7 @@ export default function TasksPage() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
+      setEditingSubmitting(true);
       await taskAPI.updateTask(editingTask._id, editFormData);
       setSuccess("Task updated successfully");
       setEditingTask(null);
@@ -370,6 +467,8 @@ export default function TasksPage() {
       fetchTasks();
     } catch (err) {
       setError("Failed to update task");
+    } finally {
+      setEditingSubmitting(false);
     }
   };
 
@@ -425,7 +524,7 @@ export default function TasksPage() {
               className="btn-create-task font-bold text-base px-6 py-3 rounded-xl"
               style={{ color: "var(--active-text)" }}
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="h-5 w-5 mr-2" style={{ color: "var(--active-text)" }} />
               Create Task
             </Button>
           )}
@@ -462,10 +561,10 @@ export default function TasksPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
-                      style={{ background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)" }}>
+                      style={{ background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)" }}>
                       <div className="w-full h-full rounded-2xl flex items-center justify-center"
                         style={{ backgroundColor: "var(--bg-card)" }}>
-                        <Plus className="w-6 h-6" style={{ color: "var(--color-success)" }} />
+                        <Plus className="w-6 h-6" style={{ color: "var(--active-start)" }} />
                       </div>
                     </div>
                     <div>
@@ -600,27 +699,22 @@ export default function TasksPage() {
                         style={{ color: "var(--text-primary)" }}>
                         Priority
                       </Label>
-                      <div className="relative">
-                        <select
-                          id="priority"
-                          value={formData.priority}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              priority: e.target.value,
-                            })
-                          }
-                          className="input-field h-[52px] text-base appearance-none cursor-pointer"
-                        >
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                          <option value="Critical">Critical</option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                          <ChevronDown className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
-                        </div>
-                      </div>
+                      <select
+                        id="priority"
+                        value={formData.priority}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            priority: e.target.value,
+                          })
+                        }
+                        className="input-field h-[52px] text-base"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
                     </div>
                   </div>
 
@@ -810,50 +904,23 @@ export default function TasksPage() {
                     style={{ borderTop: "1px solid var(--border)" }}>
                     <Button
                       type="submit"
-                      disabled={isSubmitting}
+                      loading={isSubmitting}
+                      loadingText="Creating..."
                       style={{
-                        background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
-                        color: "var(--text-inverse)",
-                        boxShadow: "0 2px 12px color-mix(in srgb, var(--color-success) 30%, transparent)",
+                        background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                        color: "var(--active-text)",
+                        boxShadow: "0 2px 12px color-mix(in srgb, var(--active-start) 30%, transparent)",
                       }}
-                      className="h-[52px] font-bold text-base disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                      className="h-[52px] font-bold text-base rounded-xl"
                     >
-                      {isSubmitting ? (
-                        <span className="flex items-center gap-2">
-                          <svg
-                            className="animate-spin h-5 w-5"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                              fill="none"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                          Creating...
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <Sparkles className="w-5 h-5" />
-                          Create Task
-                        </span>
-                      )}
+                      Create Task
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setActiveTab("view")}
                       disabled={isSubmitting}
-                      className="h-[52px] font-medium text-base disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                      className="h-[52px] font-medium text-base rounded-xl"
                     >
                       Cancel
                     </Button>
@@ -1037,27 +1104,22 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         style={{ color: "var(--text-primary)" }}>
                         Priority <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
-                      <div className="relative">
-                        <select
-                          id="edit-priority"
-                          value={editFormData.priority}
-                          onChange={(e) =>
-                            setEditFormData({
-                              ...editFormData,
-                              priority: e.target.value,
-                            })
-                          }
-                          className="input-field h-[52px] text-base appearance-none cursor-pointer"
-                        >
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
-                          <option value="Critical">Critical</option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                          <ChevronDown className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
-                        </div>
-                      </div>
+                      <select
+                        id="edit-priority"
+                        value={editFormData.priority}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            priority: e.target.value,
+                          })
+                        }
+                        className="input-field h-[52px] text-base"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1117,6 +1179,8 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     style={{ borderTop: "1px solid var(--border)" }}>
                     <Button
                       type="submit"
+                      loading={editingSubmitting}
+                      loadingText="Updating..."
                       style={{
                         background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)",
                         color: "white",
@@ -1124,25 +1188,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       }}
                       className="h-[52px] font-bold text-base rounded-xl"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 mr-2"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path>
-                        <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon>
-                      </svg>
                       Update Task
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setEditingTask(null)}
+                      disabled={editingSubmitting}
                       className="h-[52px] font-medium text-base rounded-xl"
                     >
                       Cancel
@@ -1188,7 +1240,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       ].map((status) => (
                         <button
                           key={status}
-                          onClick={() => setTaskViewTab(status)}
+                          onClick={() => {
+                            setTaskViewTab(status);
+                            setCurrentPage(1);
+                          }}
                           className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
                           style={
                             taskViewTab === status
@@ -1228,7 +1283,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     </span>
                     <select
                       value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
+                      onChange={(e) => {
+                        setDateFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
                       className="input-field text-sm font-medium"
                       style={{ width: "auto", minWidth: "140px" }}
                     >
@@ -1247,7 +1305,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       </span>
                       <select
                         value={userFilter}
-                        onChange={(e) => setUserFilter(e.target.value)}
+                        onChange={(e) => {
+                          setUserFilter(e.target.value);
+                          setCurrentPage(1);
+                        }}
                         className="input-field text-sm font-medium"
                         style={{ width: "auto", minWidth: "140px" }}
                       >
@@ -1296,10 +1357,68 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
               {/* Tasks Table */}
               <div className="glass-card overflow-hidden">
+                <div className="px-4 py-3 flex items-center gap-3"
+                  style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Search tasks by title or description..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="input-field w-full text-sm pl-9"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs"
+                      style={{ color: "var(--text-muted)" }}>
+                      {isSearching ? "⏳" : "🔍"}
+                    </span>
+                  </div>
+                </div>
+                {selectedTasks.length > 0 && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3"
+                    style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {selectedTasks.length} task{selectedTasks.length > 1 ? 's' : ''} selected
+                    </span>
+                    <button
+                      onClick={handleBulkDeleteTasks}
+                      disabled={bulkDeleting}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                      style={{
+                        background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+                        color: "var(--color-danger)",
+                        border: "1px solid color-mix(in srgb, var(--color-danger) 22%, transparent)",
+                        opacity: bulkDeleting ? 0.6 : 1,
+                        cursor: bulkDeleting ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {bulkDeleting ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete Selected
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="table-head">
+                        <th className="px-4 py-3 text-left w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedTasks.length === tasksToDisplay.length && tasksToDisplay.length > 0}
+                            onChange={handleSelectAllTasks}
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left">Task</th>
                         <th className="px-4 py-3 text-left">Status</th>
                         <th className="px-4 py-3 text-left">Priority</th>
@@ -1312,7 +1431,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     <tbody>
                       {tasksToDisplay.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="px-4 py-12 text-center">
+                          <td colSpan="8" className="px-4 py-12 text-center">
                             <div className="flex flex-col items-center gap-3">
                               <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
                                 style={{ backgroundColor: "var(--bg-muted)" }}>
@@ -1350,14 +1469,28 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                   )
                                 }
                               >
+                                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTasks.includes(task._id)}
+                                    onChange={() => handleSelectTask(task._id)}
+                                  />
+                                </td>
                                 <td className="px-4 py-3 max-w-xs">
-                                  <div>
+                                  <div
+                                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedTaskForModal(task);
+                                      setShowTaskModal(true);
+                                    }}
+                                  >
                                     <p className="font-medium text-sm truncate"
                                       style={{ color: "var(--text-primary)" }}>
                                       {task.title}
                                     </p>
                                     {task.description && (
-                                      <p className="text-xs mt-0.5 line-clamp-2 truncate"
+                                      <p className="text-xs mt-0.5 truncate"
                                         style={{ color: "var(--text-muted)" }}>
                                         {task.description}
                                       </p>
@@ -1490,13 +1623,30 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                     )}
                                     <button
                                       onClick={() => handleDelete(task._id)}
+                                      disabled={deletingTaskId === task._id}
                                       className="p-1.5 rounded-md transition-colors"
                                       title="Delete task"
-                                      style={{ color: "var(--color-danger)" }}
-                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-danger) 8%, transparent)"}
-                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                      style={{ 
+                                        color: "var(--color-danger)",
+                                        opacity: deletingTaskId === task._id ? 0.6 : 1,
+                                        cursor: deletingTaskId === task._id ? "not-allowed" : "pointer",
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (deletingTaskId !== task._id) {
+                                          e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (deletingTaskId !== task._id) {
+                                          e.currentTarget.style.backgroundColor = "transparent";
+                                        }
+                                      }}
                                     >
-                                      <Trash2 className="w-4 h-4" />
+                                      {deletingTaskId === task._id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="w-4 h-4" />
+                                      )}
                                     </button>
                                   </div>
                                 </td>
@@ -1533,9 +1683,21 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                         onClick={() =>
                                           handleCompleteSubmit(task._id)
                                         }
+                                        disabled={completingTaskId === task._id}
                                         className="btn-primary px-4 py-2 text-sm"
+                                        style={{
+                                          opacity: completingTaskId === task._id ? 0.6 : 1,
+                                          cursor: completingTaskId === task._id ? "not-allowed" : "pointer",
+                                        }}
                                       >
-                                        Submit
+                                        {completingTaskId === task._id ? (
+                                          <>
+                                            <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                                            Submitting...
+                                          </>
+                                        ) : (
+                                          "Submit"
+                                        )}
                                       </button>
                                       <button
                                         onClick={() => {
@@ -1604,11 +1766,185 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     </tbody>
                   </table>
                 </div>
+                {/* Pagination */}
+                {totalTasks > 15 && (
+                  <div className="px-4 py-3 flex items-center justify-between"
+                    style={{ borderTop: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      Showing {((currentPage - 1) * 15) + 1} to {Math.min(currentPage * 15, totalTasks)} of {totalTasks} tasks
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded-lg text-sm disabled:opacity-50 transition-colors"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm px-2" style={{ color: "var(--text-primary)" }}>
+                        Page {currentPage} of {Math.ceil(totalTasks / 15)}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalTasks / 15), p + 1))}
+                        disabled={currentPage >= Math.ceil(totalTasks / 15)}
+                        className="px-3 py-1 rounded-lg text-sm disabled:opacity-50 transition-colors"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
         </>
       ) : null}
+
+      {/* Task Detail Modal */}
+      {showTaskModal && selectedTaskForModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0, 0, 0, 0.5)" }}
+          onClick={() => setShowTaskModal(false)}
+        >
+          <div
+            className="rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+                  Task Details
+                </h2>
+                <button
+                  onClick={() => setShowTaskModal(false)}
+                  className="p-1 rounded-lg transition-colors"
+                  style={{ background: "var(--bg-muted)", color: "var(--text-secondary)" }}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}>
+                    Subject
+                  </label>
+                  <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                    {selectedTaskForModal.title}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}>
+                    Description
+                  </label>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>
+                    {selectedTaskForModal.description || "No description provided"}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Status
+                    </label>
+                    <span
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+                      style={statusStyle(
+                        selectedTaskForModal.status?.toLowerCase() === "completed"
+                          ? "Completed"
+                          : selectedTaskForModal.isOverdue
+                            ? "Overdue"
+                            : selectedTaskForModal.status?.toLowerCase() === "in progress"
+                              ? "In Progress"
+                              : "Pending"
+                      )}
+                    >
+                      {selectedTaskForModal.status?.toLowerCase() === "completed"
+                        ? "Completed"
+                        : selectedTaskForModal.isOverdue
+                          ? "Overdue"
+                          : selectedTaskForModal.status?.toLowerCase() === "in progress"
+                            ? "In Progress"
+                            : "Pending"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Priority
+                    </label>
+                    <span
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+                      style={priorityStyle(selectedTaskForModal.priority)}
+                    >
+                      {selectedTaskForModal.priority}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Assigned To
+                    </label>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {Array.isArray(selectedTaskForModal.assignedTo)
+                        ? selectedTaskForModal.assignedTo.map(u => typeof u === "object" ? u.name : u).join(", ")
+                        : selectedTaskForModal.assignedTo || "Unassigned"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Deadline
+                    </label>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {selectedTaskForModal.deadline
+                        ? new Date(selectedTaskForModal.deadline).toLocaleDateString()
+                        : "No deadline"}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}>
+                    Type
+                  </label>
+                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    {selectedTaskForModal.taskType || "One-time"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <Button onClick={() => setShowTaskModal(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

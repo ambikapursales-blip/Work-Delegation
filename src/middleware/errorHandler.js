@@ -2,8 +2,6 @@ export const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  console.error("Error:", err);
-
   if (err.name === "CastError") {
     const message = `Resource not found with id ${err.value}`;
     return res.status(404).json({ success: false, message });

@@ -9,6 +9,8 @@ import {
 } from "@/src/lib/route-adapter";
 import Event from "@/src/models/Event";
 import Activity from "@/src/models/Activity";
+import User from "@/src/models/User";
+import { sendEventInvitationEmail } from "@/src/utils/emailService";
 
 export async function GET(request) {
   await ensureDbConnection();
@@ -96,9 +98,36 @@ export async function POST(request) {
       entityType: "Event",
     });
 
+    // Send email invitations to assigned users
+    if (assignedTo && assignedTo.length > 0) {
+      const assignedUsers = await User.find({ _id: { $in: assignedTo } }).select('name email');
+      
+      const emailPromises = assignedUsers.map(async (assignedUser) => {
+        try {
+          await sendEventInvitationEmail(
+            assignedUser.email,
+            assignedUser.name,
+            {
+              title,
+              description,
+              type,
+              startDate,
+              endDate,
+              location,
+              isVirtual,
+              meetingLink,
+              priority,
+            }
+          );
+        } catch (emailError) {
+          // Silently fail email errors to not block event creation
+        }
+      });
+      await Promise.allSettled(emailPromises);
+    }
+
     res.status(201).json({ success: true, event });
   } catch (error) {
-    console.error("Error creating event:", error);
     res
       .status(500)
       .json({ success: false, message: error.message || "Server error" });

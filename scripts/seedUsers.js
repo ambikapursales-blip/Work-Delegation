@@ -7,10 +7,8 @@ dotenv.config();
 const seedUsers = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("Connected to MongoDB");
 
     await User.deleteMany({});
-    console.log("Cleared existing users");
 
     const users = [
       {
@@ -76,16 +74,8 @@ const seedUsers = async () => {
       createdUsers.push(user);
     }
 
-    console.log(`Created ${createdUsers.length} test users`);
-
-    createdUsers.forEach((user) => {
-      console.log(`  - ${user.name} (${user.email}) - Role: ${user.role}`);
-    });
-
     await mongoose.disconnect();
-    console.log("Disconnected from MongoDB");
   } catch (error) {
-    console.error("Seeding error:", error);
     process.exit(1);
   }
 };
