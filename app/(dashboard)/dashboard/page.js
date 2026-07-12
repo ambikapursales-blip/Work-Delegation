@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
 import {
@@ -15,6 +15,7 @@ import {
   Filter,
   RefreshCw,
 } from "lucide-react";
+import { DashboardSkeleton } from "@/components/skeleton";
 import { dashboardAPI, reportsAPI, taskAPI, usersAPI } from "@/lib/api";
 import Link from "next/link";
 import Toast from "@/components/Toast";
@@ -27,7 +28,7 @@ const badgeStyle = (clr, bg = "0.12", bd = "0.22") => ({
 });
 
 /* ─── Stat Card ─────────────────────────────────────────────────── */
-function StatCard({ title, value, icon, trend, trendUp, accent, href }) {
+const StatCard = React.memo(function StatCard({ title, value, icon, trend, trendUp, accent, href }) {
   const accentMap = {
     purple: "var(--color-success)",
     emerald: "var(--color-success)",
@@ -94,10 +95,10 @@ function StatCard({ title, value, icon, trend, trendUp, accent, href }) {
 
   if (href) return <Link href={href}>{cardContent}</Link>;
   return cardContent;
-}
+});
 
 /* ─── Card ───────────────────────────────────────────────────────── */
-function Card({ children, className = "" }) {
+const Card = React.memo(function Card({ children, className = "" }) {
   return (
     <div
       className={`rounded-2xl ${className}`}
@@ -111,10 +112,10 @@ function Card({ children, className = "" }) {
       {children}
     </div>
   );
-}
+});
 
 /* ─── Card Header ────────────────────────────────────────────────── */
-function CardHeader({ title, subtitle, action }) {
+const CardHeader = React.memo(function CardHeader({ title, subtitle, action }) {
   return (
     <div
       className="flex items-center justify-between px-6 py-4"
@@ -129,15 +130,16 @@ function CardHeader({ title, subtitle, action }) {
       {action}
     </div>
   );
-}
+});
 
 /* ─── Status Badge ────────────────────────────────────────────────── */
-function StatusBadge({ status }) {
+const StatusBadge = React.memo(function StatusBadge({ status }) {
   const map = {
     Completed:   { clr: "var(--color-success)" },
     "In Progress": { clr: "var(--color-info)" },
-    Pending:     { clr: "var(--color-warning)" },
     Overdue:     { clr: "var(--color-danger)" },
+    Cancelled:   { clr: "var(--text-muted)" },
+    "On Hold":   { clr: "var(--color-warning)" },
   };
   const c = map[status] || { clr: "var(--text-muted)" };
   return (
@@ -148,10 +150,10 @@ function StatusBadge({ status }) {
       {status}
     </span>
   );
-}
+});
 
 /* ─── Priority Badge ─────────────────────────────────────────────── */
-function PriorityBadge({ priority }) {
+const PriorityBadge = React.memo(function PriorityBadge({ priority }) {
   const map = {
     Critical: { clr: "var(--color-danger)" },
     High:     { clr: "var(--color-warning)" },
@@ -167,7 +169,7 @@ function PriorityBadge({ priority }) {
       {priority}
     </span>
   );
-}
+});
 
 /* ─── Page ───────────────────────────────────────────────────────── */
 export default function DashboardPage() {
@@ -175,7 +177,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
-    pendingTasks: 0,
+    inProgressTasks: 0,
     totalUsers: 0,
     presentToday: 0,
     eventsCount: 0,
@@ -203,12 +205,15 @@ export default function DashboardPage() {
   };
   const chartInstances = useRef({});
 
-  const isAdminOrManager = ["Admin", "Manager"].includes(user?.role);
-  const isHR = user?.role === "HR";
-  const completionRate =
-    analytics?.tasks?.total > 0
-      ? Math.round((analytics.tasks.completed / analytics.tasks.total) * 100)
-      : 0;
+  const isAdminOrManager = useMemo(() => ["Super Admin", "Manager"].includes(user?.role), [user?.role]);
+  const isHR = useMemo(() => user?.role === "HR", [user?.role]);
+  const completionRate = useMemo(
+    () =>
+      analytics?.tasks?.total > 0
+        ? Math.round((analytics.tasks.completed / analytics.tasks.total) * 100)
+        : 0,
+    [analytics?.tasks?.total, analytics?.tasks?.completed],
+  );
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -237,7 +242,7 @@ export default function DashboardPage() {
         customEndDate.setHours(23, 59, 59, 999);
       }
 
-      const [response, analyticsRes, activitiesRes, tasksRes] = await Promise.all([
+      const promises = [
         dashboardAPI.getStats({
           userId: selectedUser === "all" ? undefined : selectedUser,
           status: statusFilter === "all" ? undefined : statusFilter,
@@ -260,13 +265,18 @@ export default function DashboardPage() {
           startDate: customStartDate?.toISOString(),
           endDate: customEndDate?.toISOString(),
         }),
-      ]);
+      ];
+
+      if (isAdminOrManager) {
+        promises.push(usersAPI.getAll().catch(() => ({ data: { users: [] } })));
+      }
+
+      const [response, analyticsRes, activitiesRes, tasksRes, usersRes] = await Promise.all(promises);
 
       const statsData = response.data?.stats;
       setStats({
         totalTasks: statsData?.tasks?.total || 0,
         completedTasks: statsData?.tasks?.completed || 0,
-        pendingTasks: statsData?.tasks?.pending || 0,
         inProgressTasks: statsData?.tasks?.inProgress || 0,
         totalUsers: statsData?.users?.total || 0,
         presentToday: statsData?.users?.active || 0,
@@ -277,13 +287,8 @@ export default function DashboardPage() {
       setRecentActivities(activitiesRes.data?.activities || []);
       setDashboardTasks(tasksRes.data?.tasks || []);
 
-      if (isAdminOrManager) {
-        try {
-          const usersRes = await usersAPI.getAll();
-          setUsersList(usersRes.data?.users || []);
-        } catch (err) {
-          // Silently fail users fetch
-        }
+      if (isAdminOrManager && usersRes) {
+        setUsersList(usersRes.data?.users || []);
       }
     } catch (err) {
       setError("Failed to load dashboard data");
@@ -298,23 +303,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!loading && analytics && viewMode === "graphs") {
-      initializeCharts().catch(() => {});
+      updateCharts().catch(() => {});
     }
     const instances = chartInstances.current;
     return () => Object.values(instances).forEach((c) => c?.destroy());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    stats,
-    analytics,
-    loading,
-    timePeriod,
-    selectedUser,
-    statusFilter,
-    viewMode,
-    theme,
-  ]);
+  }, [analytics, loading, viewMode, theme]);
 
-  const initializeCharts = async () => {
+  const updateCharts = async () => {
     const { default: Chart } = await import("chart.js/auto");
     const cssVar = (name) =>
       getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -349,201 +345,97 @@ export default function DashboardPage() {
     };
 
     if (chartRefs.taskProgress.current) {
-      const ctx = chartRefs.taskProgress.current.getContext("2d");
-      chartInstances.current.taskProgress?.destroy();
-      chartInstances.current.taskProgress = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-          labels: ["Completed", "Pending", "In Progress"],
-          datasets: [
-            {
-              data: [
-                analytics?.tasks?.completed || 0,
-                analytics?.tasks?.pending || 0,
-                analytics?.tasks?.inProgress || 0,
-              ],
-              backgroundColor: [chartSuccess, chartWarning, chartInfo],
-              borderColor: bgBase,
-              borderWidth: 4,
-              hoverOffset: 6,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          cutout: "75%",
-          plugins: {
-            legend: {
-              position: "bottom",
-              labels: {
-                color: textMuted,
-                font,
-                padding: 16,
-                usePointStyle: true,
-                pointStyleWidth: 8,
-              },
-            },
-            tooltip: tooltipDefaults,
+      const inst = chartInstances.current.taskProgress;
+      const data = [
+        analytics?.tasks?.completed || 0,
+        analytics?.tasks?.inProgress || 0,
+      ];
+      if (inst) {
+        inst.data.datasets[0].data = data;
+        inst.update("none");
+      } else {
+        const ctx = chartRefs.taskProgress.current.getContext("2d");
+        chartInstances.current.taskProgress = new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Completed", "In Progress"],
+            datasets: [{ data, backgroundColor: [chartSuccess, chartInfo], borderColor: bgBase, borderWidth: 4, hoverOffset: 6 }],
           },
-        },
-      });
+          options: {
+            responsive: true, maintainAspectRatio: true, cutout: "75%",
+            plugins: {
+              legend: { position: "bottom", labels: { color: textMuted, font, padding: 16, usePointStyle: true, pointStyleWidth: 8 } },
+              tooltip: tooltipDefaults,
+            },
+          },
+        });
+      }
     }
 
-    if (
-      chartRefs.taskTrend.current &&
-      analytics?.trends?.taskCompletion?.length > 0
-    ) {
-      const ctx = chartRefs.taskTrend.current.getContext("2d");
-      chartInstances.current.taskTrend?.destroy();
+    if (chartRefs.taskTrend.current && analytics?.trends?.taskCompletion?.length > 0) {
+      const inst = chartInstances.current.taskTrend;
       const trendData = analytics.trends.taskCompletion;
       const labels = trendData.map((t) =>
-        new Date(t.date).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
+        new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       );
-
-      const gradPurple = ctx.createLinearGradient(0, 0, 0, 300);
-      gradPurple.addColorStop(0, hexToRgba(chartSuccess, 0.20));
-      gradPurple.addColorStop(1, hexToRgba(chartSuccess, 0));
-
-      const gradBlue = ctx.createLinearGradient(0, 0, 0, 300);
-      gradBlue.addColorStop(0, hexToRgba(chartInfo, 0.15));
-      gradBlue.addColorStop(1, hexToRgba(chartInfo, 0));
-
-      chartInstances.current.taskTrend = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Completed",
-              data: trendData.map((t) => t.completed),
-              borderColor: chartSuccess,
-              backgroundColor: gradPurple,
-              borderWidth: 3,
-              tension: 0.4,
-              fill: true,
-              pointRadius: 4,
-              pointBackgroundColor: chartSuccess,
-              pointBorderColor: bgBase,
-              pointBorderWidth: 2,
-            },
-            {
-              label: "New Tasks",
-              data: trendData.map((t) => t.created),
-              borderColor: chartInfo,
-              backgroundColor: gradBlue,
-              borderWidth: 3,
-              tension: 0.4,
-              fill: true,
-              pointRadius: 4,
-              pointBackgroundColor: chartInfo,
-              pointBorderColor: bgBase,
-              pointBorderWidth: 2,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: "top",
-              labels: {
-                color: textMuted,
-                font,
-                padding: 16,
-                usePointStyle: true,
-                pointStyleWidth: 8,
-              },
-            },
-            tooltip: { ...tooltipDefaults, mode: "index", intersect: false },
+      if (inst) {
+        inst.data.labels = labels;
+        inst.data.datasets[0].data = trendData.map((t) => t.completed);
+        inst.data.datasets[1].data = trendData.map((t) => t.created);
+        inst.update("none");
+      } else {
+        const ctx = chartRefs.taskTrend.current.getContext("2d");
+        const gradPurple = ctx.createLinearGradient(0, 0, 0, 300);
+        gradPurple.addColorStop(0, hexToRgba(chartSuccess, 0.20));
+        gradPurple.addColorStop(1, hexToRgba(chartSuccess, 0));
+        const gradBlue = ctx.createLinearGradient(0, 0, 0, 300);
+        gradBlue.addColorStop(0, hexToRgba(chartInfo, 0.15));
+        gradBlue.addColorStop(1, hexToRgba(chartInfo, 0));
+        chartInstances.current.taskTrend = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              { label: "Completed", data: trendData.map((t) => t.completed), borderColor: chartSuccess, backgroundColor: gradPurple, borderWidth: 3, tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: chartSuccess, pointBorderColor: bgBase, pointBorderWidth: 2 },
+              { label: "New Tasks", data: trendData.map((t) => t.created), borderColor: chartInfo, backgroundColor: gradBlue, borderWidth: 3, tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: chartInfo, pointBorderColor: bgBase, pointBorderWidth: 2 },
+            ],
           },
-          scales: {
-                  y: {
-                    beginAtZero: true,
-                    grid: { color: chartGrid },
-                    ticks: { color: chartAxis, font },
-                    border: { display: false },
-                  },
-                  x: {
-                    grid: { display: false },
-                    ticks: { color: chartAxis, font },
-                    border: { display: false },
-                  },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: "top", labels: { color: textMuted, font, padding: 16, usePointStyle: true, pointStyleWidth: 8 } }, tooltip: { ...tooltipDefaults, mode: "index", intersect: false } },
+            scales: { y: { beginAtZero: true, grid: { color: chartGrid }, ticks: { color: chartAxis, font }, border: { display: false } }, x: { grid: { display: false }, ticks: { color: chartAxis, font }, border: { display: false } } },
           },
-        },
-      });
+        });
+      }
     }
 
-    if (
-      chartRefs.departmentStats.current &&
-      analytics?.departments?.length > 0
-    ) {
-      const ctx = chartRefs.departmentStats.current.getContext("2d");
-      chartInstances.current.departmentStats?.destroy();
+    if (chartRefs.departmentStats.current && analytics?.departments?.length > 0) {
+      const inst = chartInstances.current.departmentStats;
       const deptData = analytics.departments;
-      chartInstances.current.departmentStats = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: deptData.map((d) => d.label),
-          datasets: [
-            {
-              label: "Tasks",
-              data: deptData.map((d) => d.value),
-              backgroundColor: [
-                chartSuccess,
-                chartInfo,
-                chartPurple,
-                chartWarning,
-                chartDanger,
-              ],
-              borderRadius: 8,
-              borderSkipped: false,
-            },
-          ],
-        },
-        options: {
-          indexAxis: "y",
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: tooltipDefaults },
-          scales: {
-                  x: {
-                    beginAtZero: true,
-                    grid: { color: chartGrid },
-                    ticks: { color: chartAxis, font },
-                    border: { display: false },
-                  },
-                  y: {
-                    grid: { display: false },
-                    ticks: { color: chartAxis, font: { ...font, weight: "500" } },
-                    border: { display: false },
-                  },
+      if (inst) {
+        inst.data.labels = deptData.map((d) => d.label);
+        inst.data.datasets[0].data = deptData.map((d) => d.value);
+        inst.update("none");
+      } else {
+        const ctx = chartRefs.departmentStats.current.getContext("2d");
+        chartInstances.current.departmentStats = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: deptData.map((d) => d.label),
+            datasets: [{ label: "Tasks", data: deptData.map((d) => d.value), backgroundColor: [chartSuccess, chartInfo, chartPurple, chartWarning, chartDanger], borderRadius: 8, borderSkipped: false }],
           },
-        },
-      });
+          options: {
+            indexAxis: "y", responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: tooltipDefaults },
+            scales: { x: { beginAtZero: true, grid: { color: chartGrid }, ticks: { color: chartAxis, font }, border: { display: false } }, y: { grid: { display: false }, ticks: { color: chartAxis, font: { ...font, weight: "500" } }, border: { display: false } } },
+          },
+        });
+      }
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg-base)" }}>
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 animate-spin mx-auto mb-4"
-            style={{
-              borderColor: "var(--border)",
-              borderTopColor: "var(--color-success)",
-            }} />
-          <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-            Loading dashboard\u2026
-          </p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -752,7 +644,7 @@ export default function DashboardPage() {
                 >
                   <option value="all">All Users</option>
                   {usersList
-                    .filter((u) => u.role !== "Admin")
+                    .filter((u) => u.role !== "Super Admin")
                     .map((u) => (
                       <option key={u._id} value={u._id}>
                         {u.name} ({u.role})
@@ -820,7 +712,6 @@ export default function DashboardPage() {
                   <option value="all">All Status</option>
                   <option value="completed">Completed</option>
                   <option value="inprogress">In Progress</option>
-                  <option value="pending">Pending</option>
                   <option value="overdue">Overdue</option>
                 </select>
               </div>
@@ -854,14 +745,12 @@ export default function DashboardPage() {
               href="/tasks?status=completed"
             />
             <StatCard
-              title="Pending"
-              value={analytics?.tasks?.pending || 0}
+              title="In Progress"
+              value={analytics?.tasks?.inProgress || 0}
               icon={<Clock size={18} />}
-              trend={
-                analytics?.tasks?.pending > 0 ? "Needs attention" : "All clear"
-              }
+              trend="Active tasks"
               accent="amber"
-              href="/tasks?status=pending"
+              href="/tasks?status=inprogress"
             />
             {(isAdminOrManager || isHR) && (
               <StatCard
@@ -1304,7 +1193,7 @@ Today&apos;s Snapshot
                         icon: <CheckSquare size={15} />,
                         accent: "var(--color-success)",
                       },
-                      ...(user?.role === "Admin"
+                      ...(user?.role === "Super Admin"
                         ? [
                             {
                               label: "Manage Users",

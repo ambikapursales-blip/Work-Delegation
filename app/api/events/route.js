@@ -46,7 +46,7 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Manager", "Admin", "HR"].includes(user.role)) {
+  if (!["Super Admin", "Manager", "Admin", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -120,7 +120,7 @@ export async function POST(request) {
             }
           );
         } catch (emailError) {
-          // Silently fail email errors to not block event creation
+          console.error("[Events] Failed to send event invitation email:", emailError.message);
         }
       });
       await Promise.allSettled(emailPromises);

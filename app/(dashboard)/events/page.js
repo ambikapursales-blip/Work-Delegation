@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { eventsAPI, usersAPI, api } from "@/lib/api";
-import { Loading } from "@/components/loading";
+import { SkeletonTable } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import Toast from "@/components/Toast";
 import {
@@ -15,7 +15,7 @@ import {
   ChevronUp,
   Check,
 } from "lucide-react";
-import { LoadingSpinner } from "@/components/loading";
+
 
 const STATUS_STYLE = {
   Upcoming: { clr: "var(--color-info)" },
@@ -78,7 +78,7 @@ export default function EventsPage() {
     tags: [],
   });
 
-  const canManage = ["Admin", "Manager", "HR"].includes(user?.role);
+  const canManage = ["Super Admin", "Admin", "Manager", "HR"].includes(user?.role);
 
   useEffect(() => {
     if (alert) {
@@ -291,7 +291,7 @@ export default function EventsPage() {
       minute: "2-digit",
     });
 
-  if (loading) return <Loading />;
+  if (loading) return <SkeletonTable rows={6} cols={4} />;
 
   return (
     <div className="w-full min-h-screen" style={{ background: "var(--bg-base)" }}>
@@ -591,7 +591,7 @@ export default function EventsPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <LoadingSpinner size="sm" />
+                      <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                       {editingEvent ? "Updating..." : "Creating..."}
                     </>
                   ) : (
@@ -645,7 +645,7 @@ export default function EventsPage() {
               >
                 {bulkDeleting ? (
                   <>
-                    <LoadingSpinner size="sm" />
+                    <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                     Deleting...
                   </>
                 ) : (
@@ -822,7 +822,7 @@ export default function EventsPage() {
                               title="Mark as completed"
                             >
                               {completingEventId === event._id ? (
-                                <LoadingSpinner size="sm" />
+                                <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                               ) : (
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               )}
@@ -858,7 +858,7 @@ export default function EventsPage() {
                                 onMouseLeave={() => setHoverEl(null)}
                               >
                                 {deletingEventId === event._id ? (
-                                  <LoadingSpinner size="sm" />
+                                  <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                                 ) : (
                                   <Trash2 className="w-3.5 h-3.5" />
                                 )}

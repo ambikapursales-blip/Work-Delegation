@@ -1,21 +1,22 @@
-import React from "react";
+"use client";
+
+import { DashboardSkeleton } from "@/components/skeleton";
 
 export function LoadingSpinner({ size = "md", className = "" }) {
   const sizes = {
-    sm: "w-4 h-4 border-2",
-    md: "w-6 h-6 border-2",
-    lg: "w-8 h-8 border-2",
-    xl: "w-12 h-12 border-3",
+    sm: "w-4 h-4",
+    md: "w-6 h-6",
+    lg: "w-8 h-8",
+    xl: "w-12 h-12",
   };
 
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <div
-        className={`rounded-full border-t-transparent animate-spin ${sizes[size]}`}
+        className={`rounded-full animate-shimmer ${sizes[size]}`}
         style={{
-          borderColor: "var(--accent)",
-          borderTopColor: "transparent",
-          animationDuration: "1.5s",
+          background: "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",
+          backgroundSize: "200% 100%",
         }}
       />
     </div>
@@ -23,9 +24,5 @@ export function LoadingSpinner({ size = "md", className = "" }) {
 }
 
 export function Loading() {
-  return (
-    <div className="flex h-96 items-center justify-center">
-      <LoadingSpinner size="lg" />
-    </div>
-  );
+  return <DashboardSkeleton />;
 }

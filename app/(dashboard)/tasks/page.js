@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Fragment } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import dynamic from "next/dynamic";
 const TaskBoard = dynamic(() => import("@/components/TaskBoard"), { ssr: false });
@@ -34,7 +34,7 @@ import {
 import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { LoadingSpinner } from "@/components/loading";
+import { SkeletonTable } from "@/components/skeleton";
 
 /* ─── Badge / tag colour helpers ─── */
 const priorityStyle = (p) => {
@@ -54,8 +54,9 @@ const statusStyle = (s) => {
   const m = {
     Completed:   { bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",  clr: "var(--color-success)", bd: "color-mix(in srgb, var(--color-success) 22%, transparent)" },
     "In Progress": { bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",  clr: "var(--color-info)",   bd: "color-mix(in srgb, var(--color-info) 22%, transparent)" },
-    Pending:     { bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)",  clr: "var(--color-warning)", bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)" },
     Overdue:     { bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)", clr: "var(--color-danger)",  bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)" },
+    Cancelled:   { bg: "color-mix(in srgb, var(--text-muted) 12%, transparent)", clr: "var(--text-muted)", bd: "color-mix(in srgb, var(--text-muted) 22%, transparent)" },
+    "On Hold":   { bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)", clr: "var(--color-warning)", bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)" },
   };
   const c = m[s];
   return c
@@ -71,6 +72,7 @@ const tagStyle = (clrVar, bgOpacity = "0.12", bdOpacity = "0.22") => {
 export default function TasksPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("view"); // "create" or "view"
@@ -81,7 +83,8 @@ export default function TasksPage() {
     assignedTo: [],
     priority: "Medium",
     deadline: "",
-    taskType: "One-time",
+    taskType: "One Time",
+    category: "General",
     isRecurring: false,
     recurrencePattern: {
       frequency: "daily",
@@ -116,6 +119,8 @@ export default function TasksPage() {
     priority: "Medium",
     deadline: "",
     assignedTo: [],
+    taskType: "One Time",
+    category: "General",
   });
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
@@ -134,7 +139,6 @@ export default function TasksPage() {
     if (statusParam) {
       const statusMap = {
         completed: "completed",
-        pending: "pending",
         inprogress: "inprogress",
         overdue: "overdue",
       };
@@ -143,13 +147,13 @@ export default function TasksPage() {
     }
     return "all";
   };
-  const [taskViewTab, setTaskViewTab] = useState(getInitialTab); // "all", "completed", "inprogress", "pending", "overdue"
+  const [taskViewTab, setTaskViewTab] = useState(getInitialTab); // "all", "completed", "inprogress", "overdue"
   const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "thisWeek", "thisMonth", "custom"
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [userFilter, setUserFilter] = useState(""); // user ID filter
 
-  const canAssignTasks = ["Admin", "Manager"].includes(user?.role);
+  const canAssignTasks = user?.role === "Super Admin" || user?.canAssignTasks;
 
   // Debounce search query
   useEffect(() => {
@@ -179,7 +183,6 @@ export default function TasksPage() {
       if (taskViewTab !== "all") {
         if (taskViewTab === "completed") filters.status = "Completed";
         else if (taskViewTab === "inprogress") filters.status = "In Progress";
-        else if (taskViewTab === "pending") filters.status = "Pending";
         else if (taskViewTab === "overdue") filters.overdue = "true";
       }
 
@@ -204,11 +207,19 @@ export default function TasksPage() {
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(now);
+        endOfWeek.setDate(now.getDate() + (6 - now.getDay()));
+        endOfWeek.setHours(23, 59, 59, 999);
         filters.startDate = startOfWeek.toISOString();
+        filters.endDate = endOfWeek.toISOString();
       } else if (dateFilter === "thisMonth") {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
         filters.startDate = startOfMonth.toISOString();
+        filters.endDate = endOfMonth.toISOString();
       } else if (dateFilter === "custom" && startDate) {
         filters.startDate = new Date(startDate).toISOString();
         if (endDate) {
@@ -250,6 +261,22 @@ export default function TasksPage() {
     }
   }, [fetchTasks, fetchUsers, canAssignTasks]);
 
+  // Open task detail modal when URL contains a task ID (e.g., from email link)
+  useEffect(() => {
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length >= 2 && segments[0] === "tasks" && segments[1]) {
+      const taskId = segments[1];
+      taskAPI.getTask(taskId).then((res) => {
+        if (res.data?.task) {
+          setSelectedTaskForModal(res.data.task);
+          setShowTaskModal(true);
+        }
+      }).catch(() => {
+        // silently ignore — task not found or no access
+      });
+    }
+  }, [pathname]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -262,7 +289,7 @@ export default function TasksPage() {
         assignedTo:
           formData.assignedTo.length > 0
             ? formData.assignedTo
-            : [users[0]?._id],
+            : (users.length > 0 ? [users[0]._id] : []),
         deadline:
           formData.deadline ||
           new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -277,7 +304,8 @@ export default function TasksPage() {
         assignedTo: [],
         priority: "Medium",
         deadline: "",
-        taskType: "One-time",
+        taskType: "One Time",
+        category: "General",
         isRecurring: false,
         recurrencePattern: {
           frequency: "daily",
@@ -287,8 +315,8 @@ export default function TasksPage() {
         },
         recurrenceEndDate: "",
       });
-      fetchTasks();
       setActiveTab("view");
+      fetchTasks();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create task");
     } finally {
@@ -447,6 +475,8 @@ export default function TasksPage() {
       assignedTo: Array.isArray(task.assignedTo)
         ? task.assignedTo.map((u) => (typeof u === "object" ? u._id : u))
         : [task.assignedTo],
+      taskType: task.taskType || "One Time",
+      category: task.category || "General",
     });
   };
 
@@ -463,6 +493,8 @@ export default function TasksPage() {
         priority: "Medium",
         deadline: "",
         assignedTo: [],
+        taskType: "One Time",
+        category: "General",
       });
       fetchTasks();
     } catch (err) {
@@ -749,74 +781,65 @@ export default function TasksPage() {
                         style={{ color: "var(--text-primary)" }}>
                         Task Type
                       </Label>
-                      <div className="flex gap-2 rounded-xl p-1.5"
-                        style={{
-                          backgroundColor: "var(--bg-surface)",
-                          border: "1px solid var(--border)",
-                        }}>
-                        {[
-                          { value: "One-time", label: "One-time" },
-                          { value: "daily", label: "Daily" },
-                          { value: "weekly", label: "Weekly" },
-                          { value: "monthly", label: "Monthly" },
-                        ].map(({ value, label }) => (
-                          <label
-                            key={value}
-                            className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-200 text-sm font-medium"
-                            style={
-                              formData.taskType === value
+                      <select
+                        value={formData.taskType}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            taskType: e.target.value,
+                            isRecurring: e.target.value !== "One Time",
+                            recurrencePattern:
+                              e.target.value !== "One Time"
                                 ? {
-                                    background: "linear-gradient(135deg, color-mix(in srgb, var(--primary-mid) 18%, transparent) 0%, color-mix(in srgb, var(--accent) 18%, transparent) 100%)",
-                                    color: "var(--color-info)",
-                                    border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+                                    frequency: e.target.value.toLowerCase().replace(" ", ""),
+                                    interval: 1,
+                                    daysOfWeek: [],
+                                    dayOfMonth: 1,
                                   }
-                                : {
-                                    color: "var(--text-muted)",
-                                    border: "1px solid transparent",
-                                  }
-                            }
-                          >
-                            <input
-                              type="radio"
-                              name="taskType"
-                              value={value}
-                              checked={formData.taskType === value}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  taskType: e.target.value,
-                                  isRecurring: value !== "One-time",
-                                  recurrencePattern:
-                                    value !== "One-time"
-                                      ? {
-                                          frequency: value,
-                                          interval: 1,
-                                          daysOfWeek: [],
-                                          dayOfMonth: 1,
-                                        }
-                                      : formData.recurrencePattern,
-                                })
-                              }
-                              className="hidden"
-                            />
-                            {value === "One-time" ? (
-                              <ListTodo className="w-3.5 h-3.5 flex-shrink-0" />
-                            ) : value === "daily" ? (
-                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                            ) : value === "weekly" ? (
-                              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                            ) : (
-                              <Repeat className="w-3.5 h-3.5 flex-shrink-0" />
-                            )}
-                            <span className="hidden sm:inline">{label}</span>
-                          </label>
-                        ))}
-                      </div>
+                                : formData.recurrencePattern,
+                          })
+                        }
+                        className="input-field h-[52px] text-base"
+                      >
+                        <option value="One Time">One Time</option>
+                        <option value="Daily">Daily</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Half Yearly">Half Yearly</option>
+                        <option value="Yearly">Yearly</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Category
+                      </Label>
+                      <select
+                        value={formData.category}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            category: e.target.value,
+                          })
+                        }
+                        className="input-field h-[52px] text-base"
+                      >
+                        <option value="Sales">Sales</option>
+                        <option value="HR">HR</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Customer Support">Customer Support</option>
+                        <option value="Admin">Admin</option>
+                        <option value="General">General</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Strategic">Strategic</option>
+                      </select>
                     </div>
                   </div>
 
                   {/* Recurring Pattern Options */}
-                  {formData.taskType !== "One-time" && (
+                  {formData.taskType !== "One Time" && (
                     <div className="space-y-3 rounded-2xl p-4 animate-fade-in"
                       style={{
                         backgroundColor: "var(--bg-muted)",
@@ -1123,6 +1146,62 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     </div>
                   </div>
 
+                  {/* Row: Task Type | Category */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-taskType" className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Task Type
+                      </Label>
+                      <select
+                        id="edit-taskType"
+                        value={editFormData.taskType}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            taskType: e.target.value,
+                          })
+                        }
+                        className="input-field h-[52px] text-base"
+                      >
+                        <option value="One Time">One Time</option>
+                        <option value="Daily">Daily</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Half Yearly">Half Yearly</option>
+                        <option value="Yearly">Yearly</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-category" className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}>
+                        Category
+                      </Label>
+                      <select
+                        id="edit-category"
+                        value={editFormData.category}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            category: e.target.value,
+                          })
+                        }
+                        className="input-field h-[52px] text-base"
+                      >
+                        <option value="Sales">Sales</option>
+                        <option value="HR">HR</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Customer Support">Customer Support</option>
+                        <option value="Admin">Admin</option>
+                        <option value="General">General</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Strategic">Strategic</option>
+                      </select>
+                    </div>
+                  </div>
+
                   {/* Row: Deadline | Description */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
@@ -1211,14 +1290,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
       {!canAssignTasks || activeTab === "view" ? (
         <>
           {loading ? (
-            <div className="flex items-center justify-center min-h-[60vh]">
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-full border-4 animate-spin mx-auto mb-4"
-                  style={{
-                    borderColor: "var(--border)",
-                    borderTopColor: "var(--color-success)",
-                  }} />
-                <p className="font-medium" style={{ color: "var(--text-muted)" }}>Loading tasks...</p>
+            <div className="max-w-7xl mx-auto px-6 py-6">
+              <div className="space-y-4">
+                <div className="animate-shimmer rounded-lg h-9 w-72" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
+                <SkeletonTable rows={6} cols={5} />
               </div>
             </div>
           ) : (
@@ -1235,7 +1310,6 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         "all",
                         "completed",
                         "inprogress",
-                        "pending",
                         "overdue",
                       ].map((status) => (
                         <button
@@ -1396,7 +1470,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     >
                       {bulkDeleting ? (
                         <>
-                          <LoadingSpinner size="sm" />
+                          <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                           Deleting...
                         </>
                       ) : (
@@ -1421,17 +1495,18 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         </th>
                         <th className="px-4 py-3 text-left">Task</th>
                         <th className="px-4 py-3 text-left">Status</th>
-                        <th className="px-4 py-3 text-left">Priority</th>
                         <th className="px-4 py-3 text-left">Assigned To</th>
+                        <th className="px-4 py-3 text-left">Created Date</th>
                         <th className="px-4 py-3 text-left">Deadline</th>
-                        <th className="px-4 py-3 text-left">Type</th>
+                        <th className="px-4 py-3 text-left">Category</th>
+                        <th className="px-4 py-3 text-left">Remaining / Overdue</th>
                         <th className="px-4 py-3 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tasksToDisplay.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="px-4 py-12 text-center">
+                          <td colSpan="9" className="px-4 py-12 text-center">
                             <div className="flex flex-col items-center gap-3">
                               <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
                                 style={{ backgroundColor: "var(--bg-muted)" }}>
@@ -1450,9 +1525,40 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                               ? "Completed"
                               : task.isOverdue
                                 ? "Overdue"
-                                : task.status?.toLowerCase() === "in progress"
-                                  ? "In Progress"
-                                  : "Pending";
+                                : "In Progress";
+
+                          // Calculate days remaining/overdue
+                          const now = new Date();
+                          const deadlineDate = new Date(task.deadline);
+                          now.setHours(0, 0, 0, 0);
+                          deadlineDate.setHours(0, 0, 0, 0);
+                          const diffTime = deadlineDate - now;
+                          const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          
+                          let remainingText = "";
+                          let remainingColor = "";
+                          
+                          if (status === "Completed") {
+                            if (task.completedAt) {
+                              remainingText = `Completed on ${new Date(task.completedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
+                            } else {
+                              remainingText = "Completed";
+                            }
+                            remainingColor = "var(--color-success)";
+                          } else if (status === "Overdue") {
+                            const overdueDays = Math.abs(daysRemaining);
+                            remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? 's' : ''}`;
+                            remainingColor = "var(--color-danger)";
+                          } else if (daysRemaining === 0) {
+                            remainingText = "Due Today";
+                            remainingColor = "var(--color-danger)";
+                          } else if (daysRemaining <= 5) {
+                            remainingText = `${daysRemaining} Day${daysRemaining > 1 ? 's' : ''} Left`;
+                            remainingColor = "var(--color-warning)";
+                          } else {
+                            remainingText = `${daysRemaining} Days Left`;
+                            remainingColor = "var(--color-success)";
+                          }
 
                           return (
                             <Fragment key={task._id}>
@@ -1489,12 +1595,6 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       style={{ color: "var(--text-primary)" }}>
                                       {task.title}
                                     </p>
-                                    {task.description && (
-                                      <p className="text-xs mt-0.5 truncate"
-                                        style={{ color: "var(--text-muted)" }}>
-                                        {task.description}
-                                      </p>
-                                    )}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
@@ -1503,14 +1603,6 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                     style={statusStyle(status)}
                                   >
                                     {status}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span
-                                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
-                                    style={priorityStyle(task.priority)}
-                                  >
-                                    {task.priority}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3">
@@ -1554,6 +1646,19 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                 </td>
                                 <td className="px-4 py-3">
                                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                    {task.createdAt
+                                      ? new Date(
+                                          task.createdAt,
+                                        ).toLocaleDateString("en-IN", {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
+                                      : "N/A"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                                     {task.deadline
                                       ? new Date(
                                           task.deadline,
@@ -1568,17 +1673,25 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                 <td className="px-4 py-3">
                                   <span
                                     className="text-xs font-medium px-2 py-1 rounded-md border"
-                                    style={
-                                      task.isRecurring
-                                        ? {
-                                            color: "var(--color-purple)",
-                                            backgroundColor: "color-mix(in srgb, var(--color-purple) 8%, transparent)",
-                                            borderColor: "color-mix(in srgb, var(--color-purple) 20%, transparent)",
-                                          }
-                                        : { color: "var(--text-muted)" }
-                                    }
+                                    style={{
+                                      color: "var(--color-info)",
+                                      backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                      borderColor: "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                                    }}
                                   >
-                                    {task.taskType || "One-time"}
+                                    {task.category || "General"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span
+                                    className="text-xs font-medium px-2 py-1 rounded-md border"
+                                    style={{
+                                      color: remainingColor,
+                                      backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
+                                      borderColor: `color-mix(in srgb, ${remainingColor} 20%, transparent)`,
+                                    }}
+                                  >
+                                    {remainingText}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3">
@@ -1643,7 +1756,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       }}
                                     >
                                       {deletingTaskId === task._id ? (
-                                        <LoadingSpinner size="sm" />
+                                        <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                                       ) : (
                                         <Trash2 className="w-4 h-4" />
                                       )}
@@ -1692,7 +1805,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       >
                                         {completingTaskId === task._id ? (
                                           <>
-                                            <LoadingSpinner size="sm" />
+                                            <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                                             Submitting...
                                           </>
                                         ) : (
@@ -1870,18 +1983,14 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                           ? "Completed"
                           : selectedTaskForModal.isOverdue
                             ? "Overdue"
-                            : selectedTaskForModal.status?.toLowerCase() === "in progress"
-                              ? "In Progress"
-                              : "Pending"
+                            : "In Progress"
                       )}
                     >
                       {selectedTaskForModal.status?.toLowerCase() === "completed"
                         ? "Completed"
                         : selectedTaskForModal.isOverdue
                           ? "Overdue"
-                          : selectedTaskForModal.status?.toLowerCase() === "in progress"
-                            ? "In Progress"
-                            : "Pending"}
+                          : "In Progress"}
                     </span>
                   </div>
 
@@ -1903,6 +2012,28 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
                       style={{ color: "var(--text-muted)" }}>
+                      Category
+                    </label>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {selectedTaskForModal.category || "General"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Task Type
+                    </label>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {selectedTaskForModal.taskType || "One Time"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
                       Assigned To
                     </label>
                     <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -1915,11 +2046,45 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
                       style={{ color: "var(--text-muted)" }}>
+                      Assigned By
+                    </label>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {typeof selectedTaskForModal.assignedBy === "object" 
+                        ? selectedTaskForModal.assignedBy?.name 
+                        : selectedTaskForModal.assignedBy || "Unknown"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Created Date
+                    </label>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                      {selectedTaskForModal.createdAt
+                        ? new Date(selectedTaskForModal.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "N/A"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
                       Deadline
                     </label>
                     <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                       {selectedTaskForModal.deadline
-                        ? new Date(selectedTaskForModal.deadline).toLocaleDateString()
+                        ? new Date(selectedTaskForModal.deadline).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
                         : "No deadline"}
                     </p>
                   </div>
@@ -1928,12 +2093,83 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
                     style={{ color: "var(--text-muted)" }}>
-                    Type
+                    Remaining / Overdue
+                  </label>
+                  {(() => {
+                    const now = new Date();
+                    const deadlineDate = new Date(selectedTaskForModal.deadline);
+                    now.setHours(0, 0, 0, 0);
+                    deadlineDate.setHours(0, 0, 0, 0);
+                    const diffTime = deadlineDate - now;
+                    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    const status = selectedTaskForModal.status?.toLowerCase() === "completed"
+                      ? "Completed"
+                      : selectedTaskForModal.isOverdue
+                        ? "Overdue"
+                        : "In Progress";
+                    
+                    let remainingText = "";
+                    let remainingColor = "";
+                    
+                    if (status === "Completed") {
+                      if (selectedTaskForModal.completedAt) {
+                        remainingText = `Completed on ${new Date(selectedTaskForModal.completedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
+                      } else {
+                        remainingText = "Completed";
+                      }
+                      remainingColor = "var(--color-success)";
+                    } else if (status === "Overdue") {
+                      const overdueDays = Math.abs(daysRemaining);
+                      remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? 's' : ''}`;
+                      remainingColor = "var(--color-danger)";
+                    } else if (daysRemaining === 0) {
+                      remainingText = "Due Today";
+                      remainingColor = "var(--color-danger)";
+                    } else if (daysRemaining <= 5) {
+                      remainingText = `${daysRemaining} Day${daysRemaining > 1 ? 's' : ''} Left`;
+                      remainingColor = "var(--color-warning)";
+                    } else {
+                      remainingText = `${daysRemaining} Days Left`;
+                      remainingColor = "var(--color-success)";
+                    }
+                    
+                    return (
+                      <span
+                        className="text-xs font-medium px-2 py-1 rounded-md border"
+                        style={{
+                          color: remainingColor,
+                          backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
+                          borderColor: `color-mix(in srgb, ${remainingColor} 20%, transparent)`,
+                        }}
+                      >
+                        {remainingText}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}>
+                    Email Frequency
                   </label>
                   <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {selectedTaskForModal.taskType || "One-time"}
+                    {selectedTaskForModal.emailSchedule?.taskType || selectedTaskForModal.taskType || "One Time"}
                   </p>
                 </div>
+
+                {selectedTaskForModal.remarks && (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}>
+                      Notes
+                    </label>
+                    <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>
+                      {selectedTaskForModal.remarks}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 flex justify-end">

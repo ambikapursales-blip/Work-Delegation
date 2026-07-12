@@ -37,7 +37,7 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Manager", "Admin"].includes(user.role)) {
+  if (!["Super Admin", "Manager", "Admin"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: `Role '${user.role}' is not authorized` },
       { status: 403 },

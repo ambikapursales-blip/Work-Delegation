@@ -24,7 +24,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { teamAPI } from "@/lib/api";
-import { LoadingSpinner } from "@/components/loading";
+import { SkeletonCard, SkeletonTable, SkeletonChart } from "@/components/skeleton";
 
 export default function TeamPage() {
   const { user } = useAuth();
@@ -38,7 +38,7 @@ export default function TeamPage() {
   const [hoveredMember, setHoveredMember] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const canViewTeam = ["Admin", "Manager", "HR"].includes(user?.role);
+  const canViewTeam = ["Super Admin", "Admin", "Manager", "HR"].includes(user?.role);
 
   useEffect(() => {
     if (!canViewTeam) return;
@@ -242,7 +242,12 @@ export default function TeamPage() {
 
       {/* Content Area */}
       {loading ? (
-        <p className="text-center py-8" style={{ color: "var(--text-muted)" }}>Loading team data...</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+          <SkeletonTable rows={5} cols={4} />
+        </div>
       ) : activeTab === "members" ? (
         <div className="grid gap-4">
           {members.length === 0 ? (

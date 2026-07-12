@@ -28,8 +28,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["Admin", "HR", "Manager", "Sales Executive", "Coordinator", "It"],
-      default: "Sales Executive",
+      enum: ["Super Admin", "Admin", "Logistics", "Accounts", "Sales", "Service", "Parts", "HR", "Marketing", "Back Office"],
+      default: "Sales",
     },
     department: {
       type: String,
@@ -56,6 +56,10 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    canAssignTasks: {
+      type: Boolean,
+      default: false,
     },
     lastLogin: {
       type: Date,
@@ -103,8 +107,16 @@ userSchema.pre("save", async function (next) {
 userSchema.pre("save", async function (next) {
   if (!this.isNew) return next();
   if (!this.employeeId) {
-    const count = await this.constructor.countDocuments();
-    this.employeeId = `EMP${String(count + 1).padStart(4, "0")}`;
+    const users = await this.constructor
+      .find({ employeeId: { $regex: /^EMP\d+$/ } })
+      .select("employeeId")
+      .lean();
+    let maxNum = 0;
+    for (const u of users) {
+      const num = parseInt(u.employeeId.replace("EMP", ""), 10);
+      if (num > maxNum) maxNum = num;
+    }
+    this.employeeId = `EMP${String(maxNum + 1).padStart(4, "0")}`;
   }
   next();
 });
@@ -124,5 +136,7 @@ userSchema.methods.getPublicProfile = function () {
 
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ managerId: 1 });
+userSchema.index({ name: 1 });
+userSchema.index({ email: 1 });
 
 export default mongoose.models.User || mongoose.model("User", userSchema);

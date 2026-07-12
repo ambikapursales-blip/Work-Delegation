@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
+import { actionCenterAPI } from "@/lib/api";
 import {
   Bell,
   Settings,
@@ -23,9 +24,23 @@ export default function Header({ onMobileMenuToggle, isMobileMenuOpen }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
-  const [hasNotifications] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
   const [logOutHovered, setLogOutHovered] = useState(false);
   const menuRef = useRef(null);
+
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const res = await actionCenterAPI.getItems({ filter: "pending" });
+      setPendingCount(res.data.pendingCount || 0);
+    } catch {
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 60000);
+    return () => clearInterval(interval);
+  }, [fetchPendingCount]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -77,12 +92,17 @@ export default function Header({ onMobileMenuToggle, isMobileMenuOpen }) {
               <Moon className="w-5 h-5" strokeWidth={1.5} />
             )}
           </button>
-          <button className="relative p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--color-success)] hover:bg-[var(--bg-muted)] transition-all duration-200">
+          <Link
+            href="/dwr"
+            className="relative p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--color-success)] hover:bg-[var(--bg-muted)] transition-all duration-200"
+          >
             <Bell className="w-5 h-5" strokeWidth={1.5} />
-            {hasNotifications && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[var(--color-success)] rounded-full ring-2 ring-[var(--bg-base)] animate-pulse-soft" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold text-white bg-[var(--color-danger)] ring-2 ring-[var(--bg-base)]" style={{ padding: "0 4px" }}>
+                {pendingCount > 99 ? "99+" : pendingCount}
+              </span>
             )}
-          </button>
+          </Link>
 
           <div className="w-px h-6 bg-[var(--border)]" />
 

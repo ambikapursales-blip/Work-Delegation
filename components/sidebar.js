@@ -57,6 +57,7 @@ const getAllMenuItems = () => [
 ];
 
 const ROLE_MENU = {
+  "Super Admin": ["Dashboard", "Tasks", "DWR", "Events", "Attendance", "Users", "Performance"],
   Admin: ["Dashboard", "Tasks", "Events", "Users", "Performance"],
   Manager: ["Dashboard", "Tasks", "Events", "Users", "Performance"],
   HR: ["Dashboard", "Tasks", "DWR", "Attendance", "Performance"],

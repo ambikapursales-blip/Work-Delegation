@@ -20,8 +20,8 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "In Progress", "Completed", "Cancelled", "On Hold"],
-      default: "Pending",
+      enum: ["In Progress", "Completed", "Cancelled", "On Hold", "Overdue"],
+      default: "In Progress",
     },
     deadline: {
       type: Date,
@@ -133,6 +133,17 @@ const taskSchema = new mongoose.Schema(
           type: Number,
           default: 0,
         },
+        emailOpened: {
+          type: Boolean,
+          default: false,
+        },
+        openedAt: {
+          type: Date,
+        },
+        openCount: {
+          type: Number,
+          default: 0,
+        },
       },
     ],
     reassignmentHistory: [
@@ -158,8 +169,42 @@ const taskSchema = new mongoose.Schema(
     ],
     taskType: {
       type: String,
-      enum: ["One-time", "Daily", "Weekly", "Monthly", "Custom"],
-      default: "One-time",
+      enum: ["One Time", "Daily", "Weekly", "Monthly", "Quarterly", "Half Yearly", "Yearly"],
+      default: "One Time",
+    },
+    category: {
+      type: String,
+      enum: ["Sales", "HR", "Operations", "Customer Support", "Admin", "General", "Marketing", "Strategic"],
+      trim: true,
+    },
+    emailSchedule: {
+      taskType: {
+        type: String,
+        enum: ["One Time", "Daily", "Weekly", "Monthly", "Quarterly", "Half Yearly", "Yearly"],
+      },
+      assignmentDate: {
+        type: Date,
+      },
+      nextEmailDate: {
+        type: Date,
+      },
+      lastEmailDate: {
+        type: Date,
+      },
+      frequency: {
+        type: Number, // in days
+      },
+      isRecurring: {
+        type: Boolean,
+        default: false,
+      },
+    },
+    deadlineAlerts: {
+      fourDays: { type: Boolean, default: false },
+      threeDays: { type: Boolean, default: false },
+      twoDays: { type: Boolean, default: false },
+      oneDay: { type: Boolean, default: false },
+      dueToday: { type: Boolean, default: false },
     },
     isRecurring: {
       type: Boolean,
@@ -197,6 +242,59 @@ const taskSchema = new mongoose.Schema(
     lastGeneratedDate: {
       type: Date,
     },
+    checklist: [
+      {
+        text: {
+          type: String,
+          required: true,
+          maxlength: 500,
+        },
+        completed: {
+          type: Boolean,
+          default: false,
+        },
+        completedAt: {
+          type: Date,
+        },
+        completedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
+    extensionRequests: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        revisedTargetDate: {
+          type: Date,
+          required: true,
+        },
+        reason: {
+          type: String,
+          maxlength: 1000,
+        },
+        status: {
+          type: String,
+          enum: ["pending", "approved", "rejected"],
+          default: "pending",
+        },
+        requestedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        respondedAt: {
+          type: Date,
+        },
+        responseNote: {
+          type: String,
+          maxlength: 1000,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -210,7 +308,28 @@ taskSchema.virtual("daysRemaining").get(function () {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 });
 
+taskSchema.virtual("checklistProgress").get(function () {
+  if (!this.checklist || this.checklist.length === 0) return null;
+  const completed = this.checklist.filter((item) => item.completed).length;
+  return Math.round((completed / this.checklist.length) * 100);
+});
+
 taskSchema.pre("save", function (next) {
+  // Normalize taskType for backward compatibility
+  if (this.taskType) {
+    const taskTypeMap = {
+      "One-time": "One Time",
+      "One time": "One Time",
+      "one-time": "One Time",
+      "one time": "One Time",
+      "Custom": "One Time",
+    };
+    if (taskTypeMap[this.taskType]) {
+      this.taskType = taskTypeMap[this.taskType];
+    }
+  }
+
+  // Overdue logic: automatically set isOverdue when deadline passed and not completed
   if (
     this.deadline &&
     this.status !== "Completed" &&
@@ -218,6 +337,7 @@ taskSchema.pre("save", function (next) {
   ) {
     this.isOverdue = new Date() > this.deadline;
   }
+  
   if (this.status === "Completed" && !this.completedAt) {
     this.completedAt = new Date();
   }
@@ -229,6 +349,8 @@ taskSchema.set("toObject", { virtuals: true });
 
 taskSchema.index({ assignedTo: 1, status: 1 });
 taskSchema.index({ assignedTo: 1, status: 1, deadline: 1 });
+taskSchema.index({ assignedTo: 1, status: 1, completedAt: 1 });
+taskSchema.index({ assignedTo: 1, createdAt: -1 });
 taskSchema.index({ assignedBy: 1 });
 taskSchema.index({ deadline: 1 });
 taskSchema.index({ createdAt: -1 });

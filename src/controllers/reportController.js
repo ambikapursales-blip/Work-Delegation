@@ -160,8 +160,8 @@ export const getAttendanceReport = async (req, res) => {
       if (endDate) matchQuery.date.$lte = new Date(endDate);
     }
 
-    const attendances = await Attendance.find(matchQuery).lean().select("status user").populate(
-      "user",
+    const attendances = await Attendance.find(matchQuery).lean().select("status employee").populate(
+      "employee",
       "name department",
     );
 
@@ -171,7 +171,7 @@ export const getAttendanceReport = async (req, res) => {
     }, {});
 
     const byDepartment = attendances.reduce((acc, att) => {
-      const dept = att.user?.department || "Unassigned";
+      const dept = att.employee?.department || "Unassigned";
       acc[dept] = (acc[dept] || 0) + 1;
       return acc;
     }, {});
@@ -232,42 +232,57 @@ export const getPerformanceReport = async (req, res) => {
       startDate = new Date(now.setFullYear(now.getFullYear() - 1));
     }
 
-    const performanceData = await Promise.all(
-      users.map(async (user) => {
-        const userId = user._id;
+    const userIds = users.map((u) => u._id);
+    const userIdsMap = new Map(users.map((u) => [u._id.toString(), u]));
 
-        const totalTasks = await Task.countDocuments({
-          assignedTo: { $in: [userId] },
-          createdAt: { $gte: startDate },
-        });
-        const completedTasks = await Task.countDocuments({
-          assignedTo: { $in: [userId] },
-          status: "Completed",
-          createdAt: { $gte: startDate },
-        });
+    const [taskAgg, dwrAgg] = await Promise.all([
+      Task.aggregate([
+        { $match: { assignedTo: { $in: userIds }, createdAt: { $gte: startDate } } },
+        { $unwind: "$assignedTo" },
+        { $match: { assignedTo: { $in: userIds } } },
+        {
+          $group: {
+            _id: "$assignedTo",
+            totalTasks: { $sum: 1 },
+            completedTasks: {
+              $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+      DWR.aggregate([
+        { $match: { employee: { $in: userIds }, date: { $gte: startDate } } },
+        {
+          $group: {
+            _id: "$employee",
+            totalDWRs: { $sum: 1 },
+            approvedDWRs: {
+              $sum: { $cond: [{ $eq: ["$reviewStatus", "Approved"] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+    ]);
 
-        const totalDWRs = await DWR.countDocuments({
-          employee: userId,
-          date: { $gte: startDate },
-        });
-        const approvedDWRs = await DWR.countDocuments({
-          employee: userId,
-          reviewStatus: "Approved",
-          date: { $gte: startDate },
-        });
+    const taskMap = new Map(taskAgg.map((t) => [t._id.toString(), t]));
+    const dwrMap = new Map(dwrAgg.map((d) => [d._id.toString(), d]));
 
-        return {
-          user: user.name,
-          department: user.department,
-          performanceScore: user.performanceScore || 0,
-          grade: user.grade,
-          taskCompletionRate:
-            totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
-          dwrApprovalRate:
-            totalDWRs > 0 ? (approvedDWRs / totalDWRs) * 100 : 0,
-        };
-      }),
-    );
+    const performanceData = users.map((user) => {
+      const userIdStr = user._id.toString();
+      const t = taskMap.get(userIdStr) || { totalTasks: 0, completedTasks: 0 };
+      const d = dwrMap.get(userIdStr) || { totalDWRs: 0, approvedDWRs: 0 };
+
+      return {
+        user: user.name,
+        department: user.department,
+        performanceScore: user.performanceScore || 0,
+        grade: user.grade,
+        taskCompletionRate:
+          t.totalTasks > 0 ? (t.completedTasks / t.totalTasks) * 100 : 0,
+        dwrApprovalRate:
+          d.totalDWRs > 0 ? (d.approvedDWRs / d.totalDWRs) * 100 : 0,
+      };
+    });
 
     const avgPerformanceScore =
       performanceData.length > 0
@@ -396,11 +411,15 @@ export const getActivityReport = async (req, res) => {
 
 export const getDashboardAnalytics = async (req, res) => {
   try {
-    const { period = "month", userId, status } = req.query;
+    const { period = "month", userId, status, startDate: startDateStr, endDate: endDateStr } = req.query;
 
     const now = new Date();
     let startDate;
-    if (period === "week") {
+    if (startDateStr) {
+      startDate = new Date(startDateStr);
+    } else if (period === "today") {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (period === "week") {
       startDate = new Date(now.setDate(now.getDate() - 7));
     } else if (period === "month") {
       startDate = new Date(now.setMonth(now.getMonth() - 1));
@@ -430,14 +449,15 @@ export const getDashboardAnalytics = async (req, res) => {
       assignedTo: { $in: userIds },
       createdAt: { $gte: startDate },
     };
+    if (endDateStr) {
+      taskMatch.createdAt.$lte = new Date(endDateStr);
+    }
 
     if (status) {
       if (status === "completed") {
         taskMatch.status = "Completed";
       } else if (status === "inprogress") {
         taskMatch.status = "In Progress";
-      } else if (status === "pending") {
-        taskMatch.status = "Pending";
       } else if (status === "overdue") {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -455,9 +475,7 @@ export const getDashboardAnalytics = async (req, res) => {
           completed: {
             $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
           },
-          pending: {
-            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-          },
+          pending: { $sum: 0 },
           inProgress: {
             $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
           },
@@ -506,31 +524,53 @@ export const getDashboardAnalytics = async (req, res) => {
       },
     ]);
 
-    const taskTrend = [];
     const trendInterval = period === "week" ? 1 : 7;
-    const trendStart = new Date(startDate);
+    const numIntervals = period === "week" ? 7 : 4;
 
-    for (let i = 0; i < (period === "week" ? 7 : 4); i++) {
+    const [createdTrend, completedTrend] = await Promise.all([
+      Task.aggregate([
+        { $match: { assignedTo: { $in: userIds }, createdAt: { $gte: startDate } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.aggregate([
+        {
+          $match: {
+            assignedTo: { $in: userIds },
+            status: "Completed",
+            completedAt: { $gte: startDate },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m-%d", date: "$completedAt" },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const createdMap = new Map(createdTrend.map((t) => [t._id, t.count]));
+    const completedMap = new Map(completedTrend.map((t) => [t._id, t.count]));
+
+    const taskTrend = [];
+    const trendStart = new Date(startDate);
+    for (let i = 0; i < numIntervals; i++) {
       const intervalStart = new Date(trendStart);
       intervalStart.setDate(intervalStart.getDate() + i * trendInterval);
-      const intervalEnd = new Date(intervalStart);
-      intervalEnd.setDate(intervalEnd.getDate() + trendInterval);
-
-      const completed = await Task.countDocuments({
-        assignedTo: { $in: userIds },
-        status: "Completed",
-        completedAt: { $gte: intervalStart, $lt: intervalEnd },
-      });
-
-      const created = await Task.countDocuments({
-        assignedTo: { $in: userIds },
-        createdAt: { $gte: intervalStart, $lt: intervalEnd },
-      });
-
+      const dateKey = intervalStart.toISOString().split("T")[0];
       taskTrend.push({
-        date: intervalStart.toISOString().split("T")[0],
-        completed,
-        created,
+        date: dateKey,
+        completed: completedMap.get(dateKey) || 0,
+        created: createdMap.get(dateKey) || 0,
       });
     }
 

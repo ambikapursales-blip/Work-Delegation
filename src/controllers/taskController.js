@@ -5,8 +5,16 @@ import User from "../models/User.js";
 import { generateNextTaskOccurrence } from "../utils/cronJobs.js";
 import {
   sendTaskAssignmentEmail,
+  sendTaskAssignedConfirmationEmail,
   sendTaskCompletionEmail,
+  sendTaskEscalationEmail,
+  sendTaskStatusUpdateEmail,
 } from "../utils/emailService.js";
+import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
+import { generateCompleteToken } from "../utils/completeToken.js";
+import { generateCommentToken } from "../utils/commentToken.js";
+
+import { generateExtensionToken } from "../utils/extensionToken.js";
 
 export const getTasks = async (req, res) => {
   try {
@@ -22,6 +30,7 @@ export const getTasks = async (req, res) => {
       startDate,
       endDate,
       period,
+      userId,
     } = req.query;
 
     let query = {};
@@ -40,9 +49,21 @@ export const getTasks = async (req, res) => {
       ];
     }
 
-    if (status) query.status = status;
+    if (status) {
+      const statusMap = {
+        "in progress": "In Progress",
+        inprogress: "In Progress",
+        completed: "Completed",
+        cancelled: "Cancelled",
+        "on hold": "On Hold",
+        onhold: "On Hold",
+        overdue: "Overdue",
+      };
+      query.status = statusMap[status.toLowerCase()] || status;
+    }
     if (priority) query.priority = priority;
-    if (assignedTo) query.assignedTo = assignedTo;
+    const effectiveAssignedTo = assignedTo || userId;
+    if (effectiveAssignedTo) query.assignedTo = effectiveAssignedTo;
     if (assignedBy) query.assignedBy = assignedBy;
     if (overdue === "true") {
       query.deadline = { $lt: new Date() };
@@ -142,13 +163,24 @@ export const createTask = async (req, res) => {
       department,
       tags,
       estimatedHours,
-      taskType = "One-time",
+      taskType = "One Time",
+      category,
       isRecurring = false,
       recurrencePattern = null,
       recurrenceEndDate = null,
     } = req.body;
 
     const assignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+
+    const existingUsers = await User.find({ _id: { $in: assignees } }).lean().select("_id");
+    const validIds = new Set(existingUsers.map((u) => u._id.toString()));
+    const invalidIds = assignees.filter((id) => !validIds.has(id.toString()));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `The following assigned user(s) do not exist: ${invalidIds.join(", ")}`,
+      });
+    }
 
     if (isRecurring && !recurrencePattern) {
       return res.status(400).json({
@@ -175,9 +207,11 @@ export const createTask = async (req, res) => {
       estimatedHours,
       assigneeProgress,
       taskType,
+      category,
       isRecurring,
+      emailSchedule: createEmailSchedule(taskType, new Date()),
       history: [
-        { status: "Pending", changedBy: req.user._id, note: "Task created" },
+        { status: "In Progress", changedBy: req.user._id, note: "Task created" },
       ],
     };
 
@@ -229,10 +263,29 @@ export const createTask = async (req, res) => {
             description,
             priority,
             deadline,
+            taskId: String(task._id),
+            userId: String(assignee._id),
+            completeToken: generateCompleteToken(String(task._id), String(assignee._id)),
+            commentToken: generateCommentToken(String(task._id), String(assignee._id)),
+            extensionToken: generateExtensionToken(String(task._id), String(assignee._id)),
+            assignedBy: { name: req.user.name, email: req.user.email },
           });
         } catch (emailError) {
-          // Silently fail email errors
+          console.error("Failed to send email:", emailError);
         }
+      }
+    }
+
+    if (assigneeUsers.length > 0 && req.user.email) {
+      try {
+        await sendTaskAssignedConfirmationEmail(
+          req.user.email,
+          req.user.name,
+          { title, description, priority, deadline, taskId: task._id },
+          assigneeUsers.map((u) => u.name).join(", "),
+        );
+      } catch (emailError) {
+        console.error("Failed to send assigner confirmation email:", emailError);
       }
     }
 
@@ -269,7 +322,7 @@ export const updateTask = async (req, res) => {
       ? task.assignedTo.some((id) => id.toString() === req.user._id.toString())
       : task.assignedTo.toString() === req.user._id.toString();
     const isAssigner = task.assignedBy.toString() === req.user._id.toString();
-    const isAdmin = ["Admin", "HR"].includes(req.user.role);
+    const isAdmin = ["Super Admin", "Admin", "HR"].includes(req.user.role);
 
     if (!isAssignee && !isAssigner && !isAdmin) {
       return res.status(403).json({
@@ -288,17 +341,19 @@ export const updateTask = async (req, res) => {
       actualHours,
       assignedTo,
       completionProof,
+      taskType,
+      category,
     } = req.body;
 
     if (status) {
       const statusMap = {
-        pending: "Pending",
         "in progress": "In Progress",
         inprogress: "In Progress",
         completed: "Completed",
         cancelled: "Cancelled",
         "on hold": "On Hold",
         onhold: "On Hold",
+        overdue: "Overdue",
       };
       req.body.status = statusMap[status.toLowerCase()] || status;
     }
@@ -309,6 +364,19 @@ export const updateTask = async (req, res) => {
           success: false,
           message:
             "Completion proof is required when marking a task as completed",
+        });
+      }
+    }
+
+    if (assignedTo) {
+      const assigneeIds = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+      const existingUsers = await User.find({ _id: { $in: assigneeIds } }).lean().select("_id");
+      const validIds = new Set(existingUsers.map((u) => u._id.toString()));
+      const invalidIds = assigneeIds.filter((id) => !validIds.has(id.toString()));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `The following assigned user(s) do not exist: ${invalidIds.join(", ")}`,
         });
       }
     }
@@ -341,6 +409,10 @@ export const updateTask = async (req, res) => {
         }
       }
 
+      const assigneeIds = Array.isArray(task.assignedTo)
+        ? task.assignedTo.map((id) => (typeof id === "object" ? id.toString() : id))
+        : [task.assignedTo.toString()];
+
       if (req.body.status === "Completed") {
         await Notification.create({
           recipient: task.assignedBy,
@@ -366,7 +438,7 @@ export const updateTask = async (req, res) => {
             );
           }
         } catch (emailError) {
-          // Silently fail email errors
+          console.error("Failed to send completion email:", emailError);
         }
 
         if (task.parentTaskId) {
@@ -382,7 +454,40 @@ export const updateTask = async (req, res) => {
               await generateNextTaskOccurrence(parentTask);
             }
           } catch (err) {
-            // Silently fail task generation error
+            console.error("Error generating next task occurrence:", err);
+          }
+        }
+      }
+
+      const assigneeUsers = await User.find({ _id: { $in: assigneeIds } }).lean().select("_id name email");
+      for (const assignee of assigneeUsers) {
+        if (assignee.email && assignee._id.toString() !== req.user._id.toString()) {
+          try {
+            await sendTaskStatusUpdateEmail(
+              assignee.email,
+              assignee.name,
+              { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, taskId: task._id },
+              req.body.status,
+              req.user.name,
+            );
+          } catch (emailError) {
+            console.error("Failed to send status update email to assignee:", emailError);
+          }
+        }
+      }
+      if (task.assignedBy.toString() !== req.user._id.toString() && req.body.status !== "Completed") {
+        const assignerNotify = await User.findById(task.assignedBy).lean().select("name email");
+        if (assignerNotify && assignerNotify.email) {
+          try {
+            await sendTaskStatusUpdateEmail(
+              assignerNotify.email,
+              assignerNotify.name,
+              { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, taskId: task._id },
+              req.body.status,
+              req.user.name,
+            );
+          } catch (emailError) {
+            console.error("Failed to send status update email to assigner:", emailError);
           }
         }
       }
@@ -471,6 +576,21 @@ export const bulkCreateTasks = async (req, res) => {
         .json({ success: false, message: "Tasks array is required" });
     }
 
+    const allAssigneeIds = [...new Set(tasks.flatMap((t) => {
+      const ids = Array.isArray(t.assignedTo) ? t.assignedTo : [t.assignedTo];
+      return ids.map((id) => id?.toString());
+    }).filter(Boolean))];
+
+    const existingUsers = await User.find({ _id: { $in: allAssigneeIds } }).lean().select("_id");
+    const validIds = new Set(existingUsers.map((u) => u._id.toString()));
+    const invalidIds = allAssigneeIds.filter((id) => !validIds.has(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `The following assigned user(s) do not exist: ${invalidIds.join(", ")}`,
+      });
+    }
+
     const createdTasks = [];
     const notifications = [];
 
@@ -489,8 +609,9 @@ export const bulkCreateTasks = async (req, res) => {
         assignedTo: assignees,
         assignedBy: req.user._id,
         assigneeProgress,
+        emailSchedule: createEmailSchedule(taskData.taskType, new Date()),
         history: [
-          { status: "Pending", changedBy: req.user._id, note: "Task created" },
+          { status: "In Progress", changedBy: req.user._id, note: "Task created" },
         ],
       });
 
@@ -511,6 +632,41 @@ export const bulkCreateTasks = async (req, res) => {
     }
 
     await Notification.insertMany(notifications);
+
+    const notifyUserIds = [...new Set(notifications.map((n) => n.recipient.toString()))];
+    const allAssignees = await User.find({ _id: { $in: notifyUserIds } }).lean().select("_id name email");
+    for (const assignee of allAssignees) {
+      if (assignee.email) {
+        try {
+          await sendTaskAssignmentEmail(assignee.email, assignee.name, {
+            title: tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks assigned`,
+            description: `You have been assigned ${tasks.length} task(s).`,
+            priority: "Medium",
+            deadline: null,
+            taskId: tasks.length === 1 ? String(tasks[0]._id) : undefined,
+            userId: String(assignee._id),
+            completeToken: tasks.length === 1 ? generateCompleteToken(String(tasks[0]._id), String(assignee._id)) : undefined,
+            commentToken: tasks.length === 1 ? generateCommentToken(String(tasks[0]._id), String(assignee._id)) : undefined,
+            extensionToken: tasks.length === 1 ? generateExtensionToken(String(tasks[0]._id), String(assignee._id)) : undefined,
+            assignedBy: { name: req.user.name, email: req.user.email },
+          });
+        } catch (emailError) {
+          console.error("Failed to send bulk create email:", emailError);
+        }
+      }
+    }
+    if (req.user.email) {
+      try {
+        await sendTaskAssignedConfirmationEmail(
+          req.user.email,
+          req.user.name,
+          { title: `${tasks.length} task(s) created`, description: `Bulk created and assigned to ${allAssignees.length} user(s).`, priority: "Medium", deadline: null, taskId: "" },
+          allAssignees.map((u) => u.name).join(", "),
+        );
+      } catch (emailError) {
+        console.error("Failed to send bulk create confirmation email:", emailError);
+      }
+    }
 
     await Activity.create({
       user: req.user._id,
@@ -557,6 +713,15 @@ export const bulkAssignTasks = async (req, res) => {
       Task.find({ _id: { $in: taskIds } }).lean().select("_id assignedTo assigneeProgress title"),
       User.find({ _id: { $in: userIds } }).lean().select("_id name email"),
     ]);
+
+    const validUserIds = new Set(users.map((u) => u._id.toString()));
+    const invalidUserIds = userIds.filter((id) => !validUserIds.has(id.toString()));
+    if (invalidUserIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `The following user(s) do not exist: ${invalidUserIds.join(", ")}`,
+      });
+    }
 
     const notifications = [];
     const updates = [];
@@ -613,6 +778,39 @@ export const bulkAssignTasks = async (req, res) => {
     await Task.bulkWrite(updates);
     await Notification.insertMany(notifications);
 
+    for (const user of users) {
+      if (user.email) {
+        try {
+          await sendTaskAssignmentEmail(user.email, user.name, {
+            title: tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks`,
+            description: `You have been assigned to ${tasks.length} task(s).`,
+            priority: "Medium",
+            deadline: null,
+            taskId: tasks.length === 1 ? String(tasks[0]._id) : undefined,
+            userId: String(user._id),
+            completeToken: tasks.length === 1 ? generateCompleteToken(String(tasks[0]._id), String(user._id)) : undefined,
+            commentToken: tasks.length === 1 ? generateCommentToken(String(tasks[0]._id), String(user._id)) : undefined,
+            extensionToken: tasks.length === 1 ? generateExtensionToken(String(tasks[0]._id), String(user._id)) : undefined,
+            assignedBy: { name: req.user.name, email: req.user.email },
+          });
+        } catch (emailError) {
+          console.error("Failed to send bulk assignment email:", emailError);
+        }
+      }
+    }
+    if (req.user.email) {
+      try {
+        await sendTaskAssignedConfirmationEmail(
+          req.user.email,
+          req.user.name,
+          { title: `${tasks.length} task(s)`, description: `Bulk assigned to ${users.length} user(s).`, priority: "Medium", deadline: null, taskId: "" },
+          users.map((u) => u.name).join(", "),
+        );
+      } catch (emailError) {
+        console.error("Failed to send bulk assignment confirmation email:", emailError);
+      }
+    }
+
     await Activity.create({
       user: req.user._id,
       type: "task_assigned",
@@ -641,6 +839,17 @@ export const reassignTask = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Task not found" });
+    }
+
+    const [fromUser, toUser] = await Promise.all([
+      User.findById(fromUserId).lean().select("_id"),
+      User.findById(toUserId).lean().select("_id name email"),
+    ]);
+    if (!fromUser) {
+      return res.status(400).json({ success: false, message: `Source user does not exist: ${fromUserId}` });
+    }
+    if (!toUser) {
+      return res.status(400).json({ success: false, message: `Target user does not exist: ${toUserId}` });
     }
 
     const oldAssignees = task.assignedTo.map((id) => id.toString());
@@ -679,6 +888,37 @@ export const reassignTask = async (req, res) => {
       actionUrl: `/dashboard/tasks/${task._id}`,
     });
 
+    if (toUser.email) {
+      try {
+        await sendTaskAssignmentEmail(toUser.email, toUser.name, {
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          deadline: task.deadline,
+          taskId: String(task._id),
+          userId: String(toUser._id),
+          completeToken: generateCompleteToken(String(task._id), String(toUser._id)),
+          commentToken: generateCommentToken(String(task._id), String(toUser._id)),
+          extensionToken: generateExtensionToken(String(task._id), String(toUser._id)),
+          assignedBy: { name: req.user.name, email: req.user.email },
+          });
+        } catch (emailError) {
+        console.error("Failed to send reassignment email:", emailError);
+      }
+    }
+    if (req.user.email) {
+      try {
+        await sendTaskAssignedConfirmationEmail(
+          req.user.email,
+          req.user.name,
+          { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, taskId: task._id },
+          toUser.name || toUserId,
+        );
+      } catch (emailError) {
+        console.error("Failed to send reassignment confirmation email:", emailError);
+      }
+    }
+
     await Activity.create({
       user: req.user._id,
       type: "task_updated",
@@ -710,6 +950,11 @@ export const escalateTask = async (req, res) => {
         .json({ success: false, message: "Task not found" });
     }
 
+    const escalateeUser = await User.findById(escalatedTo).lean().select("_id name email");
+    if (!escalateeUser) {
+      return res.status(400).json({ success: false, message: `User does not exist: ${escalatedTo}` });
+    }
+
     task.escalated = true;
     task.escalatedTo = escalatedTo;
     task.escalatedAt = new Date();
@@ -728,6 +973,31 @@ export const escalateTask = async (req, res) => {
       entityType: "Task",
       actionUrl: `/dashboard/tasks/${task._id}`,
     });
+
+    if (escalateeUser.email) {
+      try {
+        await sendTaskEscalationEmail(
+          escalateeUser.email,
+          escalateeUser.name,
+          { title: task.title, description: task.description, deadline: task.deadline, taskId: task._id },
+          reason,
+        );
+      } catch (emailError) {
+        console.error("Failed to send escalation email:", emailError);
+      }
+    }
+    if (req.user.email) {
+      try {
+        await sendTaskAssignedConfirmationEmail(
+          req.user.email,
+          req.user.name,
+          { title: task.title, description: `Escalated to ${escalateeUser?.name || escalatedTo}. Reason: ${reason}`, priority: "Critical", deadline: task.deadline, taskId: task._id },
+          escalateeUser?.name || escalatedTo,
+        );
+      } catch (emailError) {
+        console.error("Failed to send escalation confirmation email:", emailError);
+      }
+    }
 
     await Activity.create({
       user: req.user._id,

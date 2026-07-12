@@ -20,6 +20,8 @@ export const getTeamMembers = async (req, res) => {
     const userIds = users.map((u) => u._id);
     const taskStats = await Task.aggregate([
       { $match: { assignedTo: { $in: userIds } } },
+      { $unwind: "$assignedTo" },
+      { $match: { assignedTo: { $in: userIds } } },
       {
         $group: {
           _id: "$assignedTo",
@@ -27,9 +29,7 @@ export const getTeamMembers = async (req, res) => {
           completed: {
             $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
           },
-          pending: {
-            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-          },
+          pending: { $sum: 0 },
           inProgress: {
             $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
           },
@@ -39,7 +39,7 @@ export const getTeamMembers = async (req, res) => {
                 {
                   $and: [
                     { $lt: ["$deadline", new Date()] },
-                    { $nin: ["$status", ["Completed", "Cancelled"]] },
+                    { $not: { $in: ["$status", ["Completed", "Cancelled"]] } },
                   ],
                 },
                 1,
@@ -51,11 +51,14 @@ export const getTeamMembers = async (req, res) => {
       },
     ]);
 
+    const statsMap = new Map(
+      taskStats.map((s) => [s._id.toString(), s]),
+    );
+
     const usersWithStats = users.map((user) => {
-      const stats =
-        taskStats.find((s) =>
-          s._id.some((id) => id.toString() === user._id.toString()),
-        ) || { total: 0, completed: 0, pending: 0, inProgress: 0, overdue: 0 };
+      const stats = statsMap.get(user._id.toString()) || {
+        total: 0, completed: 0, pending: 0, inProgress: 0, overdue: 0,
+      };
 
       return {
         ...user,
@@ -223,9 +226,7 @@ export const getTeamStats = async (req, res) => {
           completedTasks: {
             $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
           },
-          pendingTasks: {
-            $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] },
-          },
+          pendingTasks: { $sum: 0 },
           inProgressTasks: {
             $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
           },
@@ -235,7 +236,7 @@ export const getTeamStats = async (req, res) => {
                 {
                   $and: [
                     { $lt: ["$deadline", new Date()] },
-                    { $nin: ["$status", ["Completed", "Cancelled"]] },
+                    { $not: { $in: ["$status", ["Completed", "Cancelled"]] } },
                   ],
                 },
                 1,

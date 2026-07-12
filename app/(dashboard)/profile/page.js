@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { authAPI } from "@/lib/api";
-import { Loading, LoadingSpinner } from "@/components/loading";
+import { SkeletonDetail } from "@/components/skeleton";
 import { Edit, CheckCircle, X } from "lucide-react";
 
 const ROLE_STYLES = {
@@ -62,7 +62,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (!user) return <Loading />;
+  if (!user) return <SkeletonDetail />;
 
   const roleStyle = ROLE_STYLES[user.role] || { color: "var(--text-secondary)", bg: "var(--text-muted)" };
   const avatarGradient = AVATAR_GRADIENTS[user.role] || "from-white/30 to-white/10";
@@ -351,7 +351,7 @@ export default function ProfilePage() {
                   >
                     {loading ? (
                       <>
-                        <LoadingSpinner size="sm" />
+                        <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                         Saving...
                       </>
                     ) : (

@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { performanceAPI } from "@/lib/api";
-import { Loading } from "@/components/loading";
+import { SkeletonTable, SkeletonChart } from "@/components/skeleton";
 import { Trophy, BarChart3, Table2 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -56,7 +56,7 @@ export default function PerformancePage() {
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState("chart");
 
-  const canView = ["Admin", "Manager", "HR"].includes(user?.role);
+  const canView = ["Super Admin", "Admin", "Manager", "HR"].includes(user?.role);
 
   const fetchData = useCallback(async () => {
     try {
@@ -102,7 +102,21 @@ export default function PerformancePage() {
     );
   }
 
-  if (loading) return <Loading />;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="animate-shimmer rounded-lg h-7 w-48 mb-2" style={{ background: "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)", backgroundSize: "200% 100%" }} />
+            <div className="animate-shimmer rounded-lg h-4 w-32" style={{ background: "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)", backgroundSize: "200% 100%" }} />
+          </div>
+          <div className="animate-shimmer rounded-lg h-9 w-28" style={{ background: "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)", backgroundSize: "200% 100%" }} />
+        </div>
+        <SkeletonChart height="h-72" />
+        <SkeletonTable rows={5} cols={5} />
+      </div>
+    );
+  }
 
   const getRankColor = (index) => {
     if (index === 0) return { color: "var(--color-warning)" };
@@ -367,107 +381,153 @@ export default function PerformancePage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="table-head">
-                        <th className="text-left py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
+                        <th className="text-left py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                           #
                         </th>
-                        <th className="text-left py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
+                        <th className="text-left py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                           Employee
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
-                          Assigned
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                          Total
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                           Completed
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
-                          Pending
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                          Overdue
                         </th>
-                        <th className="text-center py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                          In Progress
+                        </th>
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                          DWR
+                        </th>
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
                           Completion %
                         </th>
-                        <th className="text-left py-3 px-4 font-semibold" style={{ color: "var(--text-muted)" }}>
-                          Progress
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                          Score
+                        </th>
+                        <th className="text-center py-3.5 px-4 font-semibold text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                          Grade
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {leaderboard.map((item, index) => {
-                        const assigned = item?.metrics?.totalTasks || 0;
+                        const totalTasks = item?.metrics?.totalTasks || 0;
                         const completed = item?.metrics?.completedTasks || 0;
-                        const pending = assigned - completed;
+                        const overdue = item?.metrics?.overdueTasks || 0;
+                        const inProgress = totalTasks - completed - overdue;
                         const completionRate =
                           item?.metrics?.taskCompletionRate || 0;
+                        const totalDWRs = item?.metrics?.totalDWRs || 0;
+                        const approvedDWRs = item?.metrics?.approvedDWRs || 0;
+                        const score = item?.user?.performanceScore || 0;
+                        const grade = item?.user?.grade || "";
                         const color = CHART_COLORS[index % CHART_COLORS.length];
+                        const initials = item?.user?.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase();
                         return (
                           <tr
                             key={item?.user?._id || index}
-                            className="table-row-hover"
+                            className="transition-colors duration-150"
+                            style={{ borderBottom: "1px solid var(--border)" }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--bg-muted)" }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent" }}
                           >
-                            <td className="py-3 px-4">
-                              <span className="font-bold" style={getRankColor(index)}>
+                            <td className="py-3.5 px-4">
+                              <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
                                 {index + 1}
                               </span>
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="py-3.5 px-4">
                               <div className="flex items-center gap-3">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={
-                                    item?.user?.avatar ||
-                                    (item?.user?.name === "Test User"
-                                      ? "https://media.licdn.com/dms/image/v2/D4D35AQFg1T2O6uFFqQ/profile-framedphoto-shrink_200_200/B4DZ2VAojkGcAY-/0/1776321464831?e=1776927600&v=beta&t=ScJJtGxGE9WzGYJtjXpkcvYj-RECD_KumfnxzblzKZk"
-                                      : `https://api.dicebear.com/7.x/avataaars/svg?seed=${item?.user?.name || "user"}`)
-                                  }
-                                  alt={item?.user?.name || "User"}
-                                  className="w-10 h-10 rounded-full object-cover border-2"
-                                  style={{ borderColor: "color-mix(in srgb, var(--border) 50%, transparent)" }}
-                                />
-                                <div>
-                                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+                                <div
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg text-xs font-bold flex-shrink-0"
+                                  style={{
+                                    background: `color-mix(in srgb, ${color} 12%, transparent)`,
+                                    color: color,
+                                  }}
+                                >
+                                  {initials}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate" style={{ color: "var(--text-primary)" }}>
                                     {item?.user?.name || "Unknown"}
                                   </p>
-                                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                                    {item?.user?.department || "N/A"} •{" "}
-                                    {item?.user?.role || "N/A"}
+                                  <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+                                    {item?.user?.role || ""}
                                   </p>
                                 </div>
                               </div>
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-semibold" style={{ color: "var(--color-purple)" }}>
-                                {assigned}
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="font-semibold text-sm" style={{ color: "var(--color-purple)" }}>
+                                {totalTasks}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-semibold" style={{ color: "var(--color-success)" }}>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="font-semibold text-sm" style={{ color: "var(--color-success)" }}>
                                 {completed}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-semibold" style={{ color: "var(--color-warning)" }}>
-                                {pending}
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="font-semibold text-sm" style={{ color: overdue > 0 ? "var(--color-danger)" : "var(--text-muted)" }}>
+                                {overdue}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-bold" style={getCompletionTextColor(completionRate)}>
-                                {completionRate.toFixed(1)}%
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="font-semibold text-sm" style={{ color: "var(--color-info)" }}>
+                                {inProgress}
                               </span>
                             </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-24 rounded-full h-2.5" style={{ backgroundColor: "var(--bg-muted)" }}>
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className="font-semibold text-sm" style={{ color: "var(--color-info)" }}>
+                                  {approvedDWRs}
+                                </span>
+                                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                  / {totalDWRs}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center justify-center gap-2.5">
+                                <div className="w-16 rounded-full h-2" style={{ backgroundColor: "var(--bg-muted)" }}>
                                   <div
-                                    className="h-2.5 rounded-full"
+                                    className="h-2 rounded-full transition-all"
                                     style={{
                                       ...getCompletionBarColor(completionRate),
                                       width: `${Math.min(completionRate, 100)}%`,
                                     }}
                                   />
                                 </div>
-                                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                <span className="text-xs font-bold" style={getCompletionTextColor(completionRate)}>
                                   {completionRate.toFixed(0)}%
                                 </span>
                               </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="text-sm font-semibold" style={{ color: score > 0 ? "var(--text-primary)" : "var(--text-muted)" }}>
+                                {score > 0 ? score : "-"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              {grade ? (
+                                <span
+                                  className="inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[11px] font-bold tracking-wide"
+                                  style={getGradeColor(grade)}
+                                >
+                                  {grade}
+                                </span>
+                              ) : (
+                                <span className="text-xs" style={{ color: "var(--text-muted)" }}>-</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -475,8 +535,8 @@ export default function PerformancePage() {
                       {leaderboard.length === 0 && (
                         <tr>
                           <td
-                            colSpan={7}
-                            className="py-8 text-center"
+                            colSpan={10}
+                            className="py-12 text-center"
                             style={{ color: "var(--text-secondary)" }}
                           >
                             No performance data available

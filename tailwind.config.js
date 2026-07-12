@@ -92,6 +92,10 @@ const config = {
           "0%": { opacity: "0", transform: "translateX(-20px)" },
           "100%": { opacity: "1", transform: "translateX(0)" },
         },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -99,6 +103,7 @@ const config = {
         "fade-in": "fade-in 0.4s ease-out",
         "glow-pulse": "glow-pulse 3s ease-in-out infinite",
         "slide-in-left": "slide-in-left 0.3s ease-out",
+        shimmer: "shimmer 1.5s ease-in-out infinite",
       },
       backdropBlur: {
         xs: "2px",

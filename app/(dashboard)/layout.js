@@ -98,9 +98,19 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Sidebar from "@/components/sidebar";
 import Header from "@/components/header";
-import { Loading } from "@/components/loading";
+import { DashboardSkeleton } from "@/components/skeleton";
 
 const ROLE_ROUTES = {
+  "Super Admin": [
+    "dashboard",
+    "tasks",
+    "dwr",
+    "events",
+    "attendance",
+    "users",
+    "performance",
+    "profile",
+  ],
   Admin: [
     "dashboard",
     "tasks",
@@ -161,8 +171,8 @@ export default function DashboardLayout({ children }) {
     }
   }, [user, router]);
 
-  if (loading) return <Loading />;
-  if (!user)   return <Loading />;
+  if (loading) return <DashboardSkeleton />;
+  if (!user)   return <DashboardSkeleton />;
 
   return (
     <div

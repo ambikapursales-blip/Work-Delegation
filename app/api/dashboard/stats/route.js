@@ -16,16 +16,16 @@ export async function GET(request) {
   req.user = user;
   const res = createRes();
   try {
-    const { userId, status, period } = req.query;
+    const { userId, status, period, startDate: startDateStr, endDate: endDateStr } = req.query;
     let taskStats = {};
     let userStats = {};
 
     let taskQuery = {};
-    let dateFilter = {};
 
     if (userId) {
       taskQuery.assignedTo = userId;
     } else if (
+      user.role !== "Super Admin" &&
       user.role !== "Admin" &&
       user.role !== "Manager" &&
       user.role !== "HR"
@@ -38,8 +38,6 @@ export async function GET(request) {
         taskQuery.status = "Completed";
       } else if (status === "inprogress") {
         taskQuery.status = "In Progress";
-      } else if (status === "pending") {
-        taskQuery.status = "Pending";
       } else if (status === "overdue") {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -48,7 +46,11 @@ export async function GET(request) {
       }
     }
 
-    if (period) {
+    if (startDateStr || endDateStr) {
+      taskQuery.createdAt = {};
+      if (startDateStr) taskQuery.createdAt.$gte = new Date(startDateStr);
+      if (endDateStr) taskQuery.createdAt.$lte = new Date(endDateStr);
+    } else if (period) {
       const now = new Date();
       let startDate;
 
@@ -77,10 +79,7 @@ export async function GET(request) {
     taskStats.total = await Task.countDocuments(
       taskQuery.status ? taskQuery : allTasksQuery,
     );
-    taskStats.pending = await Task.countDocuments({
-      ...taskQuery,
-      status: "Pending",
-    });
+    taskStats.pending = 0;
     taskStats.inProgress = await Task.countDocuments({
       ...taskQuery,
       status: "In Progress",
@@ -91,18 +90,19 @@ export async function GET(request) {
     });
 
     if (
+      user.role === "Super Admin" ||
       user.role === "Admin" ||
       user.role === "Manager" ||
       user.role === "HR"
     ) {
-      userStats.total = await User.countDocuments({ role: { $ne: "Admin" } });
+      userStats.total = await User.countDocuments({ role: { $ne: "Super Admin" } });
       userStats.active = await User.countDocuments({
         isActive: true,
-        role: { $ne: "Admin" },
+        role: { $ne: "Super Admin" },
       });
       userStats.inactive = await User.countDocuments({
         isActive: false,
-        role: { $ne: "Admin" },
+        role: { $ne: "Super Admin" },
       });
     } else {
       userStats.total = 1;

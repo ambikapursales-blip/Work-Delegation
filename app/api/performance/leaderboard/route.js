@@ -13,7 +13,7 @@ import DWR from "@/src/models/DWR";
 export async function GET(request) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Admin", "Manager", "HR"].includes(user.role)) {
+  if (!["Super Admin", "Admin", "Manager", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -49,52 +49,74 @@ export async function GET(request) {
       .sort({ performanceScore: -1 })
       .limit(parseInt(limit));
 
-    const leaderboard = await Promise.all(
-      users.map(async (u) => {
-        const userId = u._id;
+    const userIds = users.map((u) => u._id);
 
-        const totalTasks = await Task.countDocuments({
-          assignedTo: userId,
-          createdAt: { $gte: startDate },
-        });
-        const completedTasks = await Task.countDocuments({
-          assignedTo: userId,
-          status: "Completed",
-          createdAt: { $gte: startDate },
-        });
-
-        const totalDWRs = await DWR.countDocuments({
-          employee: userId,
-          date: { $gte: startDate },
-        });
-        const approvedDWRs = await DWR.countDocuments({
-          employee: userId,
-          reviewStatus: "Approved",
-          date: { $gte: startDate },
-        });
-
-        const overdueTasks = await Task.countDocuments({
-          assignedTo: userId,
-          deadline: { $lt: new Date() },
-          status: { $nin: ["Completed", "Cancelled"] },
-        });
-
-        return {
-          user: u.toObject(),
-          metrics: {
-            taskCompletionRate:
-              totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
-            dwrApprovalRate:
-              totalDWRs > 0 ? (approvedDWRs / totalDWRs) * 100 : 0,
-            totalTasks,
-            completedTasks,
-            totalDWRs,
-            approvedDWRs,
-            overdueTasks,
+    const [taskAgg, dwrAgg] = await Promise.all([
+      Task.aggregate([
+        { $match: { assignedTo: { $in: userIds }, createdAt: { $gte: startDate } } },
+        { $unwind: "$assignedTo" },
+        { $match: { assignedTo: { $in: userIds } } },
+        {
+          $group: {
+            _id: "$assignedTo",
+            totalTasks: { $sum: 1 },
+            completedTasks: {
+              $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
+            },
+            overdueTasks: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $lt: ["$deadline", new Date()] },
+                      { $not: { $in: ["$status", ["Completed", "Cancelled"]] } },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
           },
-        };
-      }),
-    );
+        },
+      ]),
+      DWR.aggregate([
+        { $match: { employee: { $in: userIds }, date: { $gte: startDate } } },
+        {
+          $group: {
+            _id: "$employee",
+            totalDWRs: { $sum: 1 },
+            approvedDWRs: {
+              $sum: { $cond: [{ $eq: ["$reviewStatus", "Approved"] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const taskMap = new Map(taskAgg.map((t) => [t._id.toString(), t]));
+    const dwrMap = new Map(dwrAgg.map((d) => [d._id.toString(), d]));
+
+    const leaderboard = users.map((u) => {
+      const uid = u._id.toString();
+      const t = taskMap.get(uid) || { totalTasks: 0, completedTasks: 0, overdueTasks: 0 };
+      const d = dwrMap.get(uid) || { totalDWRs: 0, approvedDWRs: 0 };
+
+      return {
+        user: u.toObject(),
+        metrics: {
+          taskCompletionRate:
+            t.totalTasks > 0 ? (t.completedTasks / t.totalTasks) * 100 : 0,
+          dwrApprovalRate:
+            d.totalDWRs > 0 ? (d.approvedDWRs / d.totalDWRs) * 100 : 0,
+          totalTasks: t.totalTasks,
+          completedTasks: t.completedTasks,
+          totalDWRs: d.totalDWRs,
+          approvedDWRs: d.approvedDWRs,
+          overdueTasks: t.overdueTasks,
+        },
+      };
+    });
 
     leaderboard.sort((a, b) => {
       const scoreA =

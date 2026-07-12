@@ -22,10 +22,7 @@ export async function GET(request, { params }) {
       assignedTo: userId,
       status: "Completed",
     });
-    const tasksPending = await Task.countDocuments({
-      assignedTo: userId,
-      status: "Pending",
-    });
+    const tasksPending = 0;
     const tasksInProgress = await Task.countDocuments({
       assignedTo: userId,
       status: "In Progress",

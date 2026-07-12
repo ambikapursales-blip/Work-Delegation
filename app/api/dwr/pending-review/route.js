@@ -12,7 +12,7 @@ import User from "@/src/models/User";
 export async function GET(request) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Admin", "Manager", "HR"].includes(user.role)) {
+  if (!["Super Admin", "Admin", "Manager", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -28,15 +28,13 @@ export async function GET(request) {
     let query = { reviewStatus: "Pending Review" };
 
     if (user.role === "Manager") {
-      query.employee = { $in: [] };
       try {
         const teamMembers = await User.find({ managerId: user._id }).select("_id");
-        if (teamMembers && teamMembers.length > 0) {
-          const teamIds = teamMembers.map((m) => m._id);
-          query.employee = { $in: teamIds };
-        }
+        const teamIds = teamMembers.map((m) => m._id);
+        teamIds.push(user._id);
+        query.employee = { $in: teamIds };
       } catch (userError) {
-        // Silently fail team member fetch error
+        query.employee = user._id;
       }
     }
 

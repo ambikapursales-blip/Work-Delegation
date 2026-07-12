@@ -212,26 +212,31 @@
 
 import { useState, useEffect } from "react";
 import { usersAPI } from "@/lib/api";
-import { Loading, LoadingSpinner } from "@/components/loading";
-import { Mail, Building2, Edit, Trash2, Phone, Users, X, Plus } from "lucide-react";
+import { SkeletonTable, SkeletonDetail } from "@/components/skeleton";
+import { Mail, Building2, Edit, Trash2, Phone, Users, X, Plus, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Toast from "@/components/Toast";
+
 import { useAuth } from "@/lib/auth-context";
 
 /* ─── Role colour tokens — accent only, no backgrounds hardcoded ─── */
 const ROLE_COLORS = {
-  Admin:             { accent: "var(--color-danger)",  label: "#F87171" },
-  HR:                { accent: "var(--color-purple)",  label: "#A78BFA" },
-  Manager:           { accent: "var(--color-info)",    label: "#60A5FA" },
-  "Sales Executive": { accent: "var(--color-success)", label: "#34D399" },
-  Coordinator:       { accent: "var(--color-warning)", label: "#FBBF24" },
+  "Super Admin": { accent: "var(--color-danger)",  label: "#EF4444" },
+  Admin:        { accent: "var(--color-danger)",  label: "#F87171" },
+  Logistics:    { accent: "var(--color-info)",    label: "#60A5FA" },
+  Accounts:     { accent: "var(--color-purple)",  label: "#A78BFA" },
+  Sales:        { accent: "var(--color-success)", label: "#34D399" },
+  Service:      { accent: "var(--color-warning)", label: "#FBBF24" },
+  Parts:        { accent: "var(--color-info)",    label: "#22D3EE" },
+  HR:           { accent: "var(--color-purple)",  label: "#A78BFA" },
+  Marketing:    { accent: "var(--color-warning)", label: "#FB923C" },
+  "Back Office":{ accent: "var(--text-muted)",   label: "#94A3B8" },
 };
 const DEFAULT_COLOR = { accent: "var(--text-muted)", label: "#637A9F" };
 
-const FILTERS = ["All", "Admin", "HR", "Manager", "Sales Executive", "Coordinator"];
-const ROLES = ["Admin", "HR", "Manager", "Sales Executive", "Coordinator"];
+const FILTERS = ["All", "Super Admin", "Admin", "Logistics", "Accounts", "Sales", "Service", "Parts", "HR", "Marketing", "Back Office"];
+const ROLES = ["Super Admin", "Admin", "Logistics", "Accounts", "Sales", "Service", "Parts", "HR", "Marketing", "Back Office"];
 
 /* ─── User Card ─────────────────────────────────────────────────── */
 function UserCard({ user, onEdit, onDelete, deletingUserId }) {
@@ -372,7 +377,7 @@ function UserCard({ user, onEdit, onDelete, deletingUserId }) {
           >
             {deletingUserId === user._id ? (
               <>
-                <LoadingSpinner size="sm" />
+                <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                 Removing...
               </>
             ) : (
@@ -404,10 +409,11 @@ export default function UsersPage() {
     name: "",
     email: "",
     password: "",
-    role: "Sales Executive",
+    role: "Sales",
     department: "",
     phone: "",
     isActive: true,
+    canAssignTasks: false,
   });
 
   useEffect(() => {
@@ -440,6 +446,8 @@ export default function UsersPage() {
       department: user.department || "",
       phone: user.phone || "",
       isActive: user.isActive,
+      canAssignTasks: user.canAssignTasks || false,
+      password: "",
     });
   };
 
@@ -451,7 +459,7 @@ export default function UsersPage() {
       setAlert({ type: "success", msg: "User removed successfully!" });
       fetchUsers();
     } catch (err) {
-      setAlert({ type: "error", msg: "Failed to remove user" });
+      setAlert({ type: "error", msg: err.response?.data?.message || "Failed to remove user" });
     } finally {
       setDeletingUserId(null);
     }
@@ -486,10 +494,11 @@ export default function UsersPage() {
       name: "",
       email: "",
       password: "",
-      role: "Sales Executive",
+      role: "Sales",
       department: "",
       phone: "",
       isActive: true,
+      canAssignTasks: false,
     });
   };
 
@@ -498,9 +507,9 @@ export default function UsersPage() {
       ? users
       : users.filter((u) => u.role === activeFilter);
 
-  const canCreateUser = user?.role === "Admin" || user?.role === "HR";
+  const canCreateUser = user?.role === "Super Admin" || user?.role === "HR";
 
-  if (loading) return <Loading />;
+  if (loading) return <SkeletonTable rows={8} cols={5} />;
 
   if (showCreateForm) {
     return (
@@ -613,6 +622,19 @@ export default function UsersPage() {
                 Active User
               </Label>
             </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="canAssignTasks"
+                checked={formData.canAssignTasks}
+                onChange={(e) => setFormData({ ...formData, canAssignTasks: e.target.checked })}
+                className="h-4 w-4 rounded"
+              />
+              <Label htmlFor="canAssignTasks" className="cursor-pointer">
+                Can Assign Tasks
+              </Label>
+            </div>
           </div>
 
           <div className="flex gap-3">
@@ -685,6 +707,20 @@ export default function UsersPage() {
               </div>
             </div>
 
+            {user?.role === "Super Admin" && (
+              <div className="space-y-2">
+                <Label htmlFor="password">New Password (leave blank to keep current)</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  minLength={6}
+                  placeholder="Enter new password"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <select
@@ -731,6 +767,19 @@ export default function UsersPage() {
               />
               <Label htmlFor="isActive" className="cursor-pointer">
                 Active User
+              </Label>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="canAssignTasks"
+                checked={formData.canAssignTasks}
+                onChange={(e) => setFormData({ ...formData, canAssignTasks: e.target.checked })}
+                className="h-4 w-4 rounded"
+              />
+              <Label htmlFor="canAssignTasks" className="cursor-pointer">
+                Can Assign Tasks
               </Label>
             </div>
           </div>
@@ -897,7 +946,34 @@ export default function UsersPage() {
         </div>
       )}
 
-      {alert && <Toast type={alert.type} message={alert.msg} />}
+      {alert && (
+        <div
+          className="fixed top-4 right-4 z-50 rounded-xl px-4 py-3 flex items-center gap-3 min-w-[300px] shadow-lg backdrop-blur-xl transition-all duration-300 animate-in"
+          style={{
+            backgroundColor: "var(--bg-card, #1e293b)",
+            border: "1px solid",
+            borderColor: alert.type === "error"
+              ? "color-mix(in srgb, var(--color-danger, #ef4444) 30%, transparent)"
+              : "color-mix(in srgb, var(--color-success, #22c55e) 30%, transparent)",
+          }}
+        >
+          {alert.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: "var(--color-success, #22c55e)" }} />
+          ) : (
+            <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: "var(--color-danger, #ef4444)" }} />
+          )}
+          <p className="text-sm font-medium flex-1" style={{ color: "var(--text-primary, #f1f5f9)" }}>
+            {alert.msg}
+          </p>
+          <button
+            onClick={() => setAlert(null)}
+            className="flex-shrink-0 transition-opacity hover:opacity-70"
+            style={{ color: "var(--text-muted, #94a3b8)" }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

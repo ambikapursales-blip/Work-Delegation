@@ -36,7 +36,7 @@ export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Manager", "Admin", "HR"].includes(user.role)) {
+  if (!["Super Admin", "Manager", "Admin", "HR"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -87,7 +87,7 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Manager", "Admin"].includes(user.role)) {
+  if (!["Super Admin", "Manager", "Admin"].includes(user.role)) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },

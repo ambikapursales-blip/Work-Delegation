@@ -61,7 +61,7 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  const roles = ["Admin", "HR"];
+  const roles = ["Super Admin", "Admin", "HR"];
   if (!roles.includes(user.role)) {
     return NextResponse.json(
       { success: false, message: `Role '${user.role}' is not authorized to access this route` },

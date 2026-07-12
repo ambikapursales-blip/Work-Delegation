@@ -46,7 +46,6 @@
 
 // export { Button, buttonVariants };
 import * as React from "react";
-import { LoadingSpinner } from "@/components/loading";
 
 /*
   Variant styles expressed as inline style objects so they
@@ -168,7 +167,15 @@ const Button = React.forwardRef(
       >
         {loading ? (
           <>
-            <LoadingSpinner size="sm" />
+            <span
+              className="animate-shimmer inline-block rounded-full shrink-0"
+              style={{
+                width: size === "sm" ? "14px" : "16px",
+                height: size === "sm" ? "14px" : "16px",
+                background: "linear-gradient(90deg, var(--primary) 25%, var(--primary-mid) 50%, var(--primary) 75%)",
+                backgroundSize: "200% 100%",
+              }}
+            />
             <span>{loadingText}</span>
           </>
         ) : (

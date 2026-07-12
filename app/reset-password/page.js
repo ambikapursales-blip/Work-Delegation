@@ -321,11 +321,7 @@ export default function ResetPasswordPage() {
             >
               {loading ? (
                 <>
-                  <span className="w-4 h-4 rounded-full border-2 animate-spin"
-                    style={{
-                      borderColor: "color-mix(in srgb, var(--text-inverse) 30%, transparent)",
-                      borderTopColor: "var(--text-inverse)",
-                    }} />
+                  <span className="animate-shimmer inline-block rounded-full w-4 h-4 shrink-0" style={{background:"linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.5) 50%, transparent 75%)",backgroundSize:"200% 100%"}} />
                   Resetting\u2026
                 </>
               ) : (

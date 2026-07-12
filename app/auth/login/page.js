@@ -2,13 +2,14 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { authAPI } from "@/lib/api";
 import { Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +45,8 @@ export default function LoginPage() {
       login(user, token);
       
       // Use replace instead of push for faster navigation
-      router.replace("/dashboard");
+      const redirectTo = searchParams.get("redirect") || "/dashboard";
+      router.replace(redirectTo);
     } catch (err) {
       setError(
         err.response?.data?.message || err.message || "Login failed. Please try again.",
@@ -52,7 +54,7 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  }, [email, password, login, router]);
+  }, [email, password, login, router, searchParams]);
 
   return (
     <div className="min-h-screen flex overflow-hidden"
@@ -252,12 +254,7 @@ export default function LoginPage() {
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{
-                      borderColor: "var(--text-inverse)",
-                      borderTopColor: "transparent",
-                      animationDuration: "1.5s",
-                    }} />
+                  <span className="animate-shimmer inline-block rounded-full w-4 h-4 shrink-0" style={{background:"linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.5) 50%, transparent 75%)",backgroundSize:"200% 100%"}} />
                   Signing in\u2026
                 </>
               ) : (

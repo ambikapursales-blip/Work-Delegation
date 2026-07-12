@@ -26,12 +26,24 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Manager", "Admin", "HR"].includes(user.role)) {
+  
+  // Super Admin always has permission to assign tasks
+  if (user.role === "Super Admin") {
+    const req = createReq(request);
+    req.user = user;
+    const res = createRes();
+    await createTask(req, res);
+    return finishRes(res);
+  }
+  
+  // For non-Super Admin users, check canAssignTasks permission
+  if (!user.canAssignTasks) {
     return NextResponse.json(
-      { success: false, message: `Role '${user.role}' is not authorized` },
+      { success: false, message: "You do not have permission to assign tasks" },
       { status: 403 },
     );
   }
+  
   const req = createReq(request);
   req.user = user;
   const res = createRes();
