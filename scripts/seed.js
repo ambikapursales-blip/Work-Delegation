@@ -19,37 +19,39 @@ async function seed() {
 
   await mongoose.connect(uri);
 
-  const bcrypt = await import("bcryptjs");
+  // LOCAL DEVELOPMENT ONLY: bcrypt not needed for plaintext passwords
+  // REVERT BEFORE PRODUCTION
+  // const bcrypt = await import("bcryptjs");
 
   // ── Admin User ──
-  const adminPassword = await bcrypt.hash("admin123", 10);
+  // const adminPassword = await bcrypt.hash("admin123", 10); // DISABLED FOR LOCAL DEV
   const Admin = (await import("../src/models/User.js")).default;
   const admin = await Admin.create({
     name: "Admin User",
     email: "admin@example.com",
-    password: adminPassword,
+    password: "admin123", // PLAINTEXT FOR LOCAL DEV
     role: "Admin",
     department: "Management",
     isActive: true,
   });
 
   // ── Manager User ──
-  const managerPassword = await bcrypt.hash("manager123", 10);
+  // const managerPassword = await bcrypt.hash("manager123", 10); // DISABLED FOR LOCAL DEV
   const manager = await Admin.create({
     name: "Manager User",
     email: "manager@example.com",
-    password: managerPassword,
+    password: "manager123", // PLAINTEXT FOR LOCAL DEV
     role: "Manager",
     department: "Engineering",
     isActive: true,
   });
 
   // ── Regular User ──
-  const userPassword = await bcrypt.hash("user123", 10);
+  // const userPassword = await bcrypt.hash("user123", 10); // DISABLED FOR LOCAL DEV
   const user = await Admin.create({
     name: "Sales User",
     email: "user@example.com",
-    password: userPassword,
+    password: "user123", // PLAINTEXT FOR LOCAL DEV
     role: "Sales Executive",
     department: "Sales",
     isActive: true,

@@ -39,8 +39,11 @@ const login = async (req, res) => {
       });
     }
 
-    const bcryptjs = await import("bcryptjs");
-    const isMatch = await bcryptjs.compare(password, user.password);
+    // LOCAL DEVELOPMENT ONLY: Use plaintext password comparison
+    // REVERT BEFORE PRODUCTION
+    // const bcryptjs = await import("bcryptjs");
+    // const isMatch = await bcryptjs.compare(password, user.password);
+    const isMatch = password === user.password; // PLAINTEXT COMPARISON FOR LOCAL DEV
     if (!isMatch) {
       return res
         .status(401)

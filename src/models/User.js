@@ -98,9 +98,11 @@ const userSchema = new mongoose.Schema(
   },
 );
 
+// LOCAL DEVELOPMENT ONLY: Password hashing disabled for development
+// REVERT BEFORE PRODUCTION
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+  // this.password = await bcrypt.hash(this.password, 12); // DISABLED FOR LOCAL DEV
   next();
 });
 
@@ -121,8 +123,11 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
+// LOCAL DEVELOPMENT ONLY: Password comparison disabled for development
+// REVERT BEFORE PRODUCTION
 userSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  // return await bcrypt.compare(candidatePassword, this.password); // DISABLED FOR LOCAL DEV
+  return candidatePassword === this.password; // PLAINTEXT COMPARISON FOR LOCAL DEV
 };
 
 userSchema.methods.getPublicProfile = function () {
