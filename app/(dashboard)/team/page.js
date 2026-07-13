@@ -148,16 +148,16 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>Team Monitoring</h1>
-          <p className="mt-1" style={{ color: "var(--text-muted)" }}>
+          <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: "var(--text-primary)" }}>Team Monitoring</h1>
+          <p className="mt-1 text-sm sm:text-base" style={{ color: "var(--text-muted)" }}>
             View and manage your team&apos;s performance
           </p>
         </div>
-        <Button onClick={fetchTeamData} variant="outline" className="gap-2" loading={isRefreshing} loadingText="Refreshing...">
+        <Button onClick={fetchTeamData} variant="outline" className="gap-2 w-full sm:w-auto justify-center" loading={isRefreshing} loadingText="Refreshing...">
           <Activity className="h-4 w-4" />
           Refresh
         </Button>

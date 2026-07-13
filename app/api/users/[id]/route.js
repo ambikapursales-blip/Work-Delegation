@@ -36,7 +36,7 @@ export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
   const authUser = await requireAuth(request); if (authUser instanceof NextResponse) return authUser;
-  if (!["Super Admin", "Admin", "HR"].includes(authUser.role)) {
+  if (authUser.role !== "Super Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -46,7 +46,7 @@ export async function PUT(request, { params }) {
   req.user = authUser;
   const res = createRes();
   try {
-    const { name, email, role, department, phone, isActive, canAssignTasks, password } = req.body;
+    const { name, email, role, department, phone, isActive, canAssignTasks, canViewAllTasks, password } = req.body;
     let updated;
     if (password) {
       const user = await User.findById(req.params.id);
@@ -60,13 +60,14 @@ export async function PUT(request, { params }) {
       if (phone !== undefined) user.phone = phone;
       if (isActive !== undefined) user.isActive = isActive;
       if (canAssignTasks !== undefined) user.canAssignTasks = canAssignTasks;
+      if (canViewAllTasks !== undefined) user.canViewAllTasks = canViewAllTasks;
       user.password = password;
       await user.save();
       updated = user.getPublicProfile();
     } else {
       updated = await User.findByIdAndUpdate(
         req.params.id,
-        { name, email, role, department, phone, isActive, canAssignTasks },
+        { name, email, role, department, phone, isActive, canAssignTasks, canViewAllTasks },
         { new: true, runValidators: true },
       ).select("-password");
     }

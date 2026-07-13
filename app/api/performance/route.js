@@ -21,7 +21,7 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
 
     let query = {};
-    if (user.role !== "Super Admin" && user.role !== "Admin" && user.role !== "HR") {
+    if (user.role !== "Super Admin") {
       query._id = user._id;
     }
 
@@ -42,7 +42,7 @@ export async function PUT(request) {
   await parseBody(request);
   await ensureDbConnection();
   const authUser = await requireAuth(request); if (authUser instanceof NextResponse) return authUser;
-  if (!["Super Admin", "Manager", "Admin", "HR"].includes(authUser.role)) {
+  if (authUser.role !== "Super Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },

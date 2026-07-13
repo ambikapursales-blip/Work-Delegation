@@ -17,9 +17,9 @@ export const getTaskReport = async (req, res) => {
     if (department) matchQuery.department = department;
     if (status) matchQuery.status = status;
 
-    if (["Sales Executive", "Coordinator"].includes(req.user.role)) {
+    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
       matchQuery.assignedTo = { $in: [req.user._id] };
-    } else if (req.user.role === "Manager") {
+    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
       const teamMembers = await User.find({ managerId: req.user._id }).select(
         "_id",
       );
@@ -93,9 +93,9 @@ export const getDWRReport = async (req, res) => {
     }
     if (reviewStatus) matchQuery.reviewStatus = reviewStatus;
 
-    if (["Sales Executive", "Coordinator"].includes(req.user.role)) {
+    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
       matchQuery.employee = req.user._id;
-    } else if (req.user.role === "Manager") {
+    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
       const teamMembers = await User.find({ managerId: req.user._id }).select(
         "_id",
       );
@@ -160,6 +160,16 @@ export const getAttendanceReport = async (req, res) => {
       if (endDate) matchQuery.date.$lte = new Date(endDate);
     }
 
+    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
+      matchQuery.employee = req.user._id;
+    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
+      const teamMembers = await User.find({ managerId: req.user._id }).select(
+        "_id",
+      );
+      const teamIds = teamMembers.map((m) => m._id);
+      matchQuery.employee = { $in: teamIds };
+    }
+
     const attendances = await Attendance.find(matchQuery).lean().select("status employee").populate(
       "employee",
       "name department",
@@ -212,7 +222,7 @@ export const getPerformanceReport = async (req, res) => {
     let matchQuery = { isActive: true };
     if (department) matchQuery.department = department;
 
-    if (req.user.role === "Manager") {
+    if (!req.user.canViewAllTasks && req.user.role === "Manager") {
       const teamMembers = await User.find({ managerId: req.user._id }).select(
         "_id",
       );
@@ -354,9 +364,9 @@ export const getActivityReport = async (req, res) => {
     if (type) matchQuery.type = type;
     if (userId) matchQuery.user = userId;
 
-    if (["Sales Executive", "Coordinator"].includes(req.user.role)) {
+    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
       matchQuery.user = req.user._id;
-    } else if (req.user.role === "Manager") {
+    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
       const teamMembers = await User.find({ managerId: req.user._id }).select(
         "_id",
       );
@@ -430,15 +440,16 @@ export const getDashboardAnalytics = async (req, res) => {
     }
 
     let userQuery = { isActive: true };
-    if (userId) {
+    const canQueryOtherUsers = req.user.role === "Super Admin" || req.user.canViewAllTasks;
+    if (userId && canQueryOtherUsers) {
       userQuery._id = userId;
-    } else if (req.user.role === "Manager") {
+    } else if (req.user.role === "Manager" && !req.user.canViewAllTasks) {
       const teamMembers = await User.find({ managerId: req.user._id }).select(
         "_id",
       );
       const teamIds = teamMembers.map((m) => m._id);
       userQuery._id = { $in: teamIds };
-    } else if (["Sales Executive", "Coordinator"].includes(req.user.role)) {
+    } else if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
       userQuery._id = req.user._id;
     }
 

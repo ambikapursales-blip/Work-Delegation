@@ -55,6 +55,7 @@ const seedSuperAdmin = async () => {
       employeeId: employeeId,
       isActive: true,
       canAssignTasks: true,
+      canViewAllTasks: true,
       joinDate: new Date(),
     });
 
@@ -67,6 +68,7 @@ const seedSuperAdmin = async () => {
       employeeId: superAdmin.employeeId,
       isActive: superAdmin.isActive,
       canAssignTasks: superAdmin.canAssignTasks,
+      canViewAllTasks: superAdmin.canViewAllTasks,
     });
 
     await mongoose.disconnect();

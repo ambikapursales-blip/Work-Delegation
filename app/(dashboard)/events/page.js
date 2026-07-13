@@ -297,10 +297,10 @@ export default function EventsPage() {
     <div className="w-full min-h-screen" style={{ background: "var(--bg-base)" }}>
       {/* Header */}
       <div
-        className="w-full backdrop-blur-xl px-6 py-4"
+        className="w-full backdrop-blur-xl px-4 sm:px-6 py-3 sm:py-4"
         style={{ background: "var(--bg-muted)", borderBottom: "1px solid var(--border)" }}
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
               Events
@@ -334,7 +334,7 @@ export default function EventsPage() {
         />
       )}
 
-      <div className="w-full px-6 py-5">
+      <div className="w-full px-4 sm:px-6 py-4 sm:py-5">
         {/* Event Form */}
         {showForm && (
           <div

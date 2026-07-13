@@ -56,31 +56,72 @@ export async function GET(request, { params }) {
       intervalDays = 30;
     }
 
+    const [taskBuckets, dwrBuckets] = await Promise.all([
+      Task.aggregate([
+        {
+          $match: {
+            assignedTo: { $in: [userId] },
+            status: "Completed",
+            createdAt: { $gte: startDate, $lte: now },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$createdAt",
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      DWR.aggregate([
+        {
+          $match: {
+            employee: userId,
+            date: { $gte: startDate, $lte: now },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$date",
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const taskMap = new Map(taskBuckets.map((b) => [b._id, b.count]));
+    const dwrMap = new Map(dwrBuckets.map((b) => [b._id, b.count]));
+
     const trends = [];
     let currentDate = new Date(startDate);
-
     while (currentDate <= now) {
-      const nextDate = new Date(currentDate);
-      nextDate.setDate(nextDate.getDate() + intervalDays);
+      const dateKey = currentDate.toISOString().split("T")[0];
 
-      const tasksCompleted = await Task.countDocuments({
-        assignedTo: { $in: [userId] },
-        status: "Completed",
-        createdAt: { $gte: currentDate, $lt: nextDate },
-      });
+      let intervalEnd = new Date(currentDate);
+      intervalEnd.setDate(intervalEnd.getDate() + intervalDays);
 
-      const dwrSubmitted = await DWR.countDocuments({
-        employee: userId,
-        date: { $gte: currentDate, $lt: nextDate },
-      });
+      let tasksCompleted = 0;
+      let dwrSubmitted = 0;
 
-      trends.push({
-        date: currentDate.toISOString().split("T")[0],
-        tasksCompleted,
-        dwrSubmitted,
-      });
+      let cursor = new Date(currentDate);
+      while (cursor < intervalEnd && cursor <= now) {
+        const key = cursor.toISOString().split("T")[0];
+        tasksCompleted += taskMap.get(key) || 0;
+        dwrSubmitted += dwrMap.get(key) || 0;
+        cursor.setDate(cursor.getDate() + 1);
+      }
 
-      currentDate = nextDate;
+      trends.push({ date: dateKey, tasksCompleted, dwrSubmitted });
+      currentDate = intervalEnd;
     }
 
     res.status(200).json({ success: true, trends, period });

@@ -13,8 +13,15 @@ import {
 import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { generateCompleteToken } from "../utils/completeToken.js";
 import { generateCommentToken } from "../utils/commentToken.js";
-
 import { generateExtensionToken } from "../utils/extensionToken.js";
+import {
+  normalizeTaskStatus,
+  toArray,
+  buildAssigneeProgress,
+  buildHistoryEntry,
+  buildNotification,
+  TASK_DEFAULT_POPULATE,
+} from "../utils/taskHelpers.js";
 
 export const getTasks = async (req, res) => {
   try {
@@ -35,9 +42,9 @@ export const getTasks = async (req, res) => {
 
     let query = {};
 
-    if (["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
+    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
       query.assignedTo = req.user._id;
-    } else if (req.user.role === "Manager") {
+    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
       const teamMembers = await User.find({ managerId: req.user._id }).select(
         "_id",
       );
@@ -50,20 +57,14 @@ export const getTasks = async (req, res) => {
     }
 
     if (status) {
-      const statusMap = {
-        "in progress": "In Progress",
-        inprogress: "In Progress",
-        completed: "Completed",
-        cancelled: "Cancelled",
-        "on hold": "On Hold",
-        onhold: "On Hold",
-        overdue: "Overdue",
-      };
-      query.status = statusMap[status.toLowerCase()] || status;
+      query.status = normalizeTaskStatus(status);
     }
     if (priority) query.priority = priority;
-    const effectiveAssignedTo = assignedTo || userId;
-    if (effectiveAssignedTo) query.assignedTo = effectiveAssignedTo;
+    const canUseParamOverride = req.user.role === "Super Admin" || req.user.canViewAllTasks;
+    if (canUseParamOverride) {
+      const effectiveAssignedTo = assignedTo || userId;
+      if (effectiveAssignedTo) query.assignedTo = effectiveAssignedTo;
+    }
     if (assignedBy) query.assignedBy = assignedBy;
     if (overdue === "true") {
       query.deadline = { $lt: new Date() };
@@ -146,6 +147,34 @@ export const getTask = async (req, res) => {
         .json({ success: false, message: "Task not found" });
     }
 
+    // Authorization check
+    const isSuperAdmin = req.user.role === "Super Admin";
+    const canViewAll = req.user.canViewAllTasks;
+    const isAssigned = Array.isArray(task.assignedTo)
+      ? task.assignedTo.some((a) => a._id.toString() === req.user._id.toString())
+      : task.assignedTo?._id?.toString() === req.user._id.toString();
+    const isAssigner =
+      task.assignedBy?._id?.toString() === req.user._id.toString() ||
+      task.assignedBy?.toString() === req.user._id.toString();
+
+    let isManagerOfAssignee = false;
+    if (req.user.role === "Manager") {
+      const assigneeIds = Array.isArray(task.assignedTo)
+        ? task.assignedTo.map((a) => a._id?.toString() || a.toString())
+        : [task.assignedTo?._id?.toString() || task.assignedTo?.toString()];
+      const teamMembers = await User.find({ managerId: req.user._id })
+        .select("_id")
+        .lean();
+      const teamIds = new Set(teamMembers.map((m) => m._id.toString()));
+      isManagerOfAssignee = assigneeIds.some((id) => teamIds.has(id));
+    }
+
+    if (!isSuperAdmin && !canViewAll && !isAssigned && !isAssigner && !isManagerOfAssignee) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized to view this task" });
+    }
+
     res.status(200).json({ success: true, task });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -170,7 +199,7 @@ export const createTask = async (req, res) => {
       recurrenceEndDate = null,
     } = req.body;
 
-    const assignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+    const assignees = toArray(assignedTo);
 
     // Single query: validate assignees exist and get their data
     const assigneeUsers = await User.find({ _id: { $in: assignees } }).lean().select("_id name email");
@@ -190,11 +219,7 @@ export const createTask = async (req, res) => {
       });
     }
 
-    const assigneeProgress = assignees.map((userId) => ({
-      user: userId,
-      status: "Pending",
-      actualHours: 0,
-    }));
+    const assigneeProgress = buildAssigneeProgress(assignees);
 
     const taskData = {
       title,
@@ -348,16 +373,7 @@ export const updateTask = async (req, res) => {
     } = req.body;
 
     if (status) {
-      const statusMap = {
-        "in progress": "In Progress",
-        inprogress: "In Progress",
-        completed: "Completed",
-        cancelled: "Cancelled",
-        "on hold": "On Hold",
-        onhold: "On Hold",
-        overdue: "Overdue",
-      };
-      req.body.status = statusMap[status.toLowerCase()] || status;
+      req.body.status = normalizeTaskStatus(status);
     }
 
     if (req.body.status === "Completed") {
@@ -371,7 +387,7 @@ export const updateTask = async (req, res) => {
     }
 
     if (assignedTo) {
-      const assigneeIds = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+      const assigneeIds = toArray(assignedTo);
       const existingUsers = await User.find({ _id: { $in: assigneeIds } }).lean().select("_id");
       const validIds = new Set(existingUsers.map((u) => u._id.toString()));
       const invalidIds = assigneeIds.filter((id) => !validIds.has(id.toString()));
@@ -537,7 +553,7 @@ export const getTaskStats = async (req, res) => {
   try {
     let matchQuery = {};
 
-    if (["Sales Executive", "Coordinator"].includes(req.user.role)) {
+    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
       matchQuery.assignedTo = { $in: [req.user._id] };
     }
 
@@ -579,7 +595,7 @@ export const bulkCreateTasks = async (req, res) => {
     }
 
     const allAssigneeIds = [...new Set(tasks.flatMap((t) => {
-      const ids = Array.isArray(t.assignedTo) ? t.assignedTo : [t.assignedTo];
+      const ids = toArray(t.assignedTo);
       return ids.map((id) => id?.toString());
     }).filter(Boolean))];
 
@@ -597,14 +613,8 @@ export const bulkCreateTasks = async (req, res) => {
     const notifications = [];
 
     for (const taskData of tasks) {
-      const assignees = Array.isArray(taskData.assignedTo)
-        ? taskData.assignedTo
-        : [taskData.assignedTo];
-      const assigneeProgress = assignees.map((userId) => ({
-        user: userId,
-        status: "Pending",
-        actualHours: 0,
-      }));
+      const assignees = toArray(taskData.assignedTo);
+      const assigneeProgress = buildAssigneeProgress(assignees);
 
       const task = await Task.create({
         ...taskData,
@@ -732,14 +742,14 @@ export const bulkAssignTasks = async (req, res) => {
       const oldAssignees = [...task.assignedTo];
       const newAssignees = [...new Set([...task.assignedTo, ...userIds])];
 
-      const newProgress = userIds
-        .filter(
+      const newProgress = buildAssigneeProgress(
+        userIds.filter(
           (id) =>
             !task.assigneeProgress.some(
               (p) => p.user.toString() === id.toString(),
             ),
-        )
-        .map((userId) => ({ user: userId, status: "Pending", actualHours: 0 }));
+        ),
+      );
 
       const reassignmentEntries = userIds.map((userId) => ({
         to: userId,

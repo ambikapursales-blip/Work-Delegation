@@ -22,14 +22,12 @@ export async function GET(request) {
 
     let taskQuery = {};
 
-    if (userId) {
+    const canViewAll = user.role === "Super Admin" || user.canViewAllTasks;
+    const isPrivilegedRole = ["Super Admin", "Admin", "Manager", "HR"].includes(user.role);
+
+    if (userId && canViewAll) {
       taskQuery.assignedTo = userId;
-    } else if (
-      user.role !== "Super Admin" &&
-      user.role !== "Admin" &&
-      user.role !== "Manager" &&
-      user.role !== "HR"
-    ) {
+    } else if (!canViewAll && !isPrivilegedRole) {
       taskQuery.assignedTo = user._id;
     }
 
@@ -73,37 +71,46 @@ export async function GET(request) {
       }
     }
 
-    const allTasksQuery = { ...taskQuery };
-    delete allTasksQuery.status;
+    const [taskCounts] = await Task.aggregate([
+      { $match: taskQuery },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
+          },
+        },
+      },
+    ]);
 
-    taskStats.total = await Task.countDocuments(
-      taskQuery.status ? taskQuery : allTasksQuery,
-    );
+    taskStats.total = (taskCounts && taskCounts.total) || 0;
     taskStats.pending = 0;
-    taskStats.inProgress = await Task.countDocuments({
-      ...taskQuery,
-      status: "In Progress",
-    });
-    taskStats.completed = await Task.countDocuments({
-      ...taskQuery,
-      status: "Completed",
-    });
+    taskStats.inProgress = (taskCounts && taskCounts.inProgress) || 0;
+    taskStats.completed = (taskCounts && taskCounts.completed) || 0;
 
-    if (
-      user.role === "Super Admin" ||
-      user.role === "Admin" ||
-      user.role === "Manager" ||
-      user.role === "HR"
-    ) {
-      userStats.total = await User.countDocuments({ role: { $ne: "Super Admin" } });
-      userStats.active = await User.countDocuments({
-        isActive: true,
-        role: { $ne: "Super Admin" },
-      });
-      userStats.inactive = await User.countDocuments({
-        isActive: false,
-        role: { $ne: "Super Admin" },
-      });
+    if (canViewAll || isPrivilegedRole) {
+      const [userCounts] = await User.aggregate([
+        { $match: { role: { $ne: "Super Admin" } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            active: {
+              $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] },
+            },
+            inactive: {
+              $sum: { $cond: [{ $eq: ["$isActive", false] }, 1, 0] },
+            },
+          },
+        },
+      ]);
+      userStats.total = (userCounts && userCounts.total) || 0;
+      userStats.active = (userCounts && userCounts.active) || 0;
+      userStats.inactive = (userCounts && userCounts.inactive) || 0;
     } else {
       userStats.total = 1;
       userStats.active = 1;

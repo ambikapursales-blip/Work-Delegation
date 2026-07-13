@@ -80,9 +80,9 @@ const eventSchema = new mongoose.Schema(
 );
 
 eventSchema.index({ startDate: 1 });
-eventSchema.index({ status: 1 });
 eventSchema.index({ createdBy: 1 });
-eventSchema.index({ "assignedTo.employee": 1 });
 eventSchema.index({ type: 1 });
+eventSchema.index({ status: 1, startDate: 1 });
+eventSchema.index({ "assignedTo.employee": 1, status: 1 });
 
 export default mongoose.models.Event || mongoose.model("Event", eventSchema);

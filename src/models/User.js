@@ -61,6 +61,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    canViewAllTasks: {
+      type: Boolean,
+      default: false,
+    },
     lastLogin: {
       type: Date,
     },
@@ -142,6 +146,6 @@ userSchema.methods.getPublicProfile = function () {
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ managerId: 1 });
 userSchema.index({ name: 1 });
-userSchema.index({ email: 1 });
+userSchema.index({ isActive: 1, role: 1 });
 
 export default mongoose.models.User || mongoose.model("User", userSchema);

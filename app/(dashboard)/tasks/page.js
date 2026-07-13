@@ -154,6 +154,7 @@ export default function TasksPage() {
   const [userFilter, setUserFilter] = useState(""); // user ID filter
 
   const canAssignTasks = user?.role === "Super Admin" || user?.canAssignTasks;
+  const canViewAllTasks = user?.role === "Super Admin" || user?.canViewAllTasks;
 
   // Debounce search query
   useEffect(() => {
@@ -508,7 +509,7 @@ export default function TasksPage() {
     }
   };
 
-  const filteredTasks = canAssignTasks
+  const filteredTasks = canViewAllTasks
     ? tasks
     : tasks.filter((task) =>
         Array.isArray(task.assignedTo)
@@ -545,22 +546,22 @@ export default function TasksPage() {
           boxShadow: "var(--shadow-card)",
         }}
       >
-        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               Tasks
             </h1>
-            <p className="text-base mt-1 font-medium" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-sm sm:text-base mt-1 font-medium" style={{ color: "var(--text-secondary)" }}>
               {canAssignTasks ? "Manage all tasks" : "Your assigned tasks"}
             </p>
           </div>
           {canAssignTasks && (
             <Button
               onClick={handleTaskCreate}
-              className="btn-create-task font-bold text-base px-6 py-3 rounded-xl"
+              className="btn-create-task font-bold text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl w-full sm:w-auto justify-center"
               style={{ color: "var(--active-text)" }}
             >
-              <Plus className="h-5 w-5 mr-2" style={{ color: "var(--active-text)" }} />
+              <Plus className="h-4 sm:h-5 w-4 sm:w-5 mr-2" style={{ color: "var(--active-text)" }} />
               Create Task
             </Button>
           )}
@@ -1294,14 +1295,14 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
       {!canAssignTasks || activeTab === "view" ? (
         <>
           {loading ? (
-            <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               <div className="space-y-4">
                 <div className="animate-shimmer rounded-lg h-9 w-72" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
                 <SkeletonTable rows={6} cols={5} />
               </div>
             </div>
           ) : (
-            <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               {/* Filter Bar */}
               <div className="glass-card p-5 mb-6">
                 <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">

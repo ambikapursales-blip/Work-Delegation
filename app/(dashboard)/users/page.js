@@ -414,6 +414,7 @@ export default function UsersPage() {
     phone: "",
     isActive: true,
     canAssignTasks: false,
+    canViewAllTasks: false,
   });
 
   useEffect(() => {
@@ -447,6 +448,7 @@ export default function UsersPage() {
       phone: user.phone || "",
       isActive: user.isActive,
       canAssignTasks: user.canAssignTasks || false,
+      canViewAllTasks: user.canViewAllTasks || false,
       password: "",
     });
   };
@@ -499,6 +501,7 @@ export default function UsersPage() {
       phone: "",
       isActive: true,
       canAssignTasks: false,
+      canViewAllTasks: false,
     });
   };
 
@@ -507,7 +510,7 @@ export default function UsersPage() {
       ? users
       : users.filter((u) => u.role === activeFilter);
 
-  const canCreateUser = user?.role === "Super Admin" || user?.role === "HR";
+  const canCreateUser = user?.role === "Super Admin";
 
   if (loading) return <SkeletonTable rows={8} cols={5} />;
 
@@ -633,6 +636,19 @@ export default function UsersPage() {
               />
               <Label htmlFor="canAssignTasks" className="cursor-pointer">
                 Can Assign Tasks
+              </Label>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="canViewAllTasks"
+                checked={formData.canViewAllTasks}
+                onChange={(e) => setFormData({ ...formData, canViewAllTasks: e.target.checked })}
+                className="h-4 w-4 rounded"
+              />
+              <Label htmlFor="canViewAllTasks" className="cursor-pointer">
+                Can View All Tasks
               </Label>
             </div>
           </div>
@@ -780,6 +796,19 @@ export default function UsersPage() {
               />
               <Label htmlFor="canAssignTasks" className="cursor-pointer">
                 Can Assign Tasks
+              </Label>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="canViewAllTasks"
+                checked={formData.canViewAllTasks}
+                onChange={(e) => setFormData({ ...formData, canViewAllTasks: e.target.checked })}
+                className="h-4 w-4 rounded"
+              />
+              <Label htmlFor="canViewAllTasks" className="cursor-pointer">
+                Can View All Tasks
               </Label>
             </div>
           </div>

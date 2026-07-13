@@ -334,52 +334,59 @@ export const getEmployeePerformance = async (req, res) => {
       startDate = new Date(now.setFullYear(now.getFullYear() - 1));
     }
 
-    const totalTasks = await Task.countDocuments({
-      assignedTo: { $in: [userId] },
-      createdAt: { $gte: startDate },
-    });
-    const completedTasks = await Task.countDocuments({
-      assignedTo: { $in: [userId] },
-      status: "Completed",
-      createdAt: { $gte: startDate },
-    });
+    const [taskCounts] = await Task.aggregate([
+      { $match: { assignedTo: { $in: [userId] }, createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: null,
+          totalTasks: { $sum: 1 },
+          completedTasks: { $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] } },
+          totalHours: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$status", "Completed"] }, { $ifNull: ["$completedAt", false] }] },
+                { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 3600000] },
+                0,
+              ],
+            },
+          },
+          completedWithTime: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$status", "Completed"] }, { $ifNull: ["$completedAt", false] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
 
-    const totalDWRs = await DWR.countDocuments({
-      employee: userId,
-      date: { $gte: startDate },
-    });
-    const approvedDWRs = await DWR.countDocuments({
-      employee: userId,
-      reviewStatus: "Approved",
-      date: { $gte: startDate },
-    });
+    const [dwrCounts] = await DWR.aggregate([
+      { $match: { employee: userId, date: { $gte: startDate } } },
+      {
+        $group: {
+          _id: null,
+          totalDWRs: { $sum: 1 },
+          approvedDWRs: { $sum: { $cond: [{ $eq: ["$reviewStatus", "Approved"] }, 1, 0] } },
+        },
+      },
+    ]);
 
-    const tasksWithTime = await Task.find({
-      assignedTo: { $in: [userId] },
-      status: "Completed",
-      completedAt: { $exists: true },
-      createdAt: { $gte: startDate },
-    }).lean().select("createdAt completedAt");
-
-    const avgCompletionTime =
-      tasksWithTime.length > 0
-        ? tasksWithTime.reduce((acc, task) => {
-            const hours =
-              (task.completedAt - task.createdAt) / (1000 * 60 * 60);
-            return acc + hours;
-          }, 0) / tasksWithTime.length
-        : 0;
+    const t = taskCounts || { totalTasks: 0, completedTasks: 0, totalHours: 0, completedWithTime: 0 };
+    const d = dwrCounts || { totalDWRs: 0, approvedDWRs: 0 };
+    const avgCompletionTime = t.completedWithTime > 0 ? t.totalHours / t.completedWithTime : 0;
 
     const performance = {
       user,
       period,
-      taskCompletionRate:
-        totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
-      dwrApprovalRate: totalDWRs > 0 ? (approvedDWRs / totalDWRs) * 100 : 0,
-      totalTasks,
-      completedTasks,
-      totalDWRs,
-      approvedDWRs,
+      taskCompletionRate: t.totalTasks > 0 ? (t.completedTasks / t.totalTasks) * 100 : 0,
+      dwrApprovalRate: d.totalDWRs > 0 ? (d.approvedDWRs / d.totalDWRs) * 100 : 0,
+      totalTasks: t.totalTasks,
+      completedTasks: t.completedTasks,
+      totalDWRs: d.totalDWRs,
+      approvedDWRs: d.approvedDWRs,
       avgCompletionTime: Math.round(avgCompletionTime * 10) / 10,
     };
 

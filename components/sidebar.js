@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -58,12 +58,12 @@ const getAllMenuItems = () => [
 
 const ROLE_MENU = {
   "Super Admin": ["Dashboard", "Tasks", "DWR", "Events", "Attendance", "Users", "Performance"],
-  Admin: ["Dashboard", "Tasks", "Events", "Users", "Performance"],
-  Manager: ["Dashboard", "Tasks", "Events", "Users", "Performance"],
-  HR: ["Dashboard", "Tasks", "DWR", "Attendance", "Performance"],
-  "Sales Executive": ["Dashboard", "Tasks", "Events", "Performance"],
-  Coordinator: ["Dashboard", "Tasks", "Events", "Performance"],
-  It: ["Dashboard", "Tasks", "Events", "Performance"],
+  Admin: ["Dashboard", "Tasks", "Events"],
+  Manager: ["Dashboard", "Tasks", "Events"],
+  HR: ["Dashboard", "Tasks", "DWR", "Attendance"],
+  "Sales Executive": ["Dashboard", "Tasks", "Events"],
+  Coordinator: ["Dashboard", "Tasks", "Events"],
+  It: ["Dashboard", "Tasks", "Events"],
 };
 
 export default function Sidebar({ isOpen, setIsOpen }) {
@@ -84,10 +84,35 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
   const pathname = usePathname();
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, setIsOpen]);
+
   return (
     <>
       <aside
-        className={`fixed md:relative z-30 h-full w-72 transition-transform duration-300 bg-[var(--bg-base)]`}
+        className={`
+          fixed lg:relative z-30 h-full w-72 overflow-y-auto
+          transition-transform duration-300 ease-in-out
+          bg-[var(--bg-base)]
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0
+        `}
         style={{ borderRight: "1px solid var(--border)", boxShadow: "var(--sidebar-shadow)" }}
       >
         <div className="flex flex-col h-full p-5 pt-16 md:pt-5">
@@ -168,7 +193,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/60 md:hidden"
+          className="fixed inset-0 z-20 bg-black/60 lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}

@@ -82,6 +82,7 @@ const dwrSchema = new mongoose.Schema(
 dwrSchema.index({ employee: 1, date: 1 }, { unique: true });
 dwrSchema.index({ reviewStatus: 1 });
 dwrSchema.index({ employee: 1, reviewStatus: 1, date: 1 });
+dwrSchema.index({ date: -1 });
 
 dwrSchema.pre("save", function (next) {
   if (this.isNew) {

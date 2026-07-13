@@ -45,72 +45,88 @@ export async function GET(request) {
       startDate = new Date(now.setFullYear(now.getFullYear() - 1));
     }
 
-    const comparisons = await Promise.all(
-      ids.map(async (userId) => {
-        const u = await User.findById(userId).select(
-          "name email role department performanceScore grade employeeId avatar",
-        );
+    const objectIds = ids.filter(Boolean);
+    if (objectIds.length === 0) {
+      return res.status(200).json({ success: true, comparisons: [], period });
+    }
 
-        if (!u) return null;
-
-        const totalTasks = await Task.countDocuments({
-          assignedTo: userId,
-          createdAt: { $gte: startDate },
-        });
-        const completedTasks = await Task.countDocuments({
-          assignedTo: userId,
-          status: "Completed",
-          createdAt: { $gte: startDate },
-        });
-        const inProgressTasks = await Task.countDocuments({
-          assignedTo: userId,
-          status: "In Progress",
-          createdAt: { $gte: startDate },
-        });
-
-        const totalDWRs = await DWR.countDocuments({
-          employee: userId,
-          date: { $gte: startDate },
-        });
-        const approvedDWRs = await DWR.countDocuments({
-          employee: userId,
-          reviewStatus: "Approved",
-          date: { $gte: startDate },
-        });
-
-        const tasksWithTime = await Task.find({
-          assignedTo: { $in: [userId] },
-          status: "Completed",
-          completedAt: { $exists: true },
-          createdAt: { $gte: startDate },
-        }).select("createdAt completedAt");
-
-        const avgCompletionTime =
-          tasksWithTime.length > 0
-            ? tasksWithTime.reduce((acc, task) => {
-                const hours =
-                  (task.completedAt - task.createdAt) / (1000 * 60 * 60);
-                return acc + hours;
-              }, 0) / tasksWithTime.length
-            : 0;
-
-        return {
-          user: u.toObject(),
-          metrics: {
-            taskCompletionRate:
-              totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
-            dwrApprovalRate:
-              totalDWRs > 0 ? (approvedDWRs / totalDWRs) * 100 : 0,
-            totalTasks,
-            completedTasks,
-            inProgressTasks,
-            totalDWRs,
-            approvedDWRs,
-            avgCompletionTime: Math.round(avgCompletionTime * 10) / 10,
+    const [users, taskAgg, dwrAgg, timeAgg] = await Promise.all([
+      User.find({ _id: { $in: objectIds } })
+        .select("name email role department performanceScore grade employeeId avatar")
+        .lean(),
+      Task.aggregate([
+        { $match: { assignedTo: { $in: objectIds }, createdAt: { $gte: startDate } } },
+        { $unwind: "$assignedTo" },
+        { $match: { assignedTo: { $in: objectIds } } },
+        {
+          $group: {
+            _id: "$assignedTo",
+            totalTasks: { $sum: 1 },
+            completedTasks: { $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] } },
+            inProgressTasks: { $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] } },
           },
-        };
-      }),
-    );
+        },
+      ]),
+      DWR.aggregate([
+        { $match: { employee: { $in: objectIds }, date: { $gte: startDate } } },
+        {
+          $group: {
+            _id: "$employee",
+            totalDWRs: { $sum: 1 },
+            approvedDWRs: { $sum: { $cond: [{ $eq: ["$reviewStatus", "Approved"] }, 1, 0] } },
+          },
+        },
+      ]),
+      Task.aggregate([
+        {
+          $match: {
+            assignedTo: { $in: objectIds },
+            status: "Completed",
+            completedAt: { $exists: true },
+            createdAt: { $gte: startDate },
+          },
+        },
+        { $unwind: "$assignedTo" },
+        { $match: { assignedTo: { $in: objectIds } } },
+        {
+          $group: {
+            _id: "$assignedTo",
+            totalHours: { $sum: { $divide: [{ $subtract: ["$completedAt", "$createdAt"] }, 3600000] } },
+            taskCount: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+    const taskMap = new Map(taskAgg.map((t) => [t._id.toString(), t]));
+    const dwrMap = new Map(dwrAgg.map((d) => [d._id.toString(), d]));
+    const timeMap = new Map(timeAgg.map((t) => [t._id.toString(), t]));
+
+    const comparisons = objectIds.map((userId) => {
+      const u = userMap.get(userId.toString());
+      if (!u) return null;
+
+      const t = taskMap.get(userId.toString()) || { totalTasks: 0, completedTasks: 0, inProgressTasks: 0 };
+      const d = dwrMap.get(userId.toString()) || { totalDWRs: 0, approvedDWRs: 0 };
+      const tm = timeMap.get(userId.toString()) || { totalHours: 0, taskCount: 0 };
+
+      const avgCompletionTime = tm.taskCount > 0 ? tm.totalHours / tm.taskCount : 0;
+
+      return {
+        user: u,
+        metrics: {
+          taskCompletionRate: t.totalTasks > 0 ? (t.completedTasks / t.totalTasks) * 100 : 0,
+          dwrApprovalRate: d.totalDWRs > 0 ? (d.approvedDWRs / d.totalDWRs) * 100 : 0,
+          totalTasks: t.totalTasks,
+          completedTasks: t.completedTasks,
+          inProgressTasks: t.inProgressTasks,
+          totalDWRs: d.totalDWRs,
+          approvedDWRs: d.approvedDWRs,
+          avgCompletionTime: Math.round(avgCompletionTime * 10) / 10,
+        },
+      };
+    });
 
     const validComparisons = comparisons.filter((c) => c !== null);
 

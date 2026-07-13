@@ -26,11 +26,17 @@ export async function GET(request) {
       query.date = dateObj;
     }
 
-    if (employeeId) {
+    const canQueryOtherUsers = user.role === "Super Admin" || user.canViewAllTasks;
+
+    if (employeeId && canQueryOtherUsers) {
       query.employee = employeeId;
+    } else if (user.role === "Manager" && !canQueryOtherUsers) {
+      const teamMembers = await User.find({ managerId: user._id }).select("_id").lean();
+      const teamIds = teamMembers.map((m) => m._id);
+      query.employee = { $in: teamIds };
     } else if (
-      user.role === "Sales Executive" ||
-      user.role === "Coordinator"
+      !canQueryOtherUsers &&
+      (user.role === "Sales Executive" || user.role === "Coordinator" || user.role === "HR")
     ) {
       query.employee = user._id;
     }

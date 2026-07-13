@@ -39,59 +39,59 @@ const StatCard = React.memo(function StatCard({ title, value, icon, trend, trend
   const a = accentMap[accent] || "var(--color-success)";
 
   const cardContent = (
-    <div
-      className="relative overflow-hidden rounded-2xl p-5 transition-all duration-300 cursor-default"
-      style={{
-        background: `linear-gradient(135deg, color-mix(in srgb, ${a} 18%, transparent) 0%, color-mix(in srgb, ${a} 8%, transparent) 100%)`,
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-card)",
-        backdropFilter: "blur(20px)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-4px)";
-        e.currentTarget.style.boxShadow = "var(--shadow-card-hover)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "var(--shadow-card)";
-      }}
-    >
-      <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full pointer-events-none"
-        style={{ background: "var(--bg-muted)" }} />
-      <div className="absolute -bottom-6 -left-2 w-16 h-16 rounded-full pointer-events-none"
-        style={{ background: "color-mix(in srgb, var(--bg-muted) 50%, transparent)" }} />
+      <div
+        className="relative overflow-hidden rounded-2xl p-4 sm:p-5 transition-all duration-300 cursor-default h-full"
+        style={{
+          background: `linear-gradient(135deg, color-mix(in srgb, ${a} 18%, transparent) 0%, color-mix(in srgb, ${a} 8%, transparent) 100%)`,
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-card)",
+          backdropFilter: "blur(20px)",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "var(--shadow-card-hover)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "var(--shadow-card)";
+        }}
+      >
+        <div className="absolute -top-4 -right-4 w-20 sm:w-24 h-20 sm:h-24 rounded-full pointer-events-none"
+          style={{ background: "var(--bg-muted)" }} />
+        <div className="absolute -bottom-6 -left-2 w-12 sm:w-16 h-12 sm:h-16 rounded-full pointer-events-none"
+          style={{ background: "color-mix(in srgb, var(--bg-muted) 50%, transparent)" }} />
 
-      <div className="relative flex justify-between items-start">
-        <div className="flex-1">
-          <p className="text-[11px] font-semibold tracking-widest uppercase mb-2"
-            style={{ color: "var(--text-muted)" }}>
-            {title}
-          </p>
-          <p className="text-4xl font-bold mb-3 leading-none"
-            style={{ color: "var(--text-primary)" }}>
-            {value}
-          </p>
-          <span
-            className="text-xs font-medium px-2.5 py-1 rounded-full"
+        <div className="relative flex justify-between items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-semibold tracking-widest uppercase mb-1.5 sm:mb-2 truncate"
+              style={{ color: "var(--text-muted)" }}>
+              {title}
+            </p>
+            <p className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 leading-none"
+              style={{ color: "var(--text-primary)" }}>
+              {value}
+            </p>
+            <span
+              className="text-[10px] sm:text-xs font-medium px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full inline-block"
+              style={{
+                background: "var(--bg-muted)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {trendUp ? "\u2191" : "\u2192"} {trend}
+            </span>
+          </div>
+          <div
+            className="p-2 sm:p-3 rounded-xl shadow-lg flex-shrink-0"
             style={{
-              background: "var(--bg-muted)",
-              color: "var(--text-secondary)",
+              background: `color-mix(in srgb, ${a} 18%, transparent)`,
+              color: a,
             }}
           >
-            {trendUp ? "\u2191" : "\u2192"} {trend}
-          </span>
-        </div>
-        <div
-          className="p-3 rounded-xl shadow-lg"
-          style={{
-            background: `color-mix(in srgb, ${a} 18%, transparent)`,
-            color: a,
-          }}
-        >
-          {icon}
+            {icon}
+          </div>
         </div>
       </div>
-    </div>
   );
 
   if (href) return <Link href={href}>{cardContent}</Link>;
@@ -119,7 +119,7 @@ const Card = React.memo(function Card({ children, className = "" }) {
 const CardHeader = React.memo(function CardHeader({ title, subtitle, action }) {
   return (
     <div
-      className="flex items-center justify-between px-6 py-4"
+      className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4"
       style={{ borderBottom: "1px solid var(--border)" }}
     >
       <div>
@@ -418,7 +418,7 @@ export default function DashboardPage() {
     <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)" }}>
       {/* ── Top Header Bar ── */}
       <div
-        className="sticky top-0 z-20 backdrop-blur-xl px-8 py-4 flex items-center justify-between"
+        className="sticky top-0 z-20 backdrop-blur-xl px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
         style={{
           backgroundColor: "var(--bg-surface)",
           borderBottom: "1px solid var(--border)",
@@ -427,7 +427,7 @@ export default function DashboardPage() {
       >
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs font-semibold tracking-widest uppercase"
+            <span className="text-[10px] sm:text-xs font-semibold tracking-widest uppercase"
               style={{ color: "var(--text-muted)" }}>
               {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
@@ -436,13 +436,13 @@ export default function DashboardPage() {
               })}
             </span>
           </div>
-          <h1 className="text-2xl font-bold leading-tight"
+          <h1 className="text-xl sm:text-2xl font-bold leading-tight"
             style={{ color: "var(--text-primary)" }}>
             Dashboard
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {/* View Toggle */}
           <div className="flex items-center rounded-xl p-1 gap-1"
             style={{
@@ -451,7 +451,7 @@ export default function DashboardPage() {
             }}>
             <button
               onClick={() => setViewMode("table")}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200"
+              className="flex items-center gap-1 px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-xs font-medium transition-all duration-200 whitespace-nowrap"
               style={
                 viewMode === "table"
                   ? {
@@ -474,7 +474,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => setViewMode("graphs")}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200"
+              className="flex items-center gap-1 px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-xs font-medium transition-all duration-200 whitespace-nowrap"
               style={
                 viewMode === "graphs"
                   ? {
@@ -501,7 +501,7 @@ export default function DashboardPage() {
           {isAdminOrManager && (
             <button
               onClick={() => setShowFilters((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-all duration-200"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-medium border transition-all duration-200 whitespace-nowrap"
               style={
                 showFilters
                   ? {
@@ -536,7 +536,7 @@ export default function DashboardPage() {
           {isAdminOrManager && (
             <Link href="/tasks">
               <button
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 whitespace-nowrap"
                 style={{
                   background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
                   color: "var(--active-text)",
@@ -552,9 +552,9 @@ export default function DashboardPage() {
           )}
 
           {/* User chip */}
-          <div className="flex items-center gap-2 pl-3"
+          <div className="flex items-center gap-2 pl-2 sm:pl-3"
             style={{ borderLeft: "1px solid var(--border)" }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-lg bg-avatar"
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shadow-lg bg-avatar"
               style={{
                 background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
                 color: "var(--text-inverse)",
@@ -566,7 +566,7 @@ export default function DashboardPage() {
                 .toUpperCase()
                 .slice(0, 2)}
             </div>
-            <div className="hidden md:block">
+            <div className="hidden sm:block">
               <p className="text-xs font-semibold leading-tight"
                 style={{ color: "var(--text-primary)" }}>
                 {user?.name}
@@ -577,7 +577,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="px-8 pt-6 pb-10 max-w-[1440px] mx-auto">
+      <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-8 sm:pb-10 max-w-[1440px] mx-auto">
         {error && (
           <Toast type="error" message={error} onClose={() => setError("")} />
         )}
@@ -607,8 +607,8 @@ export default function DashboardPage() {
                 <RefreshCw size={12} /> Reset
               </button>
             </div>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex-1 min-w-[180px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div>
                 <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
                   style={{ color: "var(--text-muted)" }}>
                   User
@@ -616,7 +616,7 @@ export default function DashboardPage() {
                 <select
                   value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
-                  className="input-field text-sm"
+                  className="input-field text-sm w-full"
                 >
                   <option value="all">All Users</option>
                   {usersList
@@ -628,7 +628,7 @@ export default function DashboardPage() {
                     ))}
                 </select>
               </div>
-              <div className="flex-1 min-w-[160px]">
+              <div>
                 <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
                   style={{ color: "var(--text-muted)" }}>
                   Period
@@ -636,7 +636,7 @@ export default function DashboardPage() {
                 <select
                   value={timePeriod}
                   onChange={(e) => setTimePeriod(e.target.value)}
-                  className="input-field text-sm"
+                  className="input-field text-sm w-full"
                 >
                   <option value="today">Today</option>
                   <option value="week">This Week</option>
@@ -649,7 +649,7 @@ export default function DashboardPage() {
               </div>
               {timePeriod === "custom" && (
                 <>
-                  <div className="flex-1 min-w-[140px]">
+                  <div>
                     <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
                       style={{ color: "var(--text-muted)" }}>
                       Start Date
@@ -658,10 +658,10 @@ export default function DashboardPage() {
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="input-field text-sm"
+                      className="input-field text-sm w-full"
                     />
                   </div>
-                  <div className="flex-1 min-w-[140px]">
+                  <div>
                     <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
                       style={{ color: "var(--text-muted)" }}>
                       End Date
@@ -670,12 +670,12 @@ export default function DashboardPage() {
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="input-field text-sm"
+                      className="input-field text-sm w-full"
                     />
                   </div>
                 </>
               )}
-              <div className="flex-1 min-w-[160px]">
+              <div>
                 <label className="text-[10px] font-semibold tracking-widest uppercase block mb-1.5"
                   style={{ color: "var(--text-muted)" }}>
                   Status
@@ -683,7 +683,7 @@ export default function DashboardPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="input-field text-sm"
+                  className="input-field text-sm w-full"
                 >
                   <option value="all">All Status</option>
                   <option value="completed">Completed</option>
@@ -701,7 +701,7 @@ export default function DashboardPage() {
             style={{ color: "var(--text-muted)" }}>
             Overview
           </p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <StatCard
               title="Total Tasks"
               value={analytics?.tasks?.total || 0}
@@ -739,7 +739,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Main Grid ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_320px] gap-4 sm:gap-6 items-start">
           {/* ── Left Column ── */}
           <div className="flex flex-col gap-6">
             {viewMode === "table" ? (
@@ -762,8 +762,9 @@ export default function DashboardPage() {
                     </span>
                   }
                 />
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-4 sm:-mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                  <table className="min-w-full">
                     <thead>
                       <tr className="table-head">
                         {[
@@ -775,7 +776,7 @@ export default function DashboardPage() {
                         ].map((h) => (
                           <th
                             key={h}
-                            className="px-5 py-3 text-left first:pl-6 last:pr-6"
+                            className="px-3 sm:px-5 py-3 text-left first:pl-4 sm:first:pl-6 last:pr-4 sm:last:pr-6 whitespace-nowrap"
                           >
                             {h}
                           </th>
@@ -786,12 +787,12 @@ export default function DashboardPage() {
                       style={{ borderColor: "var(--border)" }}>
                       {dashboardTasks.length === 0 ? (
                         <tr>
-                          <td colSpan="5" className="px-6 py-16 text-center">
+                          <td colSpan="5" className="px-4 sm:px-6 py-12 sm:py-16 text-center">
                             <div className="flex flex-col items-center gap-3">
-                              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                              <div className="w-14 sm:w-16 h-14 sm:h-16 rounded-2xl flex items-center justify-center"
                                 style={{ backgroundColor: "var(--bg-muted)" }}>
                                 <CheckSquare
-                                  size={28}
+                                  size={24}
                                   style={{ color: "var(--text-muted)" }}
                                 />
                               </div>
@@ -822,7 +823,7 @@ export default function DashboardPage() {
                               key={task._id}
                               className="table-row-hover transition-colors group"
                             >
-                              <td className="px-5 py-3.5 pl-6 max-w-xs">
+                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 pl-4 sm:pl-6 max-w-[160px] sm:max-w-xs">
                                 <p className="font-medium text-sm truncate"
                                   style={{ color: "var(--text-primary)" }}>
                                   {task.title}
@@ -834,19 +835,19 @@ export default function DashboardPage() {
                                   </p>
                                 )}
                               </td>
-                              <td className="px-5 py-3.5">
+                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
                                 <StatusBadge status={status} />
                               </td>
-                              <td className="px-5 py-3.5">
+                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
                                 <PriorityBadge priority={task.priority} />
                               </td>
-                              <td className="px-5 py-3.5">
+                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
                                 {task.assignedTo?.length > 0 ? (
                                   <div className="flex flex-wrap gap-1">
                                     {task.assignedTo.slice(0, 2).map((u, i) => (
                                       <span
                                         key={u._id || u.name || i}
-                                        className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                        className="text-xs font-medium px-2 py-0.5 rounded-md border whitespace-nowrap"
                                         style={{
                                           color: "var(--color-info)",
                                           backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
@@ -873,7 +874,7 @@ export default function DashboardPage() {
                                   </span>
                                 )}
                               </td>
-                              <td className="px-5 py-3.5 pr-6">
+                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 pr-4 sm:pr-6 whitespace-nowrap">
                                 <span className="text-xs font-medium"
                                   style={{ color: "var(--text-secondary)" }}>
                                   {task.deadline
@@ -893,18 +894,19 @@ export default function DashboardPage() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </Card>
             ) : (
               /* Graphs View */
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {/* Doughnut */}
                 <Card>
                   <CardHeader
                     title="Task Distribution"
                     subtitle="Status breakdown"
                   />
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6">
                     <canvas ref={chartRefs.taskProgress} />
                   </div>
                 </Card>
@@ -915,7 +917,7 @@ export default function DashboardPage() {
                     title="Task Trend"
                     subtitle="Completion over time"
                   />
-                  <div className="p-6" style={{ height: 280 }}>
+                  <div className="p-4 sm:p-6" style={{ height: 260 }}>
                     <canvas ref={chartRefs.taskTrend} />
                   </div>
                 </Card>
@@ -926,7 +928,7 @@ export default function DashboardPage() {
                     title="Department Statistics"
                     subtitle="Tasks per department"
                   />
-                  <div className="p-6" style={{ height: 260 }}>
+                  <div className="p-4 sm:p-6" style={{ height: 240 }}>
                     <canvas ref={chartRefs.departmentStats} />
                   </div>
                 </Card>
@@ -940,7 +942,7 @@ export default function DashboardPage() {
                   title="HR Dashboard"
                   subtitle="Quick access to HR tools"
                 />
-                <div className="p-5 grid grid-cols-2 gap-3">
+                <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     {
                       label: "Attendance Records",
@@ -995,7 +997,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-5">
             {/* Today's Snapshot */}
             <div
-              className="relative overflow-hidden rounded-2xl p-5"
+              className="relative overflow-hidden rounded-2xl p-4 sm:p-5"
               style={{
                 background: "linear-gradient(135deg, color-mix(in srgb, var(--color-success) 18%, transparent) 0%, color-mix(in srgb, var(--color-success) 8%, transparent) 100%)",
                 border: "1px solid color-mix(in srgb, var(--color-success) 22%, transparent)",
@@ -1003,16 +1005,16 @@ export default function DashboardPage() {
                 backdropFilter: "blur(20px)",
               }}
             >
-              <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full pointer-events-none"
+              <div className="absolute -top-8 -right-8 w-24 sm:w-28 h-24 sm:h-28 rounded-full pointer-events-none"
                 style={{ background: "var(--bg-muted)" }} />
-              <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full pointer-events-none"
+              <div className="absolute -bottom-4 -left-4 w-16 sm:w-20 h-16 sm:h-20 rounded-full pointer-events-none"
                 style={{ background: "color-mix(in srgb, var(--bg-muted) 50%, transparent)" }} />
               <div className="relative">
                 <p className="text-[10px] font-semibold tracking-widest uppercase mb-1 text-center"
                   style={{ color: "color-mix(in srgb, var(--color-success) 60%, transparent)" }}>
                   Live
                 </p>
-                <h2 className="text-base font-bold mb-5 text-center"
+                <h2 className="text-sm sm:text-base font-bold mb-4 sm:mb-5 text-center"
                   style={{ color: "var(--text-primary)" }}>
 Today&apos;s Snapshot
                 </h2>
@@ -1045,14 +1047,14 @@ Today&apos;s Snapshot
 
             {/* Profile Card */}
             <Card>
-              <div className="px-5 py-4">
+              <div className="px-4 sm:px-5 py-3 sm:py-4">
                 <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"
                   style={{ color: "var(--text-muted)" }}>
                   Account
                 </p>
-                <div className="flex items-center gap-3 mb-4 pb-4"
+                <div className="flex items-center gap-3 mb-3 sm:mb-4 pb-3 sm:pb-4"
                   style={{ borderBottom: "1px solid var(--border)" }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-lg bg-avatar"
+                  <div className="w-10 sm:w-11 h-10 sm:h-11 rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0 shadow-lg bg-avatar"
                     style={{
                       background: "linear-gradient(135deg, var(--color-success) 0%, color-mix(in srgb, var(--color-success) 75%, var(--bg-base)) 100%)",
                       color: "var(--text-inverse)",
@@ -1065,15 +1067,15 @@ Today&apos;s Snapshot
                       .toUpperCase()
                       .slice(0, 2)}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold"
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate"
                       style={{ color: "var(--text-primary)" }}>
                       {user?.name}
                     </p>
-                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{user?.email}</p>
+                    <p className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>{user?.email}</p>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-2">
                   {[
                     { label: "Department", value: user?.department || "N/A" },
                     { label: "Role", value: user?.role },
@@ -1121,7 +1123,7 @@ Today&apos;s Snapshot
             {/* Quick Actions */}
             {isAdminOrManager && (
               <Card>
-                <div className="px-5 py-4">
+                <div className="px-4 sm:px-5 py-3 sm:py-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"
                     style={{ color: "var(--text-muted)" }}>
                     Shortcuts
@@ -1191,7 +1193,7 @@ Today&apos;s Snapshot
 
             {/* Recent Activity */}
             <Card>
-              <div className="px-5 py-4">
+              <div className="px-4 sm:px-5 py-3 sm:py-4">
                 <p className="text-[10px] font-semibold tracking-widest uppercase mb-1"
                   style={{ color: "var(--text-muted)" }}>
                   Updates

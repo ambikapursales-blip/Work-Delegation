@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Admin", "HR", "Manager"].includes(user.role)) {
+  if (user.role !== "Super Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -79,7 +79,7 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "HR"].includes(user.role)) {
+  if (user.role !== "Super Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -89,7 +89,7 @@ export async function POST(request) {
   req.user = user;
   const res = createRes();
   try {
-    const { name, email, password, role, department, phone, isActive, canAssignTasks } = req.body;
+    const { name, email, password, role, department, phone, isActive, canAssignTasks, canViewAllTasks } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -107,6 +107,7 @@ export async function POST(request) {
       phone,
       isActive: isActive !== undefined ? isActive : true,
       canAssignTasks: canAssignTasks !== undefined ? canAssignTasks : false,
+      canViewAllTasks: canViewAllTasks !== undefined ? canViewAllTasks : false,
     });
 
     await Activity.create({

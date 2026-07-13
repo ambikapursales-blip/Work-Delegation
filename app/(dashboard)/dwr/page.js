@@ -195,30 +195,32 @@ export default function ActionCenterPage() {
 
   return (
     <div>
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 4px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
-          <div>
-            <h1 style={{ fontSize: "22px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-              Action Center
-            </h1>
-            <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "4px 0 0" }}>
-              Review and respond to task activities
-            </p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <button
-              onClick={fetchData}
-              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-secondary)", fontSize: "13px", cursor: "pointer" }}
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-            {pendingCount > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "999px", background: "color-mix(in srgb, var(--color-danger) 12%, transparent)", color: "var(--color-danger)", fontSize: "13px", fontWeight: 600 }}>
-                <Bell className="w-4 h-4" />
-                {pendingCount} pending
-              </div>
-            )}
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+            <div>
+              <h1 style={{ fontSize: "20px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                Action Center
+              </h1>
+              <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "4px 0 0" }}>
+                Review and respond to task activities
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                onClick={fetchData}
+                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--bg-surface)", color: "var(--text-secondary)", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+              {pendingCount > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "999px", background: "color-mix(in srgb, var(--color-danger) 12%, transparent)", color: "var(--color-danger)", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <Bell className="w-4 h-4" />
+                  {pendingCount} pending
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -429,30 +431,34 @@ export default function ActionCenterPage() {
                           )}
                         </div>
                         <div style={{ display: "flex", gap: "8px" }}>
-                          <button
-                            onClick={() => handleExtensionResponse(item.taskId, item._id, "approved", item._id)}
-                            disabled={processing[item._id] === "approved"}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: "none",
-                              background: "color-mix(in srgb, var(--color-success) 12%, transparent)", color: "var(--color-success)",
-                              opacity: processing[item._id] ? 0.6 : 1,
-                            }}
-                          >
-                            <ThumbsUp className="w-3.5 h-3.5" />
-                            {processing[item._id] === "approved" ? "Approving..." : "Approve"}
-                          </button>
-                          <button
-                            onClick={() => handleExtensionResponse(item.taskId, item._id, "rejected", item._id)}
-                            disabled={processing[item._id] === "rejected"}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: "none",
-                              background: "color-mix(in srgb, var(--color-danger) 12%, transparent)", color: "var(--color-danger)",
-                              opacity: processing[item._id] ? 0.6 : 1,
-                            }}
-                          >
-                            <ThumbsDown className="w-3.5 h-3.5" />
-                            {processing[item._id] === "rejected" ? "Rejecting..." : "Reject"}
-                          </button>
+                          {canManage && (
+                            <>
+                              <button
+                                onClick={() => handleExtensionResponse(item.taskId, item._id, "approved", item._id)}
+                                disabled={processing[item._id] === "approved"}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: "none",
+                                  background: "color-mix(in srgb, var(--color-success) 12%, transparent)", color: "var(--color-success)",
+                                  opacity: processing[item._id] ? 0.6 : 1,
+                                }}
+                              >
+                                <ThumbsUp className="w-3.5 h-3.5" />
+                                {processing[item._id] === "approved" ? "Approving..." : "Approve"}
+                              </button>
+                              <button
+                                onClick={() => handleExtensionResponse(item.taskId, item._id, "rejected", item._id)}
+                                disabled={processing[item._id] === "rejected"}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: "none",
+                                  background: "color-mix(in srgb, var(--color-danger) 12%, transparent)", color: "var(--color-danger)",
+                                  opacity: processing[item._id] ? 0.6 : 1,
+                                }}
+                              >
+                                <ThumbsDown className="w-3.5 h-3.5" />
+                                {processing[item._id] === "rejected" ? "Rejecting..." : "Reject"}
+                              </button>
+                            </>
+                          )}
                           <Link
                             href={`/tasks/${item.taskId}`}
                             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: 500, background: "var(--bg-muted)", color: "var(--text-primary)", textDecoration: "none", border: "1px solid var(--border)" }}

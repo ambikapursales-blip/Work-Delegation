@@ -21,7 +21,7 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
 
     let query = {};
-    if (user.role !== "Admin" && user.role !== "HR") {
+    if (user.role !== "Super Admin" && user.role !== "Admin" && user.role !== "HR") {
       query.employee = user._id;
     }
 

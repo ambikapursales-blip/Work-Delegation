@@ -347,12 +347,15 @@ taskSchema.pre("save", function (next) {
 taskSchema.set("toJSON", { virtuals: true });
 taskSchema.set("toObject", { virtuals: true });
 
-taskSchema.index({ assignedTo: 1, status: 1 });
 taskSchema.index({ assignedTo: 1, status: 1, deadline: 1 });
 taskSchema.index({ assignedTo: 1, status: 1, completedAt: 1 });
 taskSchema.index({ assignedTo: 1, createdAt: -1 });
 taskSchema.index({ assignedBy: 1 });
-taskSchema.index({ deadline: 1 });
+taskSchema.index({ deadline: 1, status: 1 });
 taskSchema.index({ createdAt: -1 });
+taskSchema.index({ status: 1, priority: 1 });
+taskSchema.index({ department: 1, status: 1 });
+taskSchema.index({ status: 1, deadline: 1 });
+taskSchema.index({ completedAt: -1 });
 
 export default mongoose.models.Task || mongoose.model("Task", taskSchema);

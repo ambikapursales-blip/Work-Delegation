@@ -69,7 +69,7 @@ export default function Header({ onMobileMenuToggle, isMobileMenuOpen }) {
       <div className="flex items-center justify-between h-16 px-4 md:px-8">
           <button
             onClick={onMobileMenuToggle}
-            className="md:hidden p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] rounded-lg transition-colors"
+            className="lg:hidden p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] rounded-lg transition-colors"
           >
           {isMobileMenuOpen ? (
             <X className="h-5 w-5" />

@@ -36,6 +36,18 @@ const gradeColors = {
   F: "#64748b",
 };
 
+const getCompletionColor = (percentage) => {
+  if (percentage >= 70) return "text-green-600";
+  if (percentage >= 40) return "text-yellow-500";
+  return "text-red-600";
+};
+
+const getCompletionBarBg = (percentage) => {
+  if (percentage >= 70) return "bg-green-600";
+  if (percentage >= 40) return "bg-yellow-500";
+  return "bg-red-600";
+};
+
 const CHART_COLORS = [
   "#B366FF",
   "#00FF88",
@@ -56,7 +68,7 @@ export default function PerformancePage() {
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState("chart");
 
-  const canView = ["Super Admin", "Admin", "Manager", "HR"].includes(user?.role);
+  const canView = user?.role === "Super Admin";
 
   const fetchData = useCallback(async () => {
     try {
@@ -156,18 +168,10 @@ export default function PerformancePage() {
     };
   };
 
-  const getCompletionBarColor = (percentage) => {
-    if (percentage >= 80) return { backgroundColor: "var(--color-success)" };
-    if (percentage >= 60) return { backgroundColor: "var(--color-warning)" };
-    if (percentage >= 40) return { backgroundColor: "var(--color-danger)" };
-    return { backgroundColor: "var(--color-danger)" };
-  };
-
   const getCompletionTextColor = (percentage) => {
-    if (percentage >= 80) return { color: "var(--color-success)" };
-    if (percentage >= 60) return { color: "var(--color-warning)" };
-    if (percentage >= 40) return { color: "var(--color-danger)" };
-    return { color: "var(--color-danger)" };
+    if (percentage >= 70) return { color: "rgb(22 163 74)" };
+    if (percentage >= 40) return { color: "rgb(234 179 8)" };
+    return { color: "rgb(220 38 38)" };
   };
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -184,7 +188,7 @@ export default function PerformancePage() {
           <p className="mb-1" style={{ fontWeight: 600, color: "var(--text-primary)" }}>{label}</p>
           <p className="text-sm" style={{ color: "var(--color-purple)" }}>Assigned: {data?.assigned}</p>
           <p className="text-sm" style={{ color: "var(--color-success)" }}>Completed: {data?.completed}</p>
-          <p className="text-sm font-bold" style={getCompletionTextColor(data?.completionRate)}>
+          <p className={`text-sm font-bold ${getCompletionColor(data?.completionRate)}`}>
             Completion: {data?.completionRate?.toFixed(1)}%
           </p>
         </div>
@@ -194,11 +198,11 @@ export default function PerformancePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Performance</h1>
-          <p style={{ color: "var(--text-secondary)" }}>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Performance</h1>
+          <p className="text-sm sm:text-base" style={{ color: "var(--text-secondary)" }}>
             Employee performance metrics and analytics
           </p>
         </div>
@@ -206,7 +210,7 @@ export default function PerformancePage() {
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="input-field"
+            className="input-field text-sm"
           >
             <option value="week">Last Week</option>
             <option value="month">Last Month</option>
@@ -351,8 +355,7 @@ export default function PerformancePage() {
                           <div>
                             <p className="text-xs" style={{ color: "var(--text-secondary)" }}>Completion</p>
                             <p
-                              className="text-2xl font-bold"
-                              style={getCompletionTextColor(item.completionRate)}
+                              className={`text-2xl font-bold ${getCompletionColor(item.completionRate)}`}
                             >
                               {item.completionRate.toFixed(1)}%
                             </p>
@@ -363,13 +366,10 @@ export default function PerformancePage() {
                             </p>
                           </div>
                         </div>
-                        <div className="w-full rounded-full h-2" style={{ backgroundColor: "var(--bg-muted)" }}>
+                          <div className="w-full rounded-full h-2" style={{ backgroundColor: "var(--bg-muted)" }}>
                           <div
-                            className="h-2 rounded-full"
-                            style={{
-                              ...getCompletionBarColor(item.completionRate),
-                              width: `${Math.min(item.completionRate, 100)}%`,
-                            }}
+                            className={`h-2 rounded-full ${getCompletionBarBg(item.completionRate)}`}
+                            style={{ width: `${Math.min(item.completionRate, 100)}%` }}
                           />
                         </div>
                       </div>
@@ -500,14 +500,11 @@ export default function PerformancePage() {
                               <div className="flex items-center justify-center gap-2.5">
                                 <div className="w-16 rounded-full h-2" style={{ backgroundColor: "var(--bg-muted)" }}>
                                   <div
-                                    className="h-2 rounded-full transition-all"
-                                    style={{
-                                      ...getCompletionBarColor(completionRate),
-                                      width: `${Math.min(completionRate, 100)}%`,
-                                    }}
+                                    className={`h-2 rounded-full transition-all ${getCompletionBarBg(completionRate)}`}
+                                    style={{ width: `${Math.min(completionRate, 100)}%` }}
                                   />
                                 </div>
-                                <span className="text-xs font-bold" style={getCompletionTextColor(completionRate)}>
+                                <span className={`text-xs font-bold ${getCompletionColor(completionRate)}`}>
                                   {completionRate.toFixed(0)}%
                                 </span>
                               </div>
