@@ -442,7 +442,7 @@ export const getDashboardAnalytics = async (req, res) => {
       userQuery._id = req.user._id;
     }
 
-    const users = await User.find(userQuery).lean().select("_id lastActive");
+    const users = await User.find(userQuery).lean().select("_id");
     const userIds = users.map((u) => u._id);
 
     let taskMatch = {
@@ -478,6 +478,9 @@ export const getDashboardAnalytics = async (req, res) => {
           pending: { $sum: 0 },
           inProgress: {
             $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+          },
+          due: {
+            $sum: { $cond: [{ $ne: ["$status", "Completed"] }, 1, 0] },
           },
           overdue: {
             $sum: {
@@ -589,6 +592,7 @@ export const getDashboardAnalytics = async (req, res) => {
       completed: 0,
       pending: 0,
       inProgress: 0,
+      due: 0,
       overdue: 0,
     };
     const dwrData = dwrStats[0] || {
@@ -603,14 +607,6 @@ export const getDashboardAnalytics = async (req, res) => {
       success: true,
       analytics: {
         period,
-        users: {
-          total: users.length,
-          active: users.filter(
-            (u) =>
-              u.lastActive &&
-              u.lastActive >= new Date(Date.now() - 24 * 60 * 60 * 1000),
-          ).length,
-        },
         tasks: taskData,
         dwr: dwrData,
         trends: {

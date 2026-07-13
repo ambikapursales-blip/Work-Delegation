@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
 import {
   CheckCircle2,
-  Users,
   Plus,
   Clock,
   CheckSquare,
@@ -14,6 +13,8 @@ import {
   List,
   Filter,
   RefreshCw,
+  ListTodo,
+  Users,
 } from "lucide-react";
 import { DashboardSkeleton } from "@/components/skeleton";
 import { dashboardAPI, reportsAPI, taskAPI, usersAPI } from "@/lib/api";
@@ -174,14 +175,6 @@ const PriorityBadge = React.memo(function PriorityBadge({ priority }) {
 /* ─── Page ───────────────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalTasks: 0,
-    completedTasks: 0,
-    inProgressTasks: 0,
-    totalUsers: 0,
-    presentToday: 0,
-    eventsCount: 0,
-  });
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -243,13 +236,6 @@ export default function DashboardPage() {
       }
 
       const promises = [
-        dashboardAPI.getStats({
-          userId: selectedUser === "all" ? undefined : selectedUser,
-          status: statusFilter === "all" ? undefined : statusFilter,
-          period,
-          startDate: customStartDate?.toISOString(),
-          endDate: customEndDate?.toISOString(),
-        }),
         reportsAPI.getDashboardAnalytics({
           period,
           userId: selectedUser === "all" ? undefined : selectedUser,
@@ -271,17 +257,7 @@ export default function DashboardPage() {
         promises.push(usersAPI.getAll().catch(() => ({ data: { users: [] } })));
       }
 
-      const [response, analyticsRes, activitiesRes, tasksRes, usersRes] = await Promise.all(promises);
-
-      const statsData = response.data?.stats;
-      setStats({
-        totalTasks: statsData?.tasks?.total || 0,
-        completedTasks: statsData?.tasks?.completed || 0,
-        inProgressTasks: statsData?.tasks?.inProgress || 0,
-        totalUsers: statsData?.users?.total || 0,
-        presentToday: statsData?.users?.active || 0,
-        eventsCount: 0,
-      });
+      const [analyticsRes, activitiesRes, tasksRes, usersRes] = await Promise.all(promises);
 
       setAnalytics(analyticsRes.data?.analytics || null);
       setRecentActivities(activitiesRes.data?.activities || []);
@@ -752,15 +728,13 @@ export default function DashboardPage() {
               accent="amber"
               href="/tasks?status=inprogress"
             />
-            {(isAdminOrManager || isHR) && (
-              <StatCard
-                title="Active Users"
-                value={analytics?.users?.active || 0}
-                icon={<Users size={18} />}
-                trend="Online now"
-                accent="blue"
-              />
-            )}
+            <StatCard
+              title="Total Due Tasks"
+              value={analytics?.tasks?.due || 0}
+              icon={<ListTodo size={18} />}
+              trend="Tasks needing action"
+              accent="blue"
+            />
           </div>
         </div>
 
@@ -1034,51 +1008,18 @@ export default function DashboardPage() {
               <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full pointer-events-none"
                 style={{ background: "color-mix(in srgb, var(--bg-muted) 50%, transparent)" }} />
               <div className="relative">
-                <p className="text-[10px] font-semibold tracking-widest uppercase mb-1"
+                <p className="text-[10px] font-semibold tracking-widest uppercase mb-1 text-center"
                   style={{ color: "color-mix(in srgb, var(--color-success) 60%, transparent)" }}>
                   Live
                 </p>
-                <h2 className="text-base font-bold mb-4"
+                <h2 className="text-base font-bold mb-5 text-center"
                   style={{ color: "var(--text-primary)" }}>
 Today&apos;s Snapshot
                 </h2>
-                <div className="flex flex-col gap-3">
-                  {[
-                    {
-                      label: "Present Today",
-                      value: analytics?.users?.active || 0,
-                      icon: "\uD83D\uDC65",
-                    },
-                    {
-                      label: "Overdue Tasks",
-                      value: analytics?.tasks?.overdue || 0,
-                      icon: "\u26A0\uFE0F",
-                    },
-                  ].map(({ label, value, icon }) => (
-                    <div
-                      key={label}
-                      className="px-4 py-3 rounded-xl flex items-center justify-between"
-                      style={{ backgroundColor: "var(--bg-muted)" }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{icon}</span>
-                        <span className="text-xs font-medium"
-                          style={{ color: "var(--text-secondary)" }}>
-                          {label}
-                        </span>
-                      </div>
-                      <span className="text-2xl font-bold"
-                        style={{ color: "var(--text-primary)" }}>
-                        {value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
 
-                {/* Completion ring */}
-                <div className="mt-4 pt-4"
-                  style={{ borderTop: "1px solid var(--border)" }}>
-                  <div className="flex items-center justify-between mb-2">
+                {/* Completion ring — centered */}
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center justify-between w-full mb-2">
                     <span className="text-xs font-medium"
                       style={{ color: "var(--text-muted)" }}>
                       Completion Rate
@@ -1088,7 +1029,7 @@ Today&apos;s Snapshot
                       {completionRate}%
                     </span>
                   </div>
-                  <div className="h-2 rounded-full overflow-hidden"
+                  <div className="h-2 w-full rounded-full overflow-hidden"
                     style={{ backgroundColor: "var(--bg-muted)" }}>
                     <div
                       className="h-full rounded-full transition-all duration-700"
