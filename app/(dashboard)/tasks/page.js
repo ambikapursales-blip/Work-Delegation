@@ -296,7 +296,12 @@ export default function TasksPage() {
             .toISOString()
             .split("T")[0],
       };
-      await taskAPI.createTask(taskData);
+      const response = await taskAPI.createTask(taskData);
+      const createdTask = response.data?.task;
+      if (createdTask) {
+        setTasks(prev => [createdTask, ...prev]);
+        setTotalTasks(prev => prev + 1);
+      }
       setSuccess("Task created successfully!");
       setFormData({
         title: "",
@@ -316,7 +321,6 @@ export default function TasksPage() {
         recurrenceEndDate: "",
       });
       setActiveTab("view");
-      fetchTasks();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create task");
     } finally {

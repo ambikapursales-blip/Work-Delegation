@@ -172,8 +172,9 @@ export const createTask = async (req, res) => {
 
     const assignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
 
-    const existingUsers = await User.find({ _id: { $in: assignees } }).lean().select("_id");
-    const validIds = new Set(existingUsers.map((u) => u._id.toString()));
+    // Single query: validate assignees exist and get their data
+    const assigneeUsers = await User.find({ _id: { $in: assignees } }).lean().select("_id name email");
+    const validIds = new Set(assigneeUsers.map((u) => u._id.toString()));
     const invalidIds = assignees.filter((id) => !validIds.has(id.toString()));
     if (invalidIds.length > 0) {
       return res.status(400).json({
@@ -242,23 +243,27 @@ export const createTask = async (req, res) => {
 
     const task = await Task.create(taskData);
 
-    const assigneeUsers = await User.find({ _id: { $in: assignees } }).lean().select("_id name email");
     const recurringText = isRecurring ? ` (${taskType})` : "";
-    for (const assignee of assigneeUsers) {
-      await Notification.create({
-        recipient: assignee._id,
-        sender: req.user._id,
-        title: "New Task Assigned",
-        message: `You have been assigned a new task: "${title}"${recurringText}`,
-        type: "task_assigned",
-        entityId: task._id,
-        entityType: "Task",
-        actionUrl: `/dashboard/tasks/${task._id}`,
-      });
 
+    // Batch create notifications
+    const notifications = assigneeUsers.map((assignee) => ({
+      recipient: assignee._id,
+      sender: req.user._id,
+      title: "New Task Assigned",
+      message: `You have been assigned a new task: "${title}"${recurringText}`,
+      type: "task_assigned",
+      entityId: task._id,
+      entityType: "Task",
+      actionUrl: `/dashboard/tasks/${task._id}`,
+    }));
+    await Notification.insertMany(notifications);
+
+    // Background email sending — fire and forget, never blocks the response
+    const emailPromises = [];
+    for (const assignee of assigneeUsers) {
       if (assignee.email) {
-        try {
-          await sendTaskAssignmentEmail(assignee.email, assignee.name, {
+        emailPromises.push(
+          sendTaskAssignmentEmail(assignee.email, assignee.name, {
             title,
             description,
             priority,
@@ -269,25 +274,21 @@ export const createTask = async (req, res) => {
             commentToken: generateCommentToken(String(task._id), String(assignee._id)),
             extensionToken: generateExtensionToken(String(task._id), String(assignee._id)),
             assignedBy: { name: req.user.name, email: req.user.email },
-          });
-        } catch (emailError) {
-          console.error("Failed to send email:", emailError);
-        }
+          }).catch((e) => console.error("Failed to send assignment email:", e)),
+        );
       }
     }
-
     if (assigneeUsers.length > 0 && req.user.email) {
-      try {
-        await sendTaskAssignedConfirmationEmail(
+      emailPromises.push(
+        sendTaskAssignedConfirmationEmail(
           req.user.email,
           req.user.name,
           { title, description, priority, deadline, taskId: task._id },
           assigneeUsers.map((u) => u.name).join(", "),
-        );
-      } catch (emailError) {
-        console.error("Failed to send assigner confirmation email:", emailError);
-      }
+        ).catch((e) => console.error("Failed to send confirmation email:", e)),
+      );
     }
+    Promise.allSettled(emailPromises);
 
     await Activity.create({
       user: req.user._id,
@@ -297,13 +298,14 @@ export const createTask = async (req, res) => {
       entityType: "Task",
     });
 
-    const populatedTask = await Task.findById(task._id).lean().populate([
+    // Populate the created task directly — avoids a separate findById query
+    await task.populate([
       { path: "assignedTo", select: "name email role avatar employeeId" },
       { path: "assignedBy", select: "name email role" },
       { path: "assigneeProgress.user", select: "name email role" },
     ]);
 
-    res.status(201).json({ success: true, task: populatedTask });
+    res.status(201).json({ success: true, task });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
