@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   CheckSquare,
   FileText,
   Calendar,
   Users,
-  Bell,
   LogOut,
   Activity,
   BarChart3,
@@ -58,12 +56,12 @@ const getAllMenuItems = () => [
 
 const ROLE_MENU = {
   "Super Admin": ["Dashboard", "Tasks", "DWR", "Events", "Attendance", "Users", "Performance"],
-  Admin: ["Dashboard", "Tasks", "Events"],
-  Manager: ["Dashboard", "Tasks", "Events"],
+  Admin: ["Dashboard", "Tasks", "DWR", "Events"],
+  Manager: ["Dashboard", "Tasks", "DWR", "Events"],
   HR: ["Dashboard", "Tasks", "DWR", "Attendance"],
-  "Sales Executive": ["Dashboard", "Tasks", "Events"],
-  Coordinator: ["Dashboard", "Tasks", "Events"],
-  It: ["Dashboard", "Tasks", "Events"],
+  "Sales Executive": ["Dashboard", "Tasks", "DWR", "Events"],
+  Coordinator: ["Dashboard", "Tasks", "DWR", "Events"],
+  It: ["Dashboard", "Tasks", "DWR", "Events"],
 };
 
 export default function Sidebar({ isOpen, setIsOpen }) {

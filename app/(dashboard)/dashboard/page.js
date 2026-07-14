@@ -19,6 +19,7 @@ import {
 import { DashboardSkeleton } from "@/components/skeleton";
 import { dashboardAPI, reportsAPI, taskAPI, usersAPI } from "@/lib/api";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Toast from "@/components/Toast";
 
 /* ─── Badge colour helpers ─── */
@@ -175,6 +176,7 @@ const PriorityBadge = React.memo(function PriorityBadge({ priority }) {
 /* ─── Page ───────────────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -821,7 +823,9 @@ export default function DashboardPage() {
                           return (
                             <tr
                               key={task._id}
+                              onClick={() => router.push(`/dwr?tab=conversations&task=${task._id}`)}
                               className="table-row-hover transition-colors group"
+                              style={{ cursor: "pointer" }}
                             >
                               <td className="px-3 sm:px-5 py-3 sm:py-3.5 pl-4 sm:pl-6 max-w-[160px] sm:max-w-xs">
                                 <p className="font-medium text-sm truncate"

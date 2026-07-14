@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import DWR from "../models/DWR.js";
 import Activity from "../models/Activity.js";
 import Attendance from "../models/Attendance.js";
+import { getTaskScopeFilter, getScopeFilter } from "../lib/taskScope.js";
 
 export const getTaskReport = async (req, res) => {
   try {
@@ -17,15 +18,8 @@ export const getTaskReport = async (req, res) => {
     if (department) matchQuery.department = department;
     if (status) matchQuery.status = status;
 
-    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
-      matchQuery.assignedTo = { $in: [req.user._id] };
-    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      matchQuery.assignedTo = { $in: teamIds };
-    }
+    const taskScope = await getTaskScopeFilter(req.user);
+    Object.assign(matchQuery, taskScope);
 
     const tasks = await Task.find(matchQuery).lean().select("status priority department deadline createdAt");
 
@@ -93,15 +87,8 @@ export const getDWRReport = async (req, res) => {
     }
     if (reviewStatus) matchQuery.reviewStatus = reviewStatus;
 
-    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
-      matchQuery.employee = req.user._id;
-    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      matchQuery.employee = { $in: teamIds };
-    }
+    const dwrScope = await getScopeFilter(req.user, "employee");
+    Object.assign(matchQuery, dwrScope);
 
     const dwrs = await DWR.find(matchQuery).lean().select("reviewStatus isLate totalHoursWorked employee").populate("employee", "name department");
 
@@ -160,15 +147,8 @@ export const getAttendanceReport = async (req, res) => {
       if (endDate) matchQuery.date.$lte = new Date(endDate);
     }
 
-    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
-      matchQuery.employee = req.user._id;
-    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      matchQuery.employee = { $in: teamIds };
-    }
+    const attendanceScope = await getScopeFilter(req.user, "employee");
+    Object.assign(matchQuery, attendanceScope);
 
     const attendances = await Attendance.find(matchQuery).lean().select("status employee").populate(
       "employee",
@@ -222,13 +202,8 @@ export const getPerformanceReport = async (req, res) => {
     let matchQuery = { isActive: true };
     if (department) matchQuery.department = department;
 
-    if (!req.user.canViewAllTasks && req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      matchQuery._id = { $in: teamIds };
-    }
+    const perfScope = await getScopeFilter(req.user, "_id");
+    Object.assign(matchQuery, perfScope);
 
     const users = await User.find(matchQuery).lean().select("_id name department performanceScore grade");
 
@@ -364,15 +339,8 @@ export const getActivityReport = async (req, res) => {
     if (type) matchQuery.type = type;
     if (userId) matchQuery.user = userId;
 
-    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
-      matchQuery.user = req.user._id;
-    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      matchQuery.user = { $in: teamIds };
-    }
+    const activityScope = await getScopeFilter(req.user, "user");
+    Object.assign(matchQuery, activityScope);
 
     const activities = await Activity.find(matchQuery).lean().select("type createdAt user")
       .populate("user", "name")
@@ -443,23 +411,27 @@ export const getDashboardAnalytics = async (req, res) => {
     const canQueryOtherUsers = req.user.role === "Super Admin" || req.user.canViewAllTasks;
     if (userId && canQueryOtherUsers) {
       userQuery._id = userId;
-    } else if (req.user.role === "Manager" && !req.user.canViewAllTasks) {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      userQuery._id = { $in: teamIds };
-    } else if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator"].includes(req.user.role)) {
-      userQuery._id = req.user._id;
+    } else {
+      const userScope = await getScopeFilter(req.user, "_id");
+      Object.assign(userQuery, userScope);
+    }
+    if (Object.prototype.hasOwnProperty.call(userQuery, "_id") && typeof userQuery._id === "object" && userQuery._id.$in && userQuery._id.$in.length === 0) {
+      delete userQuery._id;
     }
 
     const users = await User.find(userQuery).lean().select("_id");
     const userIds = users.map((u) => u._id);
 
     let taskMatch = {
-      assignedTo: { $in: userIds },
       createdAt: { $gte: startDate },
     };
+
+    if (userId && canQueryOtherUsers) {
+      taskMatch.assignedTo = userId;
+    } else {
+      const taskScope = await getTaskScopeFilter(req.user);
+      Object.assign(taskMatch, taskScope);
+    }
     if (endDateStr) {
       taskMatch.createdAt.$lte = new Date(endDateStr);
     }
@@ -488,10 +460,33 @@ export const getDashboardAnalytics = async (req, res) => {
           },
           pending: { $sum: 0 },
           inProgress: {
-            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "In Progress"] },
+                    { $gte: ["$deadline", new Date()] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           due: {
-            $sum: { $cond: [{ $ne: ["$status", "Completed"] }, 1, 0] },
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $lt: ["$deadline", new Date()] },
+                    { $ne: ["$status", "Completed"] },
+                    { $ne: ["$status", "Cancelled"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           overdue: {
             $sum: {

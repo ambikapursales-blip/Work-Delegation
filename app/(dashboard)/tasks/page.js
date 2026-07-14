@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Fragment } from "react";
-import { useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import dynamic from "next/dynamic";
 const TaskBoard = dynamic(() => import("@/components/TaskBoard"), { ssr: false });
@@ -30,8 +30,10 @@ import {
   ListTodo,
   Sparkles,
   Check,
+  MessageSquare,
 } from "lucide-react";
 import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
+import Link from "next/link";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { SkeletonTable } from "@/components/skeleton";
@@ -1739,33 +1741,45 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                         <CheckCircle2 className="w-4 h-4" />
                                       </button>
                                     )}
-                                    <button
-                                      onClick={() => handleDelete(task._id)}
-                                      disabled={deletingTaskId === task._id}
+                                    <Link
+                                      href={`/dwr?tab=conversations&task=${task._id}`}
                                       className="p-1.5 rounded-md transition-colors"
-                                      title="Delete task"
-                                      style={{ 
-                                        color: "var(--color-danger)",
-                                        opacity: deletingTaskId === task._id ? 0.6 : 1,
-                                        cursor: deletingTaskId === task._id ? "not-allowed" : "pointer",
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (deletingTaskId !== task._id) {
-                                          e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (deletingTaskId !== task._id) {
-                                          e.currentTarget.style.backgroundColor = "transparent";
-                                        }
-                                      }}
+                                      title="Open conversation"
+                                      style={{ color: "var(--color-primary)" }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-primary) 8%, transparent)"}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                                     >
-                                      {deletingTaskId === task._id ? (
-                                        <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
-                                      ) : (
-                                        <Trash2 className="w-4 h-4" />
-                                      )}
-                                    </button>
+                                      <MessageSquare className="w-4 h-4" />
+                                    </Link>
+                                    {user?.role === "Super Admin" && (
+                                      <button
+                                        onClick={() => handleDelete(task._id)}
+                                        disabled={deletingTaskId === task._id}
+                                        className="p-1.5 rounded-md transition-colors"
+                                        title="Delete task"
+                                        style={{ 
+                                          color: "var(--color-danger)",
+                                          opacity: deletingTaskId === task._id ? 0.6 : 1,
+                                          cursor: deletingTaskId === task._id ? "not-allowed" : "pointer",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          if (deletingTaskId !== task._id) {
+                                            e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (deletingTaskId !== task._id) {
+                                            e.currentTarget.style.backgroundColor = "transparent";
+                                          }
+                                        }}
+                                      >
+                                        {deletingTaskId === task._id ? (
+                                          <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
+                                        ) : (
+                                          <Trash2 className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>

@@ -18,10 +18,20 @@ import {
   normalizeTaskStatus,
   toArray,
   buildAssigneeProgress,
-  buildHistoryEntry,
-  buildNotification,
-  TASK_DEFAULT_POPULATE,
 } from "../utils/taskHelpers.js";
+import { buildActionUrl } from "../utils/conversationAuth.js";
+import { getTaskScopeFilter } from "../lib/taskScope.js";
+import {
+  notifyTaskAssigned,
+  notifyTaskCompleted,
+  notifyTaskReopened,
+  notifyStatusChanged,
+  notifyDeadlineExtended,
+  notifyPriorityChanged,
+  notifyAttachmentUploaded,
+  notifyCommentAdded,
+  notifyAssigneeChanged,
+} from "../utils/conversationMessages.js";
 
 export const getTasks = async (req, res) => {
   try {
@@ -42,19 +52,8 @@ export const getTasks = async (req, res) => {
 
     let query = {};
 
-    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
-      query.assignedTo = req.user._id;
-    } else if (!req.user.canViewAllTasks && req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      teamIds.push(req.user._id);
-      query.$or = [
-        { assignedTo: { $in: teamIds } },
-        { assignedBy: req.user._id },
-      ];
-    }
+    const taskScope = await getTaskScopeFilter(req.user);
+    Object.assign(query, taskScope);
 
     if (status) {
       query.status = normalizeTaskStatus(status);
@@ -270,6 +269,23 @@ export const createTask = async (req, res) => {
 
     const recurringText = isRecurring ? ` (${taskType})` : "";
 
+    let assignMessage = null;
+    try {
+      assignMessage = await notifyTaskAssigned(task._id, req.user._id, assigneeUsers.map((u) => u.name).join(", "));
+    } catch (e) {
+      console.error("Failed to create system message:", e);
+    }
+
+    let assignConversation = null;
+    if (assignMessage) {
+      try {
+        const Conversation = (await import("../models/Conversation.js")).default;
+        assignConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+      } catch (e) {
+        console.error("Failed to find conversation:", e);
+      }
+    }
+
     // Batch create notifications
     const notifications = assigneeUsers.map((assignee) => ({
       recipient: assignee._id,
@@ -279,7 +295,9 @@ export const createTask = async (req, res) => {
       type: "task_assigned",
       entityId: task._id,
       entityType: "Task",
-      actionUrl: `/dashboard/tasks/${task._id}`,
+      actionUrl: buildActionUrl(task._id, assignMessage?._id),
+      conversationId: assignConversation?._id,
+      messageId: assignMessage?._id,
     }));
     await Notification.insertMany(notifications);
 
@@ -432,6 +450,23 @@ export const updateTask = async (req, res) => {
         : [task.assignedTo.toString()];
 
       if (req.body.status === "Completed") {
+        let completeMessage = null;
+        try {
+          completeMessage = await notifyTaskCompleted(task._id, req.user._id, req.user.name);
+        } catch (e) {
+          console.error("Failed to create system message:", e);
+        }
+
+        let completeConversation = null;
+        if (completeMessage) {
+          try {
+            const Conversation = (await import("../models/Conversation.js")).default;
+            completeConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+          } catch (e) {
+            console.error("Failed to find conversation:", e);
+          }
+        }
+
         await Notification.create({
           recipient: task.assignedBy,
           sender: req.user._id,
@@ -440,6 +475,9 @@ export const updateTask = async (req, res) => {
           type: "task_completed",
           entityId: task._id,
           entityType: "Task",
+          actionUrl: buildActionUrl(task._id, completeMessage?._id),
+          conversationId: completeConversation?._id,
+          messageId: completeMessage?._id,
         });
 
         try {
@@ -509,6 +547,50 @@ export const updateTask = async (req, res) => {
           }
         }
       }
+
+      if (req.body.status !== "Completed" && req.body.status && req.body.status !== task.status) {
+        try {
+          await notifyStatusChanged(task._id, req.user._id, req.user.name, task.status, req.body.status);
+        } catch (e) {
+          console.error("Failed to create status change system message:", e);
+        }
+      }
+    }
+
+    if (status && status !== task.status && task.status === "Completed") {
+      try {
+        await notifyTaskReopened(task._id, req.user._id, req.user.name);
+      } catch (e) {
+        console.error("Failed to create reopened system message:", e);
+      }
+    }
+
+    if (req.body.priority && req.body.priority !== task.priority) {
+      try {
+        await notifyPriorityChanged(task._id, req.user._id, req.user.name, task.priority, req.body.priority);
+      } catch (e) {
+        console.error("Failed to create priority change system message:", e);
+      }
+    }
+
+    if (req.body.deadline && task.deadline && new Date(req.body.deadline).getTime() !== new Date(task.deadline).getTime()) {
+      try {
+        await notifyDeadlineExtended(task._id, req.user._id, req.user.name, task.deadline, req.body.deadline);
+      } catch (e) {
+        console.error("Failed to create deadline change system message:", e);
+      }
+    }
+
+    if (req.body.attachments && req.body.attachments.length > 0) {
+      const existingUrls = new Set((task.attachments || []).map((a) => a.url));
+      for (const att of req.body.attachments) {
+        if (att.url && existingUrls.has(att.url)) continue;
+        try {
+          await notifyAttachmentUploaded(task._id, req.user._id, req.user.name, att.name || "file");
+        } catch (e) {
+          console.error("Failed to create attachment upload system message:", e);
+        }
+      }
     }
 
     const updated = await Task.findByIdAndUpdate(req.params.id, req.body, {
@@ -553,9 +635,8 @@ export const getTaskStats = async (req, res) => {
   try {
     let matchQuery = {};
 
-    if (!req.user.canViewAllTasks && ["Sales Executive", "Coordinator", "HR"].includes(req.user.role)) {
-      matchQuery.assignedTo = { $in: [req.user._id] };
-    }
+    const taskScope = await getTaskScopeFilter(req.user);
+    Object.assign(matchQuery, taskScope);
 
     const stats = await Task.aggregate([
       { $match: matchQuery },
@@ -638,7 +719,7 @@ export const bulkCreateTasks = async (req, res) => {
           type: "task_assigned",
           entityId: task._id,
           entityType: "Task",
-          actionUrl: `/dashboard/tasks/${task._id}`,
+          actionUrl: buildActionUrl(task._id),
         });
       });
     }
@@ -781,7 +862,7 @@ export const bulkAssignTasks = async (req, res) => {
             type: "task_assigned",
             entityId: task._id,
             entityType: "Task",
-            actionUrl: `/dashboard/tasks/${task._id}`,
+            actionUrl: buildActionUrl(task._id),
           });
         }
       });
@@ -789,6 +870,15 @@ export const bulkAssignTasks = async (req, res) => {
 
     await Task.bulkWrite(updates);
     await Notification.insertMany(notifications);
+
+    try {
+      const addedUserNames = users.map((u) => u.name).filter(Boolean).join(", ");
+      for (const task of tasks) {
+        await notifyAssigneeChanged(task._id, req.user._id, req.user.name, "previous assignees", addedUserNames || userIds.join(", "));
+      }
+    } catch (e) {
+      console.error("Failed to create bulk assign system messages:", e);
+    }
 
     for (const user of users) {
       if (user.email) {
@@ -889,6 +979,12 @@ export const reassignTask = async (req, res) => {
     task.assignedTo = newAssignees;
     await task.save();
 
+    try {
+      await notifyAssigneeChanged(task._id, req.user._id, req.user.name, fromUser?.name || fromUserId, toUser?.name || toUserId);
+    } catch (e) {
+      console.error("Failed to create assignee change system message:", e);
+    }
+
     await Notification.create({
       recipient: toUserId,
       sender: req.user._id,
@@ -897,7 +993,7 @@ export const reassignTask = async (req, res) => {
       type: "task_assigned",
       entityId: task._id,
       entityType: "Task",
-      actionUrl: `/dashboard/tasks/${task._id}`,
+      actionUrl: buildActionUrl(task._id),
     });
 
     if (toUser.email) {
@@ -983,7 +1079,7 @@ export const escalateTask = async (req, res) => {
       priority: "High",
       entityId: task._id,
       entityType: "Task",
-      actionUrl: `/dashboard/tasks/${task._id}`,
+      actionUrl: buildActionUrl(task._id),
     });
 
     if (escalateeUser.email) {
@@ -1050,6 +1146,23 @@ export const addComment = async (req, res) => {
     });
     await task.save();
 
+    let commentMessage = null;
+    try {
+      commentMessage = await notifyCommentAdded(task._id, req.user._id, req.user.name, text);
+    } catch (e) {
+      console.error("Failed to create comment system message:", e);
+    }
+
+    let commentConversation = null;
+    if (commentMessage) {
+      try {
+        const Conversation = (await import("../models/Conversation.js")).default;
+        commentConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+      } catch (e) {
+        console.error("Failed to find conversation:", e);
+      }
+    }
+
     const otherAssignees = task.assignedTo.filter(
       (id) => id.toString() !== req.user._id.toString(),
     );
@@ -1062,8 +1175,23 @@ export const addComment = async (req, res) => {
         type: "task_updated",
         entityId: task._id,
         entityType: "Task",
-        actionUrl: `/dashboard/tasks/${task._id}`,
+        actionUrl: buildActionUrl(task._id, commentMessage?._id),
+        conversationId: commentConversation?._id,
+        messageId: commentMessage?._id,
       });
+    }
+
+    try {
+      const Activity = (await import("../models/Activity.js")).default;
+      await Activity.create({
+        user: req.user._id,
+        type: "task_updated",
+        description: `${req.user.name} commented on task "${task.title}"`,
+        entityId: task._id,
+        entityType: "Task",
+      });
+    } catch (e) {
+      console.error("Failed to create comment activity:", e);
     }
 
     const updatedTask = await Task.findById(task._id).lean().populate([

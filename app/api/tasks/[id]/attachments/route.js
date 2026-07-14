@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { ensureDbConnection, requireAuth } from "@/src/lib/route-adapter";
 import Task from "@/src/models/Task";
+import Notification from "@/src/models/Notification";
+import Activity from "@/src/models/Activity";
+import { getConversationParticipants } from "@/src/utils/conversationAuth";
+import { notifyAttachmentUploaded } from "@/src/utils/conversationMessages";
 import fs from "fs/promises";
 import path from "path";
 
@@ -52,6 +56,50 @@ export async function POST(request, { params }) {
 
   task.attachments.push(...entries);
   await task.save();
+
+  // Create system message for each uploaded file
+  for (const entry of entries) {
+    try {
+      await notifyAttachmentUploaded(task._id, user._id, user.name, entry.name);
+    } catch (e) {
+      console.error("Failed to create attachment system message:", e);
+    }
+  }
+
+  // Notify participants
+  try {
+    const participants = await getConversationParticipants(task);
+    const recipientIds = participants
+      .filter((p) => p._id.toString() !== user._id.toString())
+      .map((p) => p._id);
+    if (recipientIds.length > 0) {
+      const fileNames = entries.map((e) => e.name).join(", ");
+      await Notification.create({
+        recipient: recipientIds,
+        sender: user._id,
+        title: "Files Uploaded",
+        message: `${user.name} uploaded ${fileNames} to task "${task.title}"`,
+        type: "file_uploaded",
+        entityId: task._id,
+        entityType: "Task",
+      });
+    }
+  } catch (e) {
+    console.error("Failed to create attachment notification:", e);
+  }
+
+  // Log activity
+  try {
+    await Activity.create({
+      user: user._id,
+      type: "task_updated",
+      description: `${user.name} uploaded ${entries.length} file(s) to task "${task.title}"`,
+      entityId: task._id,
+      entityType: "Task",
+    });
+  } catch (e) {
+    console.error("Failed to create attachment activity:", e);
+  }
 
   return NextResponse.json({ success: true, attachments: task.attachments });
 }

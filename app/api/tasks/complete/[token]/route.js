@@ -7,6 +7,7 @@ import Activity from "@/src/models/Activity";
 import { sendTaskCompletionEmail } from "@/src/utils/emailService";
 import { verifyCompleteToken } from "@/src/utils/completeToken";
 import { ampCorsHeaders, ampJsonResponse } from "@/src/utils/amp";
+import { notifyTaskCompleted } from "@/src/utils/conversationMessages.js";
 
 async function processComplete(token) {
   const decoded = verifyCompleteToken(token);
@@ -56,6 +57,23 @@ async function processComplete(token) {
 
   await task.save();
 
+  let completeMessage = null;
+  try {
+    completeMessage = await notifyTaskCompleted(task._id, userId, user.name);
+  } catch (e) {
+    console.error("Failed to create complete system message:", e);
+  }
+
+  let completeConversation = null;
+  if (completeMessage) {
+    try {
+      const Conversation = (await import("@/src/models/Conversation")).default;
+      completeConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+    } catch (e) {
+      console.error("Failed to find conversation:", e);
+    }
+  }
+
   await Notification.create({
     recipient: task.assignedBy,
     sender: userId,
@@ -64,6 +82,9 @@ async function processComplete(token) {
     type: "task_completed",
     entityId: task._id,
     entityType: "Task",
+    actionUrl: `/dwr?tab=conversations&task=${task._id}${completeMessage?._id ? `&message=${completeMessage._id}` : ""}`,
+    conversationId: completeConversation?._id,
+    messageId: completeMessage?._id,
   });
 
   await Activity.create({

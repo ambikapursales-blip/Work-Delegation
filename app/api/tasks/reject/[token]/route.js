@@ -6,6 +6,7 @@ import Notification from "@/src/models/Notification";
 import Activity from "@/src/models/Activity";
 import { verifyRejectToken } from "@/src/utils/rejectToken";
 import { ampCorsHeaders, ampJsonResponse } from "@/src/utils/amp";
+import { notifyTaskRejected } from "@/src/utils/conversationMessages.js";
 
 function pageHtml(title, bodyContent) {
   return `<!DOCTYPE html>
@@ -165,6 +166,23 @@ export async function POST(request, { params }) {
 
     await task.save();
 
+    let rejectMessage = null;
+    try {
+      rejectMessage = await notifyTaskRejected(task._id, userId, user.name, reason);
+    } catch (e) {
+      console.error("Failed to create reject system message:", e);
+    }
+
+    let rejectConversation = null;
+    if (rejectMessage) {
+      try {
+        const Conversation = (await import("@/src/models/Conversation")).default;
+        rejectConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+      } catch (e) {
+        console.error("Failed to find conversation:", e);
+      }
+    }
+
     await Notification.create({
       recipient: task.assignedBy,
       sender: userId,
@@ -173,6 +191,9 @@ export async function POST(request, { params }) {
       type: "task_updated",
       entityId: task._id,
       entityType: "Task",
+      actionUrl: `/dwr?tab=conversations&task=${task._id}${rejectMessage?._id ? `&message=${rejectMessage._id}` : ""}`,
+      conversationId: rejectConversation?._id,
+      messageId: rejectMessage?._id,
     });
 
     await Activity.create({

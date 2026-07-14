@@ -7,6 +7,7 @@ import {
   requireAuth,
 } from "@/src/lib/route-adapter";
 import Notification from "@/src/models/Notification";
+import { getScopeFilter } from "@/src/lib/taskScope";
 
 export async function GET(request) {
   await ensureDbConnection();
@@ -18,7 +19,10 @@ export async function GET(request) {
     const { page = 1, limit = 20, isRead } = req.query;
     const skip = (page - 1) * limit;
 
-    let query = { recipient: user._id };
+    let query = {};
+    if (user.role !== "Super Admin" && !user.canViewAllTasks) {
+      query.recipient = user._id;
+    }
     if (isRead !== undefined) {
       query.isRead = isRead === "true";
     }

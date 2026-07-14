@@ -6,6 +6,7 @@ import Notification from "@/src/models/Notification";
 import Activity from "@/src/models/Activity";
 import { verifyAcceptToken } from "@/src/utils/acceptToken";
 import { ampCorsHeaders, ampJsonResponse } from "@/src/utils/amp";
+import { notifyTaskAccepted } from "@/src/utils/conversationMessages.js";
 
 async function processAccept(token) {
   const decoded = verifyAcceptToken(token);
@@ -38,6 +39,23 @@ async function processAccept(token) {
   progressEntry.status = "In Progress";
   await task.save();
 
+  let acceptMessage = null;
+  try {
+    acceptMessage = await notifyTaskAccepted(task._id, userId, user.name);
+  } catch (e) {
+    console.error("Failed to create accept system message:", e);
+  }
+
+  let acceptConversation = null;
+  if (acceptMessage) {
+    try {
+      const Conversation = (await import("@/src/models/Conversation")).default;
+      acceptConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+    } catch (e) {
+      console.error("Failed to find conversation:", e);
+    }
+  }
+
   await Notification.create({
     recipient: task.assignedBy,
     sender: userId,
@@ -46,6 +64,9 @@ async function processAccept(token) {
     type: "task_updated",
     entityId: task._id,
     entityType: "Task",
+    actionUrl: `/dwr?tab=conversations&task=${task._id}${acceptMessage?._id ? `&message=${acceptMessage._id}` : ""}`,
+    conversationId: acceptConversation?._id,
+    messageId: acceptMessage?._id,
   });
 
   await Activity.create({

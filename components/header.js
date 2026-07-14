@@ -3,14 +3,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
-import { actionCenterAPI } from "@/lib/api";
+import { actionCenterAPI, conversationAPI } from "@/lib/api";
 import {
   Bell,
   Settings,
   User,
   LogOut,
   ChevronDown,
-  Check,
   Menu,
   X,
   Sun,
@@ -25,22 +24,34 @@ export default function Header({ onMobileMenuToggle, isMobileMenuOpen }) {
   const { theme, toggleTheme } = useTheme();
   const [showMenu, setShowMenu] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [conversationUnread, setConversationUnread] = useState(0);
   const [logOutHovered, setLogOutHovered] = useState(false);
   const menuRef = useRef(null);
 
-  const fetchPendingCount = useCallback(async () => {
+  const fetchCounts = useCallback(async () => {
     try {
-      const res = await actionCenterAPI.getItems({ filter: "pending" });
-      setPendingCount(res.data.pendingCount || 0);
+      const [actionRes, convRes] = await Promise.all([
+        actionCenterAPI.getItems({ filter: "pending" }),
+        conversationAPI.getUnreadCount().catch(() => ({ data: { totalUnread: 0 } })),
+      ]);
+      setPendingCount(actionRes.data.pendingCount || 0);
+      setConversationUnread(convRes.data?.totalUnread || 0);
     } catch {
     }
   }, []);
 
   useEffect(() => {
-    fetchPendingCount();
-    const interval = setInterval(fetchPendingCount, 60000);
-    return () => clearInterval(interval);
-  }, [fetchPendingCount]);
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000);
+    const handler = (e) => {
+      setConversationUnread(e.detail?.totalUnread || 0);
+    };
+    window.addEventListener("conversationUnreadUpdate", handler);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("conversationUnreadUpdate", handler);
+    };
+  }, [fetchCounts]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -97,9 +108,9 @@ export default function Header({ onMobileMenuToggle, isMobileMenuOpen }) {
             className="relative p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--color-success)] hover:bg-[var(--bg-muted)] transition-all duration-200"
           >
             <Bell className="w-5 h-5" strokeWidth={1.5} />
-            {pendingCount > 0 && (
+            {(pendingCount + conversationUnread) > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-bold text-white bg-[var(--color-danger)] ring-2 ring-[var(--bg-base)]" style={{ padding: "0 4px" }}>
-                {pendingCount > 99 ? "99+" : pendingCount}
+                {(pendingCount + conversationUnread) > 99 ? "99+" : (pendingCount + conversationUnread)}
               </span>
             )}
           </Link>

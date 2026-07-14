@@ -7,6 +7,7 @@ import {
   requireAuth,
 } from "@/src/lib/route-adapter";
 import Activity from "@/src/models/Activity";
+import { getScopeFilter } from "@/src/lib/taskScope";
 
 export async function GET(request) {
   await ensureDbConnection();
@@ -19,10 +20,11 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
 
     let query = {};
-    if (userId) {
+    if (userId && (user.role === "Super Admin" || user.canViewAllTasks)) {
       query.user = userId;
-    } else if (user.role !== "Admin" && user.role !== "HR") {
-      query.user = user._id;
+    } else {
+      const scope = await getScopeFilter(user, "user");
+      Object.assign(query, scope);
     }
 
     if (type) query.type = type;

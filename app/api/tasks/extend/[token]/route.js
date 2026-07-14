@@ -6,6 +6,7 @@ import Notification from "@/src/models/Notification";
 import Activity from "@/src/models/Activity";
 import { verifyExtensionToken } from "@/src/utils/extensionToken";
 import { generateExtensionResponseToken } from "@/src/utils/extensionResponseToken";
+import { notifyExtensionRequested } from "@/src/utils/conversationMessages.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
@@ -209,6 +210,23 @@ export async function POST(request, { params }) {
       String(task._id), requestId, "rejected",
     );
 
+    let extMessage = null;
+    try {
+      extMessage = await notifyExtensionRequested(task._id, userId, user.name, reason, revisedTargetDate);
+    } catch (e) {
+      console.error("Failed to create extension request system message:", e);
+    }
+
+    let extConversation = null;
+    if (extMessage) {
+      try {
+        const Conversation = (await import("@/src/models/Conversation")).default;
+        extConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+      } catch (e) {
+        console.error("Failed to find conversation:", e);
+      }
+    }
+
     await Notification.create({
       recipient: task.assignedBy,
       sender: userId,
@@ -217,6 +235,9 @@ export async function POST(request, { params }) {
       type: "task_updated",
       entityId: task._id,
       entityType: "Task",
+      actionUrl: `/dwr?tab=conversations&task=${task._id}${extMessage?._id ? `&message=${extMessage._id}` : ""}`,
+      conversationId: extConversation?._id,
+      messageId: extMessage?._id,
     });
 
     await Activity.create({

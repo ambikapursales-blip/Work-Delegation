@@ -1,6 +1,8 @@
+import Notification from "@/src/models/Notification";
 import Activity from "@/src/models/Activity";
 import Task from "@/src/models/Task";
 import User from "@/src/models/User";
+import { notifyExtensionResponded } from "@/src/utils/conversationMessages.js";
 
 function fmtDate(d) {
   return d
@@ -46,10 +48,44 @@ export async function processExtensionResponse(taskId, requestId, action) {
   await task.save();
 
   const assigner = await User.findById(task.assignedBy).select("name").lean();
+  const assignerName = assigner?.name || "Manager";
+
+  let extResponseMessage = null;
+  try {
+    extResponseMessage = await notifyExtensionResponded(task._id, task.assignedBy, assignerName, action);
+  } catch (e) {
+    console.error("Failed to create extension response system message:", e);
+  }
+
+  let extResponseConversation = null;
+  if (extResponseMessage) {
+    try {
+      const Conversation = (await import("@/src/models/Conversation")).default;
+      extResponseConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+    } catch (e) {
+      console.error("Failed to find conversation:", e);
+    }
+  }
+
+  await Notification.create({
+    recipient: extRequest.user,
+    sender: task.assignedBy,
+    title: action === "approved" ? "Extension Approved" : "Extension Rejected",
+    message: action === "approved"
+      ? `Your revised target date request to ${revisedDateStr} has been approved`
+      : `Your revised target date request to ${revisedDateStr} has been rejected`,
+    type: "task_updated",
+    entityId: task._id,
+    entityType: "Task",
+    actionUrl: `/dwr?tab=conversations&task=${task._id}${extResponseMessage?._id ? `&message=${extResponseMessage._id}` : ""}`,
+    conversationId: extResponseConversation?._id,
+    messageId: extResponseMessage?._id,
+  });
+
   await Activity.create({
     user: task.assignedBy,
     type: "task_updated",
-    description: `${assigner?.name || "Manager"} ${action} revised target date request for task "${task.title}"`,
+    description: `${assignerName} ${action} revised target date request for task "${task.title}"`,
     entityId: task._id,
     entityType: "Task",
   });

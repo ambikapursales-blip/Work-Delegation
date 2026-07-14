@@ -19,13 +19,17 @@ export async function GET(request) {
 
   try {
     const filter = req.query.filter || "all";
+    const userId = req.query.userId;
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     let items = [];
     let activities = [];
 
-    const taskQuery = { assignedBy: user._id };
+    // For Super Admin viewing other users' reports
+    const targetUserId = userId && (user.role === "Super Admin" || user.canViewAllTasks) ? userId : user._id;
+
+    const taskQuery = { assignedBy: targetUserId };
 
     const pendingExtensions = await Task.find({
       ...taskQuery,
@@ -57,7 +61,7 @@ export async function GET(request) {
     }
 
     const notificationsQuery = {
-      recipient: user._id,
+      recipient: targetUserId,
       isRead: false,
       createdAt: { $gte: thirtyDaysAgo },
     };
@@ -67,6 +71,7 @@ export async function GET(request) {
     } else if (filter === "comments") {
       notificationsQuery.title = "New Comment on Task";
     } else if (filter === "deadline") {
+      notificationsQuery.type = { $in: ["deadline_extended"] };
     }
 
     const notifications = await Notification.find(notificationsQuery)
@@ -100,7 +105,7 @@ export async function GET(request) {
           deadline: task.deadline,
           completedAt: notif.createdAt,
           actor: notif.sender,
-          isRead: false,
+          isRead: notif.isRead,
           createdAt: notif.createdAt,
           notificationId: notif._id.toString(),
         });
@@ -121,7 +126,7 @@ export async function GET(request) {
           commentText,
           commentedAt: notif.createdAt,
           actor: notif.sender,
-          isRead: false,
+          isRead: notif.isRead,
           createdAt: notif.createdAt,
           notificationId: notif._id.toString(),
         });
@@ -134,6 +139,7 @@ export async function GET(request) {
 
     const activityQuery = {
       entityType: "Task",
+      user: targetUserId,
       createdAt: { $gte: thirtyDaysAgo },
     };
 

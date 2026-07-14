@@ -8,6 +8,7 @@ import {
 } from "@/src/lib/route-adapter";
 import Task from "@/src/models/Task";
 import User from "@/src/models/User";
+import { getTaskScopeFilter } from "@/src/lib/taskScope";
 
 export async function GET(request) {
   await ensureDbConnection();
@@ -23,12 +24,12 @@ export async function GET(request) {
     let taskQuery = {};
 
     const canViewAll = user.role === "Super Admin" || user.canViewAllTasks;
-    const isPrivilegedRole = ["Super Admin", "Admin", "Manager", "HR"].includes(user.role);
 
     if (userId && canViewAll) {
       taskQuery.assignedTo = userId;
-    } else if (!canViewAll && !isPrivilegedRole) {
-      taskQuery.assignedTo = user._id;
+    } else {
+      const taskScope = await getTaskScopeFilter(user);
+      Object.assign(taskQuery, taskScope);
     }
 
     if (status) {

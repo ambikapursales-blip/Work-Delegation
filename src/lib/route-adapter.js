@@ -42,6 +42,7 @@ export function createRes() {
     },
     json(data) {
       _body = data;
+      return this;
     },
     set(key, value) {
       _headers[key] = value;

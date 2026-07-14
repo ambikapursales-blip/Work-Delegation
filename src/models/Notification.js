@@ -25,6 +25,11 @@ const notificationSchema = new mongoose.Schema(
         "leave_rejected",
         "general",
         "announcement",
+        "message_sent",
+        "comment_added",
+        "status_changed",
+        "deadline_extended",
+        "file_uploaded",
       ],
       default: "general",
     },
@@ -44,7 +49,7 @@ const notificationSchema = new mongoose.Schema(
     },
     entityType: {
       type: String,
-      enum: ["Task", "Event", "DWR", "User", "Leave", ""],
+      enum: ["Task", "Event", "DWR", "User", "Leave", "Conversation", "Message", ""],
     },
     isRead: {
       type: Boolean,
@@ -54,6 +59,14 @@ const notificationSchema = new mongoose.Schema(
       type: Date,
     },
     actionUrl: String,
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+    },
+    messageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+    },
     priority: {
       type: String,
       enum: ["Low", "Medium", "High"],

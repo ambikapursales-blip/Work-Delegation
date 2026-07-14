@@ -40,7 +40,6 @@ const TaskBoard = ({
       textStyle: { color: "var(--color-warning)" },
       dotColor: "var(--color-warning)",
       icon: Clock,
-      count: 0,
     },
     "In Progress": {
       label: "In Progress",
@@ -49,7 +48,6 @@ const TaskBoard = ({
       textStyle: { color: "var(--color-info)" },
       dotColor: "var(--color-info)",
       icon: Zap,
-      count: 0,
     },
     Completed: {
       label: "Completed",
@@ -58,7 +56,6 @@ const TaskBoard = ({
       textStyle: { color: "var(--color-success)" },
       dotColor: "var(--color-success)",
       icon: CheckCircle2,
-      count: 0,
     },
     Overdue: {
       label: "OverDue",
