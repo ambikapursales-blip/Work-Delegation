@@ -237,7 +237,7 @@ export default function DashboardPage() {
         customEndDate.setHours(23, 59, 59, 999);
       }
 
-      const promises = [
+      const [analyticsRes, tasksRes] = await Promise.all([
         reportsAPI.getDashboardAnalytics({
           period,
           userId: selectedUser === "all" ? undefined : selectedUser,
@@ -245,7 +245,6 @@ export default function DashboardPage() {
           startDate: customStartDate?.toISOString(),
           endDate: customEndDate?.toISOString(),
         }),
-        dashboardAPI.getRecentActivities(),
         taskAPI.getTasks({
           userId: selectedUser === "all" ? undefined : selectedUser,
           status: statusFilter === "all" ? undefined : statusFilter,
@@ -253,31 +252,34 @@ export default function DashboardPage() {
           startDate: customStartDate?.toISOString(),
           endDate: customEndDate?.toISOString(),
         }),
-      ];
-
-      if (isAdminOrManager) {
-        promises.push(usersAPI.getAll().catch(() => ({ data: { users: [] } })));
-      }
-
-      const [analyticsRes, activitiesRes, tasksRes, usersRes] = await Promise.all(promises);
+      ]);
 
       setAnalytics(analyticsRes.data?.analytics || null);
-      setRecentActivities(activitiesRes.data?.activities || []);
       setDashboardTasks(tasksRes.data?.tasks || []);
-
-      if (isAdminOrManager && usersRes) {
-        setUsersList(usersRes.data?.users || []);
-      }
     } catch (err) {
       setError("Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
-  }, [timePeriod, selectedUser, statusFilter, startDate, endDate, isAdminOrManager]);
+  }, [timePeriod, selectedUser, statusFilter, startDate, endDate]);
 
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  useEffect(() => {
+    dashboardAPI.getRecentActivities().then((res) => {
+      setRecentActivities(res.data?.activities || []);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (isAdminOrManager) {
+      usersAPI.getAll().then((res) => {
+        setUsersList(res.data?.users || []);
+      }).catch(() => {});
+    }
+  }, [isAdminOrManager]);
 
   useEffect(() => {
     if (!loading && analytics && viewMode === "graphs") {
