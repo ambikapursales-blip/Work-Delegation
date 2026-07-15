@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, Fragment } from "react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import dynamic from "next/dynamic";
-const TaskBoard = dynamic(() => import("@/components/TaskBoard"), { ssr: false });
+const TaskBoard = dynamic(() => import("@/components/TaskBoard"), {
+  ssr: false,
+});
 import {
   Card,
   CardContent,
@@ -41,34 +43,82 @@ import { SkeletonTable } from "@/components/skeleton";
 /* ─── Badge / tag colour helpers ─── */
 const priorityStyle = (p) => {
   const m = {
-    Critical: { bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)", clr: "var(--color-danger)",  bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)" },
-    High:     { bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)",  clr: "var(--color-warning)", bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)" },
-    Medium:   { bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",  clr: "var(--color-info)",   bd: "color-mix(in srgb, var(--color-info) 22%, transparent)" },
-    Low:      { bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",  clr: "var(--color-success)", bd: "color-mix(in srgb, var(--color-success) 22%, transparent)" },
+    Critical: {
+      bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+      clr: "var(--color-danger)",
+      bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)",
+    },
+    High: {
+      bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)",
+      clr: "var(--color-warning)",
+      bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)",
+    },
+    Medium: {
+      bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",
+      clr: "var(--color-info)",
+      bd: "color-mix(in srgb, var(--color-info) 22%, transparent)",
+    },
+    Low: {
+      bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",
+      clr: "var(--color-success)",
+      bd: "color-mix(in srgb, var(--color-success) 22%, transparent)",
+    },
   };
   const c = m[p];
   return c
     ? { background: c.bg, color: c.clr, border: `1px solid ${c.bd}` }
-    : { background: "var(--bg-muted)", color: "var(--text-muted)", border: "1px solid var(--border)" };
+    : {
+        background: "var(--bg-muted)",
+        color: "var(--text-muted)",
+        border: "1px solid var(--border)",
+      };
 };
 
 const statusStyle = (s) => {
   const m = {
-    Completed:   { bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",  clr: "var(--color-success)", bd: "color-mix(in srgb, var(--color-success) 22%, transparent)" },
-    "In Progress": { bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",  clr: "var(--color-info)",   bd: "color-mix(in srgb, var(--color-info) 22%, transparent)" },
-    Overdue:     { bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)", clr: "var(--color-danger)",  bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)" },
-    Cancelled:   { bg: "color-mix(in srgb, var(--text-muted) 12%, transparent)", clr: "var(--text-muted)", bd: "color-mix(in srgb, var(--text-muted) 22%, transparent)" },
-    "On Hold":   { bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)", clr: "var(--color-warning)", bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)" },
+    Completed: {
+      bg: "color-mix(in srgb, var(--color-success) 12%, transparent)",
+      clr: "var(--color-success)",
+      bd: "color-mix(in srgb, var(--color-success) 22%, transparent)",
+    },
+    "In Progress": {
+      bg: "color-mix(in srgb, var(--color-info) 12%, transparent)",
+      clr: "var(--color-info)",
+      bd: "color-mix(in srgb, var(--color-info) 22%, transparent)",
+    },
+    Overdue: {
+      bg: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+      clr: "var(--color-danger)",
+      bd: "color-mix(in srgb, var(--color-danger) 22%, transparent)",
+    },
+    Cancelled: {
+      bg: "color-mix(in srgb, var(--text-muted) 12%, transparent)",
+      clr: "var(--text-muted)",
+      bd: "color-mix(in srgb, var(--text-muted) 22%, transparent)",
+    },
+    "On Hold": {
+      bg: "color-mix(in srgb, var(--color-warning) 12%, transparent)",
+      clr: "var(--color-warning)",
+      bd: "color-mix(in srgb, var(--color-warning) 22%, transparent)",
+    },
   };
   const c = m[s];
   return c
     ? { background: c.bg, color: c.clr, border: `1px solid ${c.bd}` }
-    : { background: "var(--bg-muted)", color: "var(--text-muted)", border: "1px solid var(--border)" };
+    : {
+        background: "var(--bg-muted)",
+        color: "var(--text-muted)",
+        border: "1px solid var(--border)",
+      };
 };
 
 const tagStyle = (clrVar, bgOpacity = "0.12", bdOpacity = "0.22") => {
   // Return a partial style – caller provides the variable value at usage time
-  return { background: `color-mix(in srgb, ${clrVar} 12%, transparent)`, color: clrVar, border: `1px solid color-mix(in srgb, ${clrVar} 22%, transparent)` };
+  return {
+    background: `color-mix(in srgb, ${clrVar} 12%, transparent)`,
+    color: clrVar,
+    border: `1px solid color-mix(in srgb, ${clrVar} 22%, transparent)`,
+  };
 };
 
 export default function TasksPage() {
@@ -91,6 +141,8 @@ export default function TasksPage() {
     recurrencePattern: {
       frequency: "daily",
       interval: 1,
+      intervalValue: 1,
+      intervalUnit: "Days",
       daysOfWeek: [],
       dayOfMonth: 1,
     },
@@ -246,7 +298,16 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [taskViewTab, dateFilter, startDate, endDate, userFilter, canAssignTasks, currentPage, debouncedSearchQuery]);
+  }, [
+    taskViewTab,
+    dateFilter,
+    startDate,
+    endDate,
+    userFilter,
+    canAssignTasks,
+    currentPage,
+    debouncedSearchQuery,
+  ]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -269,14 +330,17 @@ export default function TasksPage() {
     const segments = pathname.split("/").filter(Boolean);
     if (segments.length >= 2 && segments[0] === "tasks" && segments[1]) {
       const taskId = segments[1];
-      taskAPI.getTask(taskId).then((res) => {
-        if (res.data?.task) {
-          setSelectedTaskForModal(res.data.task);
-          setShowTaskModal(true);
-        }
-      }).catch(() => {
-        // silently ignore — task not found or no access
-      });
+      taskAPI
+        .getTask(taskId)
+        .then((res) => {
+          if (res.data?.task) {
+            setSelectedTaskForModal(res.data.task);
+            setShowTaskModal(true);
+          }
+        })
+        .catch(() => {
+          // silently ignore — task not found or no access
+        });
     }
   }, [pathname]);
 
@@ -292,7 +356,9 @@ export default function TasksPage() {
         assignedTo:
           formData.assignedTo.length > 0
             ? formData.assignedTo
-            : (users.length > 0 ? [users[0]._id] : []),
+            : users.length > 0
+              ? [users[0]._id]
+              : [],
         deadline:
           formData.deadline ||
           new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -302,8 +368,8 @@ export default function TasksPage() {
       const response = await taskAPI.createTask(taskData);
       const createdTask = response.data?.task;
       if (createdTask) {
-        setTasks(prev => [createdTask, ...prev]);
-        setTotalTasks(prev => prev + 1);
+        setTasks((prev) => [createdTask, ...prev]);
+        setTotalTasks((prev) => prev + 1);
       }
       setSuccess("Task created successfully!");
       setFormData({
@@ -318,6 +384,8 @@ export default function TasksPage() {
         recurrencePattern: {
           frequency: "daily",
           interval: 1,
+          intervalValue: 1,
+          intervalUnit: "Days",
           daysOfWeek: [],
           dayOfMonth: 1,
         },
@@ -433,10 +501,10 @@ export default function TasksPage() {
   };
 
   const handleSelectTask = (taskId) => {
-    setSelectedTasks(prev =>
+    setSelectedTasks((prev) =>
       prev.includes(taskId)
-        ? prev.filter(id => id !== taskId)
-        : [...prev, taskId]
+        ? prev.filter((id) => id !== taskId)
+        : [...prev, taskId],
     );
   };
 
@@ -444,7 +512,7 @@ export default function TasksPage() {
     if (selectedTasks.length === tasksToDisplay.length) {
       setSelectedTasks([]);
     } else {
-      setSelectedTasks(tasksToDisplay.map(task => task._id));
+      setSelectedTasks(tasksToDisplay.map((task) => task._id));
     }
   };
 
@@ -457,11 +525,16 @@ export default function TasksPage() {
 
   const handleBulkDeleteTasks = async () => {
     if (selectedTasks.length === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedTasks.length} task(s)?`)) return;
-    
+    if (
+      !confirm(
+        `Are you sure you want to delete ${selectedTasks.length} task(s)?`,
+      )
+    )
+      return;
+
     try {
       setBulkDeleting(true);
-      await Promise.all(selectedTasks.map(id => taskAPI.deleteTask(id)));
+      await Promise.all(selectedTasks.map((id) => taskAPI.deleteTask(id)));
       setSuccess(`${selectedTasks.length} task(s) deleted successfully!`);
       setSelectedTasks([]);
       fetchTasks();
@@ -550,10 +623,16 @@ export default function TasksPage() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <h1
+              className="text-2xl sm:text-3xl font-bold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
               Tasks
             </h1>
-            <p className="text-sm sm:text-base mt-1 font-medium" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="text-sm sm:text-base mt-1 font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
               {canAssignTasks ? "Manage all tasks" : "Your assigned tasks"}
             </p>
           </div>
@@ -563,7 +642,10 @@ export default function TasksPage() {
               className="btn-create-task font-bold text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl w-full sm:w-auto justify-center"
               style={{ color: "var(--active-text)" }}
             >
-              <Plus className="h-4 sm:h-5 w-4 sm:w-5 mr-2" style={{ color: "var(--active-text)" }} />
+              <Plus
+                className="h-4 sm:h-5 w-4 sm:w-5 mr-2"
+                style={{ color: "var(--active-text)" }}
+              />
               Create Task
             </Button>
           )}
@@ -585,25 +667,49 @@ export default function TasksPage() {
 
       {/* Create Task Modal */}
       {canAssignTasks && activeTab === "create" && (
-        <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+        >
           <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
             <Card className="w-full max-w-3xl relative overflow-hidden">
               {/* Ambient glow */}
-              <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
-                style={{ background: "color-mix(in srgb, var(--color-success) 6%, transparent)" }} />
-              <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
-                style={{ background: "color-mix(in srgb, var(--color-info) 6%, transparent)" }} />
+              <div
+                className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--color-success) 6%, transparent)",
+                }}
+              />
+              <div
+                className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--color-info) 6%, transparent)",
+                }}
+              />
 
-              <CardHeader className="px-8 py-6 relative z-10"
-                style={{ borderBottom: "1px solid var(--border)" }}>
+              <CardHeader
+                className="px-8 py-6 relative z-10"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
-                      style={{ background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)" }}>
-                      <div className="w-full h-full rounded-2xl flex items-center justify-center"
-                        style={{ backgroundColor: "var(--bg-card)" }}>
-                        <Plus className="w-6 h-6" style={{ color: "var(--active-start)" }} />
+                    <div
+                      className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                      }}
+                    >
+                      <div
+                        className="w-full h-full rounded-2xl flex items-center justify-center"
+                        style={{ backgroundColor: "var(--bg-card)" }}
+                      >
+                        <Plus
+                          className="w-6 h-6"
+                          style={{ color: "var(--active-start)" }}
+                        />
                       </div>
                     </div>
                     <div>
@@ -623,10 +729,16 @@ export default function TasksPage() {
                       border: "1px solid var(--border)",
                     }}
                   >
-                    <X className="w-5 h-5 transition-colors"
+                    <X
+                      className="w-5 h-5 transition-colors"
                       style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-primary)"}
-                      onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"} />
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "var(--text-primary)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = "var(--text-muted)")
+                      }
+                    />
                   </button>
                 </div>
               </CardHeader>
@@ -635,9 +747,13 @@ export default function TasksPage() {
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {/* Title - Full width */}
                   <div className="space-y-2">
-                    <Label htmlFor="title" className="text-sm font-semibold"
-                      style={{ color: "var(--text-primary)" }}>
-                      Task Title <span style={{ color: "var(--color-danger)" }}>*</span>
+                    <Label
+                      htmlFor="title"
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Task Title{" "}
+                      <span style={{ color: "var(--color-danger)" }}>*</span>
                     </Label>
                     <Input
                       id="title"
@@ -654,52 +770,81 @@ export default function TasksPage() {
                   {/* Row: Assign To | Priority */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
-                        Assign To <span style={{ color: "var(--color-danger)" }}>*</span>
+                      <Label
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Assign To{" "}
+                        <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
-                      <div className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
+                      <div
+                        className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
                         style={{
                           backgroundColor: "var(--bg-surface)",
                           border: "1px solid var(--border)",
-                        }}>
+                        }}
+                      >
                         {users.length === 0 ? (
-                          <p className="text-sm p-3 text-center" style={{ color: "var(--text-muted)" }}>Loading users...</p>
+                          <p
+                            className="text-sm p-3 text-center"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            Loading users...
+                          </p>
                         ) : (
                           users.map((u) => {
-                            const isSelected = formData.assignedTo.includes(u._id);
+                            const isSelected = formData.assignedTo.includes(
+                              u._id,
+                            );
                             return (
                               <label
                                 key={u._id}
                                 className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200"
                                 style={{
-                                  backgroundColor: isSelected ? "color-mix(in srgb, var(--color-success) 8%, transparent)" : "transparent",
-                                  border: isSelected ? "1px solid color-mix(in srgb, var(--color-success) 0.2)" : "1px solid transparent",
+                                  backgroundColor: isSelected
+                                    ? "color-mix(in srgb, var(--color-success) 8%, transparent)"
+                                    : "transparent",
+                                  border: isSelected
+                                    ? "1px solid color-mix(in srgb, var(--color-success) 0.2)"
+                                    : "1px solid transparent",
                                 }}
                               >
                                 <div
                                   className="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0"
                                   style={{
-                                    backgroundColor: isSelected ? "var(--color-success)" : "var(--bg-muted)",
-                                    borderColor: isSelected ? "var(--color-success)" : "var(--border)",
+                                    backgroundColor: isSelected
+                                      ? "var(--color-success)"
+                                      : "var(--bg-muted)",
+                                    borderColor: isSelected
+                                      ? "var(--color-success)"
+                                      : "var(--border)",
                                   }}
                                 >
                                   {isSelected && (
-                                    <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "var(--text-inverse)" }} />
+                                    <CheckCircle2
+                                      className="w-3.5 h-3.5"
+                                      style={{ color: "var(--text-inverse)" }}
+                                    />
                                   )}
                                 </div>
                                 <div className="flex-1 flex items-center justify-between min-w-0">
                                   <span
                                     className="text-sm font-medium truncate"
-                                    style={{ color: isSelected ? "var(--text-primary)" : "var(--text-secondary)" }}
+                                    style={{
+                                      color: isSelected
+                                        ? "var(--text-primary)"
+                                        : "var(--text-secondary)",
+                                    }}
                                   >
                                     {u.name}
                                   </span>
-                                  <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
+                                  <span
+                                    className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
                                     style={{
                                       color: "var(--text-muted)",
                                       backgroundColor: "var(--bg-muted)",
-                                    }}>
+                                    }}
+                                  >
                                     {u.role}
                                   </span>
                                 </div>
@@ -734,8 +879,11 @@ export default function TasksPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="priority" className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
+                      <Label
+                        htmlFor="priority"
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         Priority
                       </Label>
                       <select
@@ -760,9 +908,12 @@ export default function TasksPage() {
                   {/* Row: Deadline | Task Type */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label htmlFor="deadline" className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
-                        Deadline
+                      <Label
+                        htmlFor="deadline"
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Task Deadline
                       </Label>
                       <DatePicker
                         selected={toDate(formData.deadline)}
@@ -784,8 +935,10 @@ export default function TasksPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
+                      <Label
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         Task Type
                       </Label>
                       <select
@@ -798,8 +951,12 @@ export default function TasksPage() {
                             recurrencePattern:
                               e.target.value !== "One Time"
                                 ? {
-                                    frequency: e.target.value.toLowerCase().replace(" ", ""),
+                                    frequency: e.target.value
+                                      .toLowerCase()
+                                      .replace(" ", ""),
                                     interval: 1,
+                                    intervalValue: 1,
+                                    intervalUnit: "Days",
                                     daysOfWeek: [],
                                     dayOfMonth: 1,
                                   }
@@ -815,12 +972,15 @@ export default function TasksPage() {
                         <option value="Quarterly">Quarterly</option>
                         <option value="Half Yearly">Half Yearly</option>
                         <option value="Yearly">Yearly</option>
+                        <option value="Custom">Custom</option>
                       </select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
+                      <Label
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         Category
                       </Label>
                       <select
@@ -836,7 +996,9 @@ export default function TasksPage() {
                         <option value="Sales">Sales</option>
                         <option value="HR">HR</option>
                         <option value="Operations">Operations</option>
-                        <option value="Customer Support">Customer Support</option>
+                        <option value="Customer Support">
+                          Customer Support
+                        </option>
                         <option value="Admin">Admin</option>
                         <option value="General">General</option>
                         <option value="Marketing">Marketing</option>
@@ -846,31 +1008,42 @@ export default function TasksPage() {
                   </div>
 
                   {/* Recurring Pattern Options */}
-                  {formData.taskType !== "One Time" && (
-                    <div className="space-y-3 rounded-2xl p-4 animate-fade-in"
+                  {formData.taskType === "Custom" && (
+                    <div
+                      className="space-y-3 rounded-2xl p-4 animate-fade-in"
                       style={{
                         backgroundColor: "var(--bg-muted)",
                         border: "1px solid var(--border)",
-                      }}>
-                      <Label className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
-                        Recurrence Details
+                      }}
+                    >
+                      <Label
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Repeat Settings
                       </Label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium"
-                            style={{ color: "var(--text-muted)" }}>
+                          <Label
+                            className="text-xs font-medium"
+                            style={{ color: "var(--text-muted)" }}
+                          >
                             Repeat every
                           </Label>
                           <Input
                             type="number"
                             min="1"
-                            value={formData.recurrencePattern.interval}
+                            value={
+                              formData.recurrencePattern.intervalValue ??
+                              formData.recurrencePattern.interval ??
+                              1
+                            }
                             onChange={(e) =>
                               setFormData({
                                 ...formData,
                                 recurrencePattern: {
                                   ...formData.recurrencePattern,
+                                  intervalValue: parseInt(e.target.value) || 1,
                                   interval: parseInt(e.target.value) || 1,
                                 },
                               })
@@ -879,29 +1052,62 @@ export default function TasksPage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-xs font-medium"
-                            style={{ color: "var(--text-muted)" }}>
-                            End Date
+                          <Label
+                            className="text-xs font-medium"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            Interval unit
                           </Label>
-                          <DatePicker
-                            selected={toDate(formData.recurrenceEndDate)}
-                            onChange={(date) =>
+                          <select
+                            value={
+                              formData.recurrencePattern.intervalUnit ||
+                              "Days"
+                            }
+                            onChange={(e) =>
                               setFormData({
                                 ...formData,
-                                recurrenceEndDate: toDateStr(date),
+                                recurrencePattern: {
+                                  ...formData.recurrencePattern,
+                                  intervalUnit: e.target.value,
+                                },
                               })
                             }
-                            dateFormat="dd MMM yyyy"
-                            placeholderText="No end date"
-                            className="input-field h-11 text-sm cursor-pointer"
-                            wrapperClassName="w-full"
-                            popperClassName="react-datepicker-dark"
-                            calendarClassName="react-datepicker-dark-calendar"
-                            isClearable
-                            showPopperArrow={false}
-                          />
+                            className="input-field h-11 text-sm"
+                          >
+                            <option value="Minutes">Minutes</option>
+                            <option value="Hours">Hours</option>
+                            <option value="Days">Days</option>
+                            <option value="Weeks">Weeks</option>
+                            <option value="Months">Months</option>
+                          </select>
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label
+                          className="text-xs font-medium"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          Repeat Until
+                        </Label>
+                        <DatePicker
+                          selected={toDate(formData.recurrenceEndDate)}
+                          onChange={(date) =>
+                            setFormData({
+                              ...formData,
+                              recurrenceEndDate: toDateStr(date),
+                            })
+                          }
+                          dateFormat="dd MMM yyyy"
+                          placeholderText="No end date"
+                          className="input-field h-11 text-sm cursor-pointer"
+                          wrapperClassName="w-full"
+                          popperClassName="react-datepicker-dark"
+                          calendarClassName="react-datepicker-dark-calendar"
+                          isClearable
+                          showPopperArrow={false}
+                        />
+                      </div>
+
                     </div>
                   )}
 
@@ -930,16 +1136,20 @@ export default function TasksPage() {
                   </div>
 
                   {/* Buttons */}
-                  <div className="grid grid-cols-2 gap-4 pt-4"
-                    style={{ borderTop: "1px solid var(--border)" }}>
+                  <div
+                    className="grid grid-cols-2 gap-4 pt-4"
+                    style={{ borderTop: "1px solid var(--border)" }}
+                  >
                     <Button
                       type="submit"
                       loading={isSubmitting}
                       loadingText="Creating..."
                       style={{
-                        background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                        background:
+                          "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
                         color: "var(--active-text)",
-                        boxShadow: "0 2px 12px color-mix(in srgb, var(--active-start) 30%, transparent)",
+                        boxShadow:
+                          "0 2px 12px color-mix(in srgb, var(--active-start) 30%, transparent)",
                       }}
                       className="h-[52px] font-bold text-base rounded-xl"
                     >
@@ -964,24 +1174,45 @@ export default function TasksPage() {
 
       {/* Edit Task Modal */}
       {editingTask && (
-        <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+        >
           <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
             <Card className="w-full max-w-3xl relative overflow-hidden">
               {/* Ambient glow */}
-              <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
-                style={{ background: "color-mix(in srgb, var(--color-info) 6%, transparent)" }} />
-              <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
-                style={{ background: "color-mix(in srgb, var(--color-success) 6%, transparent)" }} />
+              <div
+                className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--color-info) 6%, transparent)",
+                }}
+              />
+              <div
+                className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--color-success) 6%, transparent)",
+                }}
+              />
 
-              <CardHeader className="px-8 py-6 relative z-10"
-                style={{ borderBottom: "1px solid var(--border)" }}>
+              <CardHeader
+                className="px-8 py-6 relative z-10"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
-style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)" }}>
-          <div className="w-full h-full rounded-2xl flex items-center justify-center"
-                        style={{ backgroundColor: "var(--bg-card)" }}>
+                    <div
+                      className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)",
+                      }}
+                    >
+                      <div
+                        className="w-full h-full rounded-2xl flex items-center justify-center"
+                        style={{ backgroundColor: "var(--bg-card)" }}
+                      >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           className="w-6 h-6"
@@ -1015,10 +1246,16 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       border: "1px solid var(--border)",
                     }}
                   >
-                    <X className="w-5 h-5 transition-colors"
+                    <X
+                      className="w-5 h-5 transition-colors"
                       style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-primary)"}
-                      onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"} />
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "var(--text-primary)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = "var(--text-muted)")
+                      }
+                    />
                   </button>
                 </div>
               </CardHeader>
@@ -1027,9 +1264,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                 <form onSubmit={handleEditSubmit} className="space-y-5">
                   {/* Title */}
                   <div className="space-y-2">
-                    <Label htmlFor="edit-title" className="text-sm font-semibold"
-                      style={{ color: "var(--text-primary)" }}>
-                      Task Title <span style={{ color: "var(--color-danger)" }}>*</span>
+                    <Label
+                      htmlFor="edit-title"
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Task Title{" "}
+                      <span style={{ color: "var(--color-danger)" }}>*</span>
                     </Label>
                     <Input
                       id="edit-title"
@@ -1049,52 +1290,81 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   {/* Row: Assign To | Priority */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
-                        Assign To <span style={{ color: "var(--color-danger)" }}>*</span>
+                      <Label
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Assign To{" "}
+                        <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
-                      <div className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
+                      <div
+                        className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
                         style={{
                           backgroundColor: "var(--bg-surface)",
                           border: "1px solid var(--border)",
-                        }}>
+                        }}
+                      >
                         {users.length === 0 ? (
-                          <p className="text-sm p-3 text-center" style={{ color: "var(--text-muted)" }}>Loading users...</p>
+                          <p
+                            className="text-sm p-3 text-center"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            Loading users...
+                          </p>
                         ) : (
                           users.map((u) => {
-                            const isSelected = editFormData.assignedTo.includes(u._id);
+                            const isSelected = editFormData.assignedTo.includes(
+                              u._id,
+                            );
                             return (
                               <label
                                 key={u._id}
                                 className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200"
                                 style={{
-                                  backgroundColor: isSelected ? "color-mix(in srgb, var(--color-success) 8%, transparent)" : "transparent",
-                                  border: isSelected ? "1px solid color-mix(in srgb, var(--color-success) 0.2)" : "1px solid transparent",
+                                  backgroundColor: isSelected
+                                    ? "color-mix(in srgb, var(--color-success) 8%, transparent)"
+                                    : "transparent",
+                                  border: isSelected
+                                    ? "1px solid color-mix(in srgb, var(--color-success) 0.2)"
+                                    : "1px solid transparent",
                                 }}
                               >
                                 <div
                                   className="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0"
                                   style={{
-                                    backgroundColor: isSelected ? "var(--color-success)" : "var(--bg-muted)",
-                                    borderColor: isSelected ? "var(--color-success)" : "var(--border)",
+                                    backgroundColor: isSelected
+                                      ? "var(--color-success)"
+                                      : "var(--bg-muted)",
+                                    borderColor: isSelected
+                                      ? "var(--color-success)"
+                                      : "var(--border)",
                                   }}
                                 >
                                   {isSelected && (
-                                    <CheckCircle2 className="w-3.5 h-3.5" style={{ color: "var(--text-inverse)" }} />
+                                    <CheckCircle2
+                                      className="w-3.5 h-3.5"
+                                      style={{ color: "var(--text-inverse)" }}
+                                    />
                                   )}
                                 </div>
                                 <div className="flex-1 flex items-center justify-between min-w-0">
                                   <span
                                     className="text-sm font-medium truncate"
-                                    style={{ color: isSelected ? "var(--text-primary)" : "var(--text-secondary)" }}
+                                    style={{
+                                      color: isSelected
+                                        ? "var(--text-primary)"
+                                        : "var(--text-secondary)",
+                                    }}
                                   >
                                     {u.name}
                                   </span>
-                                  <span className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
+                                  <span
+                                    className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
                                     style={{
                                       color: "var(--text-muted)",
                                       backgroundColor: "var(--bg-muted)",
-                                    }}>
+                                    }}
+                                  >
                                     {u.role}
                                   </span>
                                 </div>
@@ -1130,9 +1400,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="edit-priority" className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
-                        Priority <span style={{ color: "var(--color-danger)" }}>*</span>
+                      <Label
+                        htmlFor="edit-priority"
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Priority{" "}
+                        <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
                       <select
                         id="edit-priority"
@@ -1156,8 +1430,11 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   {/* Row: Task Type | Category */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label htmlFor="edit-taskType" className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
+                      <Label
+                        htmlFor="edit-taskType"
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         Task Type
                       </Label>
                       <select
@@ -1178,12 +1455,16 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         <option value="Quarterly">Quarterly</option>
                         <option value="Half Yearly">Half Yearly</option>
                         <option value="Yearly">Yearly</option>
+                        <option value="Custom">Custom</option>
                       </select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="edit-category" className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
+                      <Label
+                        htmlFor="edit-category"
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         Category
                       </Label>
                       <select
@@ -1200,7 +1481,9 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         <option value="Sales">Sales</option>
                         <option value="HR">HR</option>
                         <option value="Operations">Operations</option>
-                        <option value="Customer Support">Customer Support</option>
+                        <option value="Customer Support">
+                          Customer Support
+                        </option>
                         <option value="Admin">Admin</option>
                         <option value="General">General</option>
                         <option value="Marketing">Marketing</option>
@@ -1212,9 +1495,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   {/* Row: Deadline | Description */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
-                      <Label htmlFor="edit-deadline" className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}>
-                        Deadline <span style={{ color: "var(--color-danger)" }}>*</span>
+                      <Label
+                        htmlFor="edit-deadline"
+                        className="text-sm font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Deadline{" "}
+                        <span style={{ color: "var(--color-danger)" }}>*</span>
                       </Label>
                       <DatePicker
                         selected={toDate(editFormData.deadline)}
@@ -1261,16 +1548,20 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   </div>
 
                   {/* Buttons */}
-                  <div className="grid grid-cols-2 gap-4 pt-4"
-                    style={{ borderTop: "1px solid var(--border)" }}>
+                  <div
+                    className="grid grid-cols-2 gap-4 pt-4"
+                    style={{ borderTop: "1px solid var(--border)" }}
+                  >
                     <Button
                       type="submit"
                       loading={editingSubmitting}
                       loadingText="Updating..."
                       style={{
-                        background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)",
+                        background:
+                          "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)",
                         color: "white",
-                        boxShadow: "0 2px 12px color-mix(in srgb, var(--color-info) 0.3)",
+                        boxShadow:
+                          "0 2px 12px color-mix(in srgb, var(--color-info) 0.3)",
                       }}
                       className="h-[52px] font-bold text-base rounded-xl"
                     >
@@ -1299,7 +1590,14 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
           {loading ? (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               <div className="space-y-4">
-                <div className="animate-shimmer rounded-lg h-9 w-72" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
+                <div
+                  className="animate-shimmer rounded-lg h-9 w-72"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",
+                    backgroundSize: "200% 100%",
+                  }}
+                />
                 <SkeletonTable rows={6} cols={5} />
               </div>
             </div>
@@ -1309,57 +1607,66 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
               <div className="glass-card p-5 mb-6">
                 <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
                   <div className="flex flex-wrap gap-3 items-center">
-                    <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       Status:
                     </span>
                     <div className="flex gap-2">
-                      {[
-                        "all",
-                        "completed",
-                        "inprogress",
-                        "overdue",
-                      ].map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => {
-                            setTaskViewTab(status);
-                            setCurrentPage(1);
-                          }}
-                          className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
-                          style={
-                            taskViewTab === status
-                              ? {
-                                  background: "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
-                                  color: "var(--active-text)",
-                                  fontWeight: 600,
-                                  boxShadow: "0 4px 14px color-mix(in srgb, var(--active-end) 40%, transparent)",
-                                }
-                              : {
-                                  backgroundColor: "var(--bg-muted)",
-                                  color: "var(--text-muted)",
-                                }
-                          }
-                          onMouseEnter={(e) => {
-                            if (taskViewTab !== status) {
-                              e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
-                              e.currentTarget.style.color = "var(--text-primary)";
+                      {["all", "completed", "inprogress", "overdue"].map(
+                        (status) => (
+                          <button
+                            key={status}
+                            onClick={() => {
+                              setTaskViewTab(status);
+                              setCurrentPage(1);
+                            }}
+                            className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                            style={
+                              taskViewTab === status
+                                ? {
+                                    background:
+                                      "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
+                                    color: "var(--active-text)",
+                                    fontWeight: 600,
+                                    boxShadow:
+                                      "0 4px 14px color-mix(in srgb, var(--active-end) 40%, transparent)",
+                                  }
+                                : {
+                                    backgroundColor: "var(--bg-muted)",
+                                    color: "var(--text-muted)",
+                                  }
                             }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (taskViewTab !== status) {
-                              e.currentTarget.style.backgroundColor = "var(--bg-muted)";
-                              e.currentTarget.style.color = "var(--text-muted)";
-                            }
-                          }}
-                        >
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </button>
-                      ))}
+                            onMouseEnter={(e) => {
+                              if (taskViewTab !== status) {
+                                e.currentTarget.style.backgroundColor =
+                                  "var(--bg-card-hover)";
+                                e.currentTarget.style.color =
+                                  "var(--text-primary)";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (taskViewTab !== status) {
+                                e.currentTarget.style.backgroundColor =
+                                  "var(--bg-muted)";
+                                e.currentTarget.style.color =
+                                  "var(--text-muted)";
+                              }
+                            }}
+                          >
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </button>
+                        ),
+                      )}
                     </div>
                   </div>
 
                   <div className="flex flex-wrap gap-3 items-center">
-                    <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       Period:
                     </span>
                     <select
@@ -1381,7 +1688,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
                   {canAssignTasks && (
                     <div className="flex flex-wrap gap-3 items-center">
-                      <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
                         User:
                       </span>
                       <select
@@ -1406,11 +1716,15 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
                 {/* Custom Date Range */}
                 {dateFilter === "custom" && (
-                  <div className="flex gap-4 mt-4 pt-4"
-                    style={{ borderTop: "1px solid var(--border)" }}>
+                  <div
+                    className="flex gap-4 mt-4 pt-4"
+                    style={{ borderTop: "1px solid var(--border)" }}
+                  >
                     <div className="flex-1">
-                      <label className="text-xs font-medium mb-1 block"
-                        style={{ color: "var(--text-muted)" }}>
+                      <label
+                        className="text-xs font-medium mb-1 block"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         Start Date
                       </label>
                       <input
@@ -1421,8 +1735,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="text-xs font-medium mb-1 block"
-                        style={{ color: "var(--text-muted)" }}>
+                      <label
+                        className="text-xs font-medium mb-1 block"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         End Date
                       </label>
                       <input
@@ -1438,8 +1754,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
               {/* Tasks Table */}
               <div className="glass-card overflow-hidden">
-                <div className="px-4 py-3 flex items-center gap-3"
-                  style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                <div
+                  className="px-4 py-3 flex items-center gap-3"
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    background: "var(--bg-muted)",
+                  }}
+                >
                   <div className="flex-1 relative">
                     <input
                       type="text"
@@ -1451,33 +1772,53 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       }}
                       className="input-field w-full text-sm pl-9"
                     />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs"
-                      style={{ color: "var(--text-muted)" }}>
+                    <span
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       {isSearching ? "⏳" : "🔍"}
                     </span>
                   </div>
                 </div>
                 {selectedTasks.length > 0 && (
-                  <div className="px-4 py-3 flex items-center justify-between gap-3"
-                    style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
-                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                      {selectedTasks.length} task{selectedTasks.length > 1 ? 's' : ''} selected
+                  <div
+                    className="px-4 py-3 flex items-center justify-between gap-3"
+                    style={{
+                      borderBottom: "1px solid var(--border)",
+                      background: "var(--bg-muted)",
+                    }}
+                  >
+                    <span
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {selectedTasks.length} task
+                      {selectedTasks.length > 1 ? "s" : ""} selected
                     </span>
                     <button
                       onClick={handleBulkDeleteTasks}
                       disabled={bulkDeleting}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                       style={{
-                        background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+                        background:
+                          "color-mix(in srgb, var(--color-danger) 12%, transparent)",
                         color: "var(--color-danger)",
-                        border: "1px solid color-mix(in srgb, var(--color-danger) 22%, transparent)",
+                        border:
+                          "1px solid color-mix(in srgb, var(--color-danger) 22%, transparent)",
                         opacity: bulkDeleting ? 0.6 : 1,
                         cursor: bulkDeleting ? "not-allowed" : "pointer",
                       }}
                     >
                       {bulkDeleting ? (
                         <>
-                          <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
+                          <span
+                            className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0"
+                            style={{
+                              background:
+                                "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",
+                              backgroundSize: "200% 100%",
+                            }}
+                          />
                           Deleting...
                         </>
                       ) : (
@@ -1496,7 +1837,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         <th className="px-4 py-3 text-left w-10">
                           <input
                             type="checkbox"
-                            checked={selectedTasks.length === tasksToDisplay.length && tasksToDisplay.length > 0}
+                            checked={
+                              selectedTasks.length === tasksToDisplay.length &&
+                              tasksToDisplay.length > 0
+                            }
                             onChange={handleSelectAllTasks}
                           />
                         </th>
@@ -1506,7 +1850,9 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         <th className="px-4 py-3 text-left">Created Date</th>
                         <th className="px-4 py-3 text-left">Deadline</th>
                         <th className="px-4 py-3 text-left">Category</th>
-                        <th className="px-4 py-3 text-left">Remaining / Overdue</th>
+                        <th className="px-4 py-3 text-left">
+                          Remaining / Overdue
+                        </th>
                         <th className="px-4 py-3 text-left">Actions</th>
                       </tr>
                     </thead>
@@ -1515,11 +1861,19 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                         <tr>
                           <td colSpan="9" className="px-4 py-12 text-center">
                             <div className="flex flex-col items-center gap-3">
-                              <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                                style={{ backgroundColor: "var(--bg-muted)" }}>
-                                <CheckCircle2 size={28} style={{ color: "var(--text-muted)" }} />
+                              <div
+                                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                style={{ backgroundColor: "var(--bg-muted)" }}
+                              >
+                                <CheckCircle2
+                                  size={28}
+                                  style={{ color: "var(--text-muted)" }}
+                                />
                               </div>
-                              <p className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                              <p
+                                className="font-medium"
+                                style={{ color: "var(--text-secondary)" }}
+                              >
                                 No tasks found
                               </p>
                             </div>
@@ -1540,11 +1894,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                           now.setHours(0, 0, 0, 0);
                           deadlineDate.setHours(0, 0, 0, 0);
                           const diffTime = deadlineDate - now;
-                          const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          
+                          const daysRemaining = Math.ceil(
+                            diffTime / (1000 * 60 * 60 * 24),
+                          );
+
                           let remainingText = "";
                           let remainingColor = "";
-                          
+
                           if (status === "Completed") {
                             if (task.completedAt) {
                               remainingText = `Completed on ${new Date(task.completedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
@@ -1554,13 +1910,13 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                             remainingColor = "var(--color-success)";
                           } else if (status === "Overdue") {
                             const overdueDays = Math.abs(daysRemaining);
-                            remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? 's' : ''}`;
+                            remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? "s" : ""}`;
                             remainingColor = "var(--color-danger)";
                           } else if (daysRemaining === 0) {
                             remainingText = "Due Today";
                             remainingColor = "var(--color-danger)";
                           } else if (daysRemaining <= 5) {
-                            remainingText = `${daysRemaining} Day${daysRemaining > 1 ? 's' : ''} Left`;
+                            remainingText = `${daysRemaining} Day${daysRemaining > 1 ? "s" : ""} Left`;
                             remainingColor = "var(--color-warning)";
                           } else {
                             remainingText = `${daysRemaining} Days Left`;
@@ -1582,7 +1938,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                   )
                                 }
                               >
-                                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                <td
+                                  className="px-4 py-3"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <input
                                     type="checkbox"
                                     checked={selectedTasks.includes(task._id)}
@@ -1598,8 +1957,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       setShowTaskModal(true);
                                     }}
                                   >
-                                    <p className="font-medium text-sm truncate"
-                                      style={{ color: "var(--text-primary)" }}>
+                                    <p
+                                      className="font-medium text-sm truncate"
+                                      style={{ color: "var(--text-primary)" }}
+                                    >
                                       {task.title}
                                     </p>
                                   </div>
@@ -1625,8 +1986,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                               className="text-xs font-medium px-2 py-1 rounded-md border"
                                               style={{
                                                 color: "var(--color-info)",
-                                                backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
-                                                borderColor: "color-mix(in srgb, var(--color-info) 0.2)",
+                                                backgroundColor:
+                                                  "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                                borderColor:
+                                                  "color-mix(in srgb, var(--color-info) 0.2)",
                                               }}
                                               title={user.name || user}
                                             >
@@ -1634,25 +1997,34 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                             </span>
                                           ))}
                                         {task.assignedTo.length > 3 && (
-                                          <span className="text-xs font-medium px-2 py-1 rounded-md border"
+                                          <span
+                                            className="text-xs font-medium px-2 py-1 rounded-md border"
                                             style={{
                                               color: "var(--text-secondary)",
-                                              backgroundColor: "var(--bg-muted)",
+                                              backgroundColor:
+                                                "var(--bg-muted)",
                                               borderColor: "var(--border)",
-                                            }}>
+                                            }}
+                                          >
                                             +{task.assignedTo.length - 3} more
                                           </span>
                                         )}
                                       </div>
                                     ) : (
-                                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                      <span
+                                        className="text-xs"
+                                        style={{ color: "var(--text-muted)" }}
+                                      >
                                         Unassigned
                                       </span>
                                     )}
                                   </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                  <span
+                                    className="text-xs"
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
                                     {task.createdAt
                                       ? new Date(
                                           task.createdAt,
@@ -1665,7 +2037,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                   </span>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                  <span
+                                    className="text-xs"
+                                    style={{ color: "var(--text-secondary)" }}
+                                  >
                                     {task.deadline
                                       ? new Date(
                                           task.deadline,
@@ -1682,8 +2057,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                     className="text-xs font-medium px-2 py-1 rounded-md border"
                                     style={{
                                       color: "var(--color-info)",
-                                      backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
-                                      borderColor: "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                                      backgroundColor:
+                                        "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                      borderColor:
+                                        "color-mix(in srgb, var(--color-info) 20%, transparent)",
                                     }}
                                   >
                                     {task.category || "General"}
@@ -1711,8 +2088,14 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                           className="p-1.5 rounded-md transition-colors"
                                           title="Edit task"
                                           style={{ color: "var(--color-info)" }}
-                                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-info) 8%, transparent)"}
-                                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                          onMouseEnter={(e) =>
+                                            (e.currentTarget.style.backgroundColor =
+                                              "color-mix(in srgb, var(--color-info) 8%, transparent)")
+                                          }
+                                          onMouseLeave={(e) =>
+                                            (e.currentTarget.style.backgroundColor =
+                                              "transparent")
+                                          }
                                         >
                                           <svg
                                             xmlns="http://www.w3.org/2000/svg"
@@ -1734,9 +2117,17 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                         onClick={() => handleComplete(task._id)}
                                         className="p-1.5 rounded-md transition-colors"
                                         title="Mark as complete"
-                                        style={{ color: "var(--color-success)" }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-success) 8%, transparent)"}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                        style={{
+                                          color: "var(--color-success)",
+                                        }}
+                                        onMouseEnter={(e) =>
+                                          (e.currentTarget.style.backgroundColor =
+                                            "color-mix(in srgb, var(--color-success) 8%, transparent)")
+                                        }
+                                        onMouseLeave={(e) =>
+                                          (e.currentTarget.style.backgroundColor =
+                                            "transparent")
+                                        }
                                       >
                                         <CheckCircle2 className="w-4 h-4" />
                                       </button>
@@ -1746,8 +2137,14 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                       className="p-1.5 rounded-md transition-colors"
                                       title="Open conversation"
                                       style={{ color: "var(--color-primary)" }}
-                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-primary) 8%, transparent)"}
-                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                      onMouseEnter={(e) =>
+                                        (e.currentTarget.style.backgroundColor =
+                                          "color-mix(in srgb, var(--color-primary) 8%, transparent)")
+                                      }
+                                      onMouseLeave={(e) =>
+                                        (e.currentTarget.style.backgroundColor =
+                                          "transparent")
+                                      }
                                     >
                                       <MessageSquare className="w-4 h-4" />
                                     </Link>
@@ -1757,24 +2154,39 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                         disabled={deletingTaskId === task._id}
                                         className="p-1.5 rounded-md transition-colors"
                                         title="Delete task"
-                                        style={{ 
+                                        style={{
                                           color: "var(--color-danger)",
-                                          opacity: deletingTaskId === task._id ? 0.6 : 1,
-                                          cursor: deletingTaskId === task._id ? "not-allowed" : "pointer",
+                                          opacity:
+                                            deletingTaskId === task._id
+                                              ? 0.6
+                                              : 1,
+                                          cursor:
+                                            deletingTaskId === task._id
+                                              ? "not-allowed"
+                                              : "pointer",
                                         }}
                                         onMouseEnter={(e) => {
                                           if (deletingTaskId !== task._id) {
-                                            e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
+                                            e.currentTarget.style.backgroundColor =
+                                              "color-mix(in srgb, var(--color-danger) 8%, transparent)";
                                           }
                                         }}
                                         onMouseLeave={(e) => {
                                           if (deletingTaskId !== task._id) {
-                                            e.currentTarget.style.backgroundColor = "transparent";
+                                            e.currentTarget.style.backgroundColor =
+                                              "transparent";
                                           }
                                         }}
                                       >
                                         {deletingTaskId === task._id ? (
-                                          <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
+                                          <span
+                                            className="animate-shimmer inline-block rounded-full w-3.5 h-3.5"
+                                            style={{
+                                              background:
+                                                "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",
+                                              backgroundSize: "200% 100%",
+                                            }}
+                                          />
                                         ) : (
                                           <Trash2 className="w-4 h-4" />
                                         )}
@@ -1784,14 +2196,27 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                 </td>
                               </tr>
                               {showCompleteInput === task._id && (
-                                <tr key="complete-input"
-                                  style={{ backgroundColor: "color-mix(in srgb, var(--color-success) 4%, transparent)" }}>
+                                <tr
+                                  key="complete-input"
+                                  style={{
+                                    backgroundColor:
+                                      "color-mix(in srgb, var(--color-success) 4%, transparent)",
+                                  }}
+                                >
                                   <td colSpan="7" className="px-4 py-4">
                                     <div className="flex items-center gap-3">
-                                      <label className="text-sm font-medium"
-                                        style={{ color: "var(--text-primary)" }}>
+                                      <label
+                                        className="text-sm font-medium"
+                                        style={{ color: "var(--text-primary)" }}
+                                      >
                                         Completion Proof{" "}
-                                        <span style={{ color: "var(--color-danger)" }}>*</span>
+                                        <span
+                                          style={{
+                                            color: "var(--color-danger)",
+                                          }}
+                                        >
+                                          *
+                                        </span>
                                       </label>
                                       <input
                                         type="text"
@@ -1818,13 +2243,26 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                         disabled={completingTaskId === task._id}
                                         className="btn-primary px-4 py-2 text-sm"
                                         style={{
-                                          opacity: completingTaskId === task._id ? 0.6 : 1,
-                                          cursor: completingTaskId === task._id ? "not-allowed" : "pointer",
+                                          opacity:
+                                            completingTaskId === task._id
+                                              ? 0.6
+                                              : 1,
+                                          cursor:
+                                            completingTaskId === task._id
+                                              ? "not-allowed"
+                                              : "pointer",
                                         }}
                                       >
                                         {completingTaskId === task._id ? (
                                           <>
-                                            <span className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0" style={{background:"linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",backgroundSize:"200% 100%"}} />
+                                            <span
+                                              className="animate-shimmer inline-block rounded-full w-3.5 h-3.5 shrink-0"
+                                              style={{
+                                                background:
+                                                  "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",
+                                                backgroundSize: "200% 100%",
+                                              }}
+                                            />
                                             Submitting...
                                           </>
                                         ) : (
@@ -1847,24 +2285,42 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                               {expandedTask === task._id &&
                                 canAssignTasks &&
                                 task.status === "Completed" && (
-                                  <tr style={{ backgroundColor: "var(--bg-muted)" }}>
+                                  <tr
+                                    style={{
+                                      backgroundColor: "var(--bg-muted)",
+                                    }}
+                                  >
                                     <td colSpan="7" className="px-4 py-4">
                                       <div className="space-y-3">
-                                        <h4 className="text-sm font-semibold"
-                                          style={{ color: "var(--text-primary)" }}>
+                                        <h4
+                                          className="text-sm font-semibold"
+                                          style={{
+                                            color: "var(--text-primary)",
+                                          }}
+                                        >
                                           Completion Details
                                         </h4>
-                                        <div className="rounded-lg p-4"
+                                        <div
+                                          className="rounded-lg p-4"
                                           style={{
                                             backgroundColor: "var(--bg-muted)",
                                             border: "1px solid var(--border)",
-                                          }}>
-                                          <p className="text-xs font-medium mb-2"
-                                            style={{ color: "var(--text-secondary)" }}>
+                                          }}
+                                        >
+                                          <p
+                                            className="text-xs font-medium mb-2"
+                                            style={{
+                                              color: "var(--text-secondary)",
+                                            }}
+                                          >
                                             Completion Proof:
                                           </p>
-                                          <p className="text-sm"
-                                            style={{ color: "var(--text-secondary)" }}>
+                                          <p
+                                            className="text-sm"
+                                            style={{
+                                              color: "var(--text-secondary)",
+                                            }}
+                                          >
                                             {(task.history &&
                                               task.history.find(
                                                 (h) => h.status === "Completed",
@@ -1875,8 +2331,12 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                                             task.history.find(
                                               (h) => h.status === "Completed",
                                             )?.changedAt && (
-                                              <p className="text-xs mt-2"
-                                                style={{ color: "var(--text-muted)" }}>
+                                              <p
+                                                className="text-xs mt-2"
+                                                style={{
+                                                  color: "var(--text-muted)",
+                                                }}
+                                              >
                                                 Completed on:{" "}
                                                 {new Date(
                                                   task.history.find(
@@ -1900,14 +2360,26 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                 </div>
                 {/* Pagination */}
                 {totalTasks > 15 && (
-                  <div className="px-4 py-3 flex items-center justify-between"
-                    style={{ borderTop: "1px solid var(--border)", background: "var(--bg-muted)" }}>
-                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                      Showing {((currentPage - 1) * 15) + 1} to {Math.min(currentPage * 15, totalTasks)} of {totalTasks} tasks
+                  <div
+                    className="px-4 py-3 flex items-center justify-between"
+                    style={{
+                      borderTop: "1px solid var(--border)",
+                      background: "var(--bg-muted)",
+                    }}
+                  >
+                    <span
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      Showing {(currentPage - 1) * 15 + 1} to{" "}
+                      {Math.min(currentPage * 15, totalTasks)} of {totalTasks}{" "}
+                      tasks
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                         className="px-3 py-1 rounded-lg text-sm disabled:opacity-50 transition-colors"
                         style={{
@@ -1918,11 +2390,18 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       >
                         Previous
                       </button>
-                      <span className="text-sm px-2" style={{ color: "var(--text-primary)" }}>
+                      <span
+                        className="text-sm px-2"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         Page {currentPage} of {Math.ceil(totalTasks / 15)}
                       </span>
                       <button
-                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalTasks / 15), p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) =>
+                            Math.min(Math.ceil(totalTasks / 15), p + 1),
+                          )
+                        }
                         disabled={currentPage >= Math.ceil(totalTasks / 15)}
                         className="px-3 py-1 rounded-lg text-sm disabled:opacity-50 transition-colors"
                         style={{
@@ -1951,18 +2430,27 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
         >
           <div
             className="rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
-                <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+                <h2
+                  className="text-xl font-bold"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   Task Details
                 </h2>
                 <button
                   onClick={() => setShowTaskModal(false)}
                   className="p-1 rounded-lg transition-colors"
-                  style={{ background: "var(--bg-muted)", color: "var(--text-secondary)" }}
+                  style={{
+                    background: "var(--bg-muted)",
+                    color: "var(--text-secondary)",
+                  }}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -1970,42 +2458,57 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                    style={{ color: "var(--text-muted)" }}>
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     Subject
                   </label>
-                  <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                  <p
+                    className="text-sm font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     {selectedTaskForModal.title}
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                    style={{ color: "var(--text-muted)" }}>
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     Description
                   </label>
-                  <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>
-                    {selectedTaskForModal.description || "No description provided"}
+                  <p
+                    className="text-sm whitespace-pre-wrap"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {selectedTaskForModal.description ||
+                      "No description provided"}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Status
                     </label>
                     <span
                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
                       style={statusStyle(
-                        selectedTaskForModal.status?.toLowerCase() === "completed"
+                        selectedTaskForModal.status?.toLowerCase() ===
+                          "completed"
                           ? "Completed"
                           : selectedTaskForModal.isOverdue
                             ? "Overdue"
-                            : "In Progress"
+                            : "In Progress",
                       )}
                     >
-                      {selectedTaskForModal.status?.toLowerCase() === "completed"
+                      {selectedTaskForModal.status?.toLowerCase() ===
+                      "completed"
                         ? "Completed"
                         : selectedTaskForModal.isOverdue
                           ? "Overdue"
@@ -2014,8 +2517,10 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Priority
                     </label>
                     <span
@@ -2029,21 +2534,31 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Category
                     </label>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {selectedTaskForModal.category || "General"}
                     </p>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Task Type
                     </label>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {selectedTaskForModal.taskType || "One Time"}
                     </p>
                   </div>
@@ -2051,25 +2566,37 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Assigned To
                     </label>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {Array.isArray(selectedTaskForModal.assignedTo)
-                        ? selectedTaskForModal.assignedTo.map(u => typeof u === "object" ? u.name : u).join(", ")
+                        ? selectedTaskForModal.assignedTo
+                            .map((u) => (typeof u === "object" ? u.name : u))
+                            .join(", ")
                         : selectedTaskForModal.assignedTo || "Unassigned"}
                     </p>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Assigned By
                     </label>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                      {typeof selectedTaskForModal.assignedBy === "object" 
-                        ? selectedTaskForModal.assignedBy?.name 
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {typeof selectedTaskForModal.assignedBy === "object"
+                        ? selectedTaskForModal.assignedBy?.name
                         : selectedTaskForModal.assignedBy || "Unknown"}
                     </p>
                   </div>
@@ -2077,13 +2604,20 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Created Date
                     </label>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {selectedTaskForModal.createdAt
-                        ? new Date(selectedTaskForModal.createdAt).toLocaleDateString("en-IN", {
+                        ? new Date(
+                            selectedTaskForModal.createdAt,
+                          ).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
@@ -2093,13 +2627,20 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Deadline
                     </label>
-                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {selectedTaskForModal.deadline
-                        ? new Date(selectedTaskForModal.deadline).toLocaleDateString("en-IN", {
+                        ? new Date(
+                            selectedTaskForModal.deadline,
+                          ).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
@@ -2110,27 +2651,34 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                    style={{ color: "var(--text-muted)" }}>
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     Remaining / Overdue
                   </label>
                   {(() => {
                     const now = new Date();
-                    const deadlineDate = new Date(selectedTaskForModal.deadline);
+                    const deadlineDate = new Date(
+                      selectedTaskForModal.deadline,
+                    );
                     now.setHours(0, 0, 0, 0);
                     deadlineDate.setHours(0, 0, 0, 0);
                     const diffTime = deadlineDate - now;
-                    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    
-                    const status = selectedTaskForModal.status?.toLowerCase() === "completed"
-                      ? "Completed"
-                      : selectedTaskForModal.isOverdue
-                        ? "Overdue"
-                        : "In Progress";
-                    
+                    const daysRemaining = Math.ceil(
+                      diffTime / (1000 * 60 * 60 * 24),
+                    );
+
+                    const status =
+                      selectedTaskForModal.status?.toLowerCase() === "completed"
+                        ? "Completed"
+                        : selectedTaskForModal.isOverdue
+                          ? "Overdue"
+                          : "In Progress";
+
                     let remainingText = "";
                     let remainingColor = "";
-                    
+
                     if (status === "Completed") {
                       if (selectedTaskForModal.completedAt) {
                         remainingText = `Completed on ${new Date(selectedTaskForModal.completedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
@@ -2140,19 +2688,19 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                       remainingColor = "var(--color-success)";
                     } else if (status === "Overdue") {
                       const overdueDays = Math.abs(daysRemaining);
-                      remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? 's' : ''}`;
+                      remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? "s" : ""}`;
                       remainingColor = "var(--color-danger)";
                     } else if (daysRemaining === 0) {
                       remainingText = "Due Today";
                       remainingColor = "var(--color-danger)";
                     } else if (daysRemaining <= 5) {
-                      remainingText = `${daysRemaining} Day${daysRemaining > 1 ? 's' : ''} Left`;
+                      remainingText = `${daysRemaining} Day${daysRemaining > 1 ? "s" : ""} Left`;
                       remainingColor = "var(--color-warning)";
                     } else {
                       remainingText = `${daysRemaining} Days Left`;
                       remainingColor = "var(--color-success)";
                     }
-                    
+
                     return (
                       <span
                         className="text-xs font-medium px-2 py-1 rounded-md border"
@@ -2169,22 +2717,34 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                    style={{ color: "var(--text-muted)" }}>
+                  <label
+                    className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     Email Frequency
                   </label>
-                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {selectedTaskForModal.emailSchedule?.taskType || selectedTaskForModal.taskType || "One Time"}
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {selectedTaskForModal.emailSchedule?.taskType ||
+                      selectedTaskForModal.taskType ||
+                      "One Time"}
                   </p>
                 </div>
 
                 {selectedTaskForModal.remarks && (
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}>
+                    <label
+                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Notes
                     </label>
-                    <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>
+                    <p
+                      className="text-sm whitespace-pre-wrap"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {selectedTaskForModal.remarks}
                     </p>
                   </div>
@@ -2192,9 +2752,7 @@ style={{ background: "linear-gradient(135deg, var(--color-info) 0%, var(--accent
               </div>
 
               <div className="mt-6 flex justify-end">
-                <Button onClick={() => setShowTaskModal(false)}>
-                  Close
-                </Button>
+                <Button onClick={() => setShowTaskModal(false)}>Close</Button>
               </div>
             </div>
           </div>

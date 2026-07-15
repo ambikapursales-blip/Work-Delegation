@@ -19,6 +19,11 @@ import {
   toArray,
   buildAssigneeProgress,
 } from "../utils/taskHelpers.js";
+import {
+  createReminderStateEntry,
+  resetReminderStateForTask,
+  pauseAllReminderStateEntries,
+} from "../utils/reminderEngine.js";
 import { buildActionUrl } from "../utils/conversationAuth.js";
 import { getTaskScopeFilter } from "../lib/taskScope.js";
 import {
@@ -59,7 +64,8 @@ export const getTasks = async (req, res) => {
       query.status = normalizeTaskStatus(status);
     }
     if (priority) query.priority = priority;
-    const canUseParamOverride = req.user.role === "Super Admin" || req.user.canViewAllTasks;
+    const canUseParamOverride =
+      req.user.role === "Super Admin" || req.user.canViewAllTasks;
     if (canUseParamOverride) {
       const effectiveAssignedTo = assignedTo || userId;
       if (effectiveAssignedTo) query.assignedTo = effectiveAssignedTo;
@@ -108,7 +114,8 @@ export const getTasks = async (req, res) => {
 
     const skip = (page - 1) * limit;
     const total = await Task.countDocuments(query);
-    const tasks = await Task.find(query).lean()
+    const tasks = await Task.find(query)
+      .lean()
       .populate([
         { path: "assignedTo", select: "name email role avatar employeeId" },
         { path: "assignedBy", select: "name email role" },
@@ -134,11 +141,13 @@ export const getTasks = async (req, res) => {
 
 export const getTask = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id).lean().populate([
-      { path: "assignedTo", select: "name email role avatar" },
-      { path: "assignedBy", select: "name email role" },
-      { path: "history.changedBy", select: "name email" },
-    ]);
+    const task = await Task.findById(req.params.id)
+      .lean()
+      .populate([
+        { path: "assignedTo", select: "name email role avatar" },
+        { path: "assignedBy", select: "name email role" },
+        { path: "history.changedBy", select: "name email" },
+      ]);
 
     if (!task) {
       return res
@@ -150,7 +159,9 @@ export const getTask = async (req, res) => {
     const isSuperAdmin = req.user.role === "Super Admin";
     const canViewAll = req.user.canViewAllTasks;
     const isAssigned = Array.isArray(task.assignedTo)
-      ? task.assignedTo.some((a) => a._id.toString() === req.user._id.toString())
+      ? task.assignedTo.some(
+          (a) => a._id.toString() === req.user._id.toString(),
+        )
       : task.assignedTo?._id?.toString() === req.user._id.toString();
     const isAssigner =
       task.assignedBy?._id?.toString() === req.user._id.toString() ||
@@ -168,7 +179,13 @@ export const getTask = async (req, res) => {
       isManagerOfAssignee = assigneeIds.some((id) => teamIds.has(id));
     }
 
-    if (!isSuperAdmin && !canViewAll && !isAssigned && !isAssigner && !isManagerOfAssignee) {
+    if (
+      !isSuperAdmin &&
+      !canViewAll &&
+      !isAssigned &&
+      !isAssigner &&
+      !isManagerOfAssignee
+    ) {
       return res
         .status(403)
         .json({ success: false, message: "Not authorized to view this task" });
@@ -196,12 +213,15 @@ export const createTask = async (req, res) => {
       isRecurring = false,
       recurrencePattern = null,
       recurrenceEndDate = null,
+      reminderState,
     } = req.body;
 
     const assignees = toArray(assignedTo);
 
     // Single query: validate assignees exist and get their data
-    const assigneeUsers = await User.find({ _id: { $in: assignees } }).lean().select("_id name email");
+    const assigneeUsers = await User.find({ _id: { $in: assignees } })
+      .lean()
+      .select("_id name email");
     const validIds = new Set(assigneeUsers.map((u) => u._id.toString()));
     const invalidIds = assignees.filter((id) => !validIds.has(id.toString()));
     if (invalidIds.length > 0) {
@@ -236,12 +256,38 @@ export const createTask = async (req, res) => {
       isRecurring,
       emailSchedule: createEmailSchedule(taskType, new Date()),
       history: [
-        { status: "In Progress", changedBy: req.user._id, note: "Task created" },
+        {
+          status: "In Progress",
+          changedBy: req.user._id,
+          note: "Task created",
+        },
       ],
     };
 
-    if (isRecurring) {
+    if (recurrencePattern) {
       taskData.recurrencePattern = recurrencePattern;
+    }
+
+    if (reminderState && Array.isArray(reminderState)) {
+      taskData.reminderState = reminderState;
+    } else {
+      taskData.reminderState = assignees.map((assigneeId) =>
+        createReminderStateEntry(
+          assigneeId,
+          {
+            ...taskData,
+            taskType,
+            recurrencePattern,
+          },
+          new Date(),
+        ),
+      );
+    }
+
+    if (isRecurring) {
+      if (recurrencePattern) {
+        taskData.recurrencePattern = recurrencePattern;
+      }
       if (recurrenceEndDate) {
         taskData.recurrenceEndDate = new Date(recurrenceEndDate);
       }
@@ -271,7 +317,11 @@ export const createTask = async (req, res) => {
 
     let assignMessage = null;
     try {
-      assignMessage = await notifyTaskAssigned(task._id, req.user._id, assigneeUsers.map((u) => u.name).join(", "));
+      assignMessage = await notifyTaskAssigned(
+        task._id,
+        req.user._id,
+        assigneeUsers.map((u) => u.name).join(", "),
+      );
     } catch (e) {
       console.error("Failed to create system message:", e);
     }
@@ -279,8 +329,11 @@ export const createTask = async (req, res) => {
     let assignConversation = null;
     if (assignMessage) {
       try {
-        const Conversation = (await import("../models/Conversation.js")).default;
-        assignConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+        const Conversation = (await import("../models/Conversation.js"))
+          .default;
+        assignConversation = await Conversation.findOne({ taskId: task._id })
+          .select("_id")
+          .lean();
       } catch (e) {
         console.error("Failed to find conversation:", e);
       }
@@ -313,9 +366,18 @@ export const createTask = async (req, res) => {
             deadline,
             taskId: String(task._id),
             userId: String(assignee._id),
-            completeToken: generateCompleteToken(String(task._id), String(assignee._id)),
-            commentToken: generateCommentToken(String(task._id), String(assignee._id)),
-            extensionToken: generateExtensionToken(String(task._id), String(assignee._id)),
+            completeToken: generateCompleteToken(
+              String(task._id),
+              String(assignee._id),
+            ),
+            commentToken: generateCommentToken(
+              String(task._id),
+              String(assignee._id),
+            ),
+            extensionToken: generateExtensionToken(
+              String(task._id),
+              String(assignee._id),
+            ),
             assignedBy: { name: req.user.name, email: req.user.email },
           }).catch((e) => console.error("Failed to send assignment email:", e)),
         );
@@ -388,6 +450,9 @@ export const updateTask = async (req, res) => {
       completionProof,
       taskType,
       category,
+      recurrencePattern,
+      recurrenceEndDate,
+      reminderState,
     } = req.body;
 
     if (status) {
@@ -406,9 +471,13 @@ export const updateTask = async (req, res) => {
 
     if (assignedTo) {
       const assigneeIds = toArray(assignedTo);
-      const existingUsers = await User.find({ _id: { $in: assigneeIds } }).lean().select("_id");
+      const existingUsers = await User.find({ _id: { $in: assigneeIds } })
+        .lean()
+        .select("_id");
       const validIds = new Set(existingUsers.map((u) => u._id.toString()));
-      const invalidIds = assigneeIds.filter((id) => !validIds.has(id.toString()));
+      const invalidIds = assigneeIds.filter(
+        (id) => !validIds.has(id.toString()),
+      );
       if (invalidIds.length > 0) {
         return res.status(400).json({
           success: false,
@@ -446,13 +515,19 @@ export const updateTask = async (req, res) => {
       }
 
       const assigneeIds = Array.isArray(task.assignedTo)
-        ? task.assignedTo.map((id) => (typeof id === "object" ? id.toString() : id))
+        ? task.assignedTo.map((id) =>
+            typeof id === "object" ? id.toString() : id,
+          )
         : [task.assignedTo.toString()];
 
       if (req.body.status === "Completed") {
         let completeMessage = null;
         try {
-          completeMessage = await notifyTaskCompleted(task._id, req.user._id, req.user.name);
+          completeMessage = await notifyTaskCompleted(
+            task._id,
+            req.user._id,
+            req.user.name,
+          );
         } catch (e) {
           console.error("Failed to create system message:", e);
         }
@@ -460,8 +535,13 @@ export const updateTask = async (req, res) => {
         let completeConversation = null;
         if (completeMessage) {
           try {
-            const Conversation = (await import("../models/Conversation.js")).default;
-            completeConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+            const Conversation = (await import("../models/Conversation.js"))
+              .default;
+            completeConversation = await Conversation.findOne({
+              taskId: task._id,
+            })
+              .select("_id")
+              .lean();
           } catch (e) {
             console.error("Failed to find conversation:", e);
           }
@@ -499,9 +579,10 @@ export const updateTask = async (req, res) => {
 
         if (task.parentTaskId) {
           try {
-            const parentTask = await Task.findById(task.parentTaskId).lean().select("_id isRecurring taskType title assignedTo assignedBy").populate(
-              "assignedTo assignedBy",
-            );
+            const parentTask = await Task.findById(task.parentTaskId)
+              .lean()
+              .select("_id isRecurring taskType title assignedTo assignedBy")
+              .populate("assignedTo assignedBy");
             if (
               parentTask &&
               parentTask.isRecurring &&
@@ -515,42 +596,80 @@ export const updateTask = async (req, res) => {
         }
       }
 
-      const assigneeUsers = await User.find({ _id: { $in: assigneeIds } }).lean().select("_id name email");
+      const assigneeUsers = await User.find({ _id: { $in: assigneeIds } })
+        .lean()
+        .select("_id name email");
       for (const assignee of assigneeUsers) {
-        if (assignee.email && assignee._id.toString() !== req.user._id.toString()) {
+        if (
+          assignee.email &&
+          assignee._id.toString() !== req.user._id.toString()
+        ) {
           try {
             await sendTaskStatusUpdateEmail(
               assignee.email,
               assignee.name,
-              { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, taskId: task._id },
+              {
+                title: task.title,
+                description: task.description,
+                priority: task.priority,
+                deadline: task.deadline,
+                taskId: task._id,
+              },
               req.body.status,
               req.user.name,
             );
           } catch (emailError) {
-            console.error("Failed to send status update email to assignee:", emailError);
+            console.error(
+              "Failed to send status update email to assignee:",
+              emailError,
+            );
           }
         }
       }
-      if (task.assignedBy.toString() !== req.user._id.toString() && req.body.status !== "Completed") {
-        const assignerNotify = await User.findById(task.assignedBy).lean().select("name email");
+      if (
+        task.assignedBy.toString() !== req.user._id.toString() &&
+        req.body.status !== "Completed"
+      ) {
+        const assignerNotify = await User.findById(task.assignedBy)
+          .lean()
+          .select("name email");
         if (assignerNotify && assignerNotify.email) {
           try {
             await sendTaskStatusUpdateEmail(
               assignerNotify.email,
               assignerNotify.name,
-              { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, taskId: task._id },
+              {
+                title: task.title,
+                description: task.description,
+                priority: task.priority,
+                deadline: task.deadline,
+                taskId: task._id,
+              },
               req.body.status,
               req.user.name,
             );
           } catch (emailError) {
-            console.error("Failed to send status update email to assigner:", emailError);
+            console.error(
+              "Failed to send status update email to assigner:",
+              emailError,
+            );
           }
         }
       }
 
-      if (req.body.status !== "Completed" && req.body.status && req.body.status !== task.status) {
+      if (
+        req.body.status !== "Completed" &&
+        req.body.status &&
+        req.body.status !== task.status
+      ) {
         try {
-          await notifyStatusChanged(task._id, req.user._id, req.user.name, task.status, req.body.status);
+          await notifyStatusChanged(
+            task._id,
+            req.user._id,
+            req.user.name,
+            task.status,
+            req.body.status,
+          );
         } catch (e) {
           console.error("Failed to create status change system message:", e);
         }
@@ -567,18 +686,82 @@ export const updateTask = async (req, res) => {
 
     if (req.body.priority && req.body.priority !== task.priority) {
       try {
-        await notifyPriorityChanged(task._id, req.user._id, req.user.name, task.priority, req.body.priority);
+        await notifyPriorityChanged(
+          task._id,
+          req.user._id,
+          req.user.name,
+          task.priority,
+          req.body.priority,
+        );
       } catch (e) {
         console.error("Failed to create priority change system message:", e);
       }
     }
 
-    if (req.body.deadline && task.deadline && new Date(req.body.deadline).getTime() !== new Date(task.deadline).getTime()) {
+    const isFinalStopStatus =
+      req.body.status === "Completed" || req.body.status === "Cancelled";
+
+    if (isFinalStopStatus && task.reminderState?.length) {
+      req.body.reminderState = pauseAllReminderStateEntries(
+        task,
+        req.body.status === "Completed" ? "completed" : "cancelled",
+        req.body.status === "Completed" ? "completion" : "cancelled",
+      );
+    }
+
+    if (
+      req.body.deadline &&
+      task.deadline &&
+      new Date(req.body.deadline).getTime() !==
+        new Date(task.deadline).getTime()
+    ) {
       try {
-        await notifyDeadlineExtended(task._id, req.user._id, req.user.name, task.deadline, req.body.deadline);
+        await notifyDeadlineExtended(
+          task._id,
+          req.user._id,
+          req.user.name,
+          task.deadline,
+          req.body.deadline,
+        );
       } catch (e) {
         console.error("Failed to create deadline change system message:", e);
       }
+    }
+
+    const shouldResetReminderState =
+      !isFinalStopStatus &&
+      (taskType ||
+        recurrencePattern ||
+        req.body.deadline ||
+        assignedTo ||
+        reminderState ||
+        (req.body.status && req.body.status !== task.status));
+
+    if (shouldResetReminderState) {
+      const nextTaskState = {
+        ...task.toObject(),
+        ...req.body,
+        _id: task._id,
+        assignedTo: assignedTo ? toArray(assignedTo) : task.assignedTo,
+        taskType: taskType || task.taskType,
+        recurrencePattern: recurrencePattern || task.recurrencePattern,
+        deadline: req.body.deadline || task.deadline,
+        status: req.body.status || task.status,
+      };
+      resetReminderStateForTask(nextTaskState, new Date());
+      req.body.reminderState = nextTaskState.reminderState;
+    }
+
+    if (recurrencePattern) {
+      req.body.recurrencePattern = recurrencePattern;
+    }
+
+    if (recurrenceEndDate) {
+      req.body.recurrenceEndDate = new Date(recurrenceEndDate);
+    }
+
+    if (reminderState) {
+      req.body.reminderState = reminderState;
     }
 
     if (req.body.attachments && req.body.attachments.length > 0) {
@@ -586,9 +769,17 @@ export const updateTask = async (req, res) => {
       for (const att of req.body.attachments) {
         if (att.url && existingUrls.has(att.url)) continue;
         try {
-          await notifyAttachmentUploaded(task._id, req.user._id, req.user.name, att.name || "file");
+          await notifyAttachmentUploaded(
+            task._id,
+            req.user._id,
+            req.user.name,
+            att.name || "file",
+          );
         } catch (e) {
-          console.error("Failed to create attachment upload system message:", e);
+          console.error(
+            "Failed to create attachment upload system message:",
+            e,
+          );
         }
       }
     }
@@ -621,6 +812,17 @@ export const deleteTask = async (req, res) => {
         .json({ success: false, message: "Task not found" });
     }
 
+    if (task.reminderState?.length) {
+      task.reminderState = (task.reminderState || []).map((entry) => ({
+        ...entry,
+        isPaused: true,
+        pausedReason: "deleted",
+        lastReminderType: "stopped",
+        lastEmailTemplate: "deleted",
+      }));
+    }
+
+    await task.save();
     await task.deleteOne();
 
     res
@@ -675,12 +877,20 @@ export const bulkCreateTasks = async (req, res) => {
         .json({ success: false, message: "Tasks array is required" });
     }
 
-    const allAssigneeIds = [...new Set(tasks.flatMap((t) => {
-      const ids = toArray(t.assignedTo);
-      return ids.map((id) => id?.toString());
-    }).filter(Boolean))];
+    const allAssigneeIds = [
+      ...new Set(
+        tasks
+          .flatMap((t) => {
+            const ids = toArray(t.assignedTo);
+            return ids.map((id) => id?.toString());
+          })
+          .filter(Boolean),
+      ),
+    ];
 
-    const existingUsers = await User.find({ _id: { $in: allAssigneeIds } }).lean().select("_id");
+    const existingUsers = await User.find({ _id: { $in: allAssigneeIds } })
+      .lean()
+      .select("_id");
     const validIds = new Set(existingUsers.map((u) => u._id.toString()));
     const invalidIds = allAssigneeIds.filter((id) => !validIds.has(id));
     if (invalidIds.length > 0) {
@@ -702,9 +912,27 @@ export const bulkCreateTasks = async (req, res) => {
         assignedTo: assignees,
         assignedBy: req.user._id,
         assigneeProgress,
+        reminderState: assignees.map((assigneeId) =>
+          createReminderStateEntry(
+            assigneeId,
+            {
+              ...taskData,
+              assignedTo: assignees,
+              taskType: taskData.taskType,
+              recurrencePattern: taskData.recurrencePattern,
+              deadline: taskData.deadline,
+              status: "In Progress",
+            },
+            new Date(),
+          ),
+        ),
         emailSchedule: createEmailSchedule(taskData.taskType, new Date()),
         history: [
-          { status: "In Progress", changedBy: req.user._id, note: "Task created" },
+          {
+            status: "In Progress",
+            changedBy: req.user._id,
+            note: "Task created",
+          },
         ],
       });
 
@@ -726,21 +954,46 @@ export const bulkCreateTasks = async (req, res) => {
 
     await Notification.insertMany(notifications);
 
-    const notifyUserIds = [...new Set(notifications.map((n) => n.recipient.toString()))];
-    const allAssignees = await User.find({ _id: { $in: notifyUserIds } }).lean().select("_id name email");
+    const notifyUserIds = [
+      ...new Set(notifications.map((n) => n.recipient.toString())),
+    ];
+    const allAssignees = await User.find({ _id: { $in: notifyUserIds } })
+      .lean()
+      .select("_id name email");
     for (const assignee of allAssignees) {
       if (assignee.email) {
         try {
           await sendTaskAssignmentEmail(assignee.email, assignee.name, {
-            title: tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks assigned`,
+            title:
+              tasks.length === 1
+                ? tasks[0].title
+                : `${tasks.length} tasks assigned`,
             description: `You have been assigned ${tasks.length} task(s).`,
             priority: "Medium",
             deadline: null,
             taskId: tasks.length === 1 ? String(tasks[0]._id) : undefined,
             userId: String(assignee._id),
-            completeToken: tasks.length === 1 ? generateCompleteToken(String(tasks[0]._id), String(assignee._id)) : undefined,
-            commentToken: tasks.length === 1 ? generateCommentToken(String(tasks[0]._id), String(assignee._id)) : undefined,
-            extensionToken: tasks.length === 1 ? generateExtensionToken(String(tasks[0]._id), String(assignee._id)) : undefined,
+            completeToken:
+              tasks.length === 1
+                ? generateCompleteToken(
+                    String(tasks[0]._id),
+                    String(assignee._id),
+                  )
+                : undefined,
+            commentToken:
+              tasks.length === 1
+                ? generateCommentToken(
+                    String(tasks[0]._id),
+                    String(assignee._id),
+                  )
+                : undefined,
+            extensionToken:
+              tasks.length === 1
+                ? generateExtensionToken(
+                    String(tasks[0]._id),
+                    String(assignee._id),
+                  )
+                : undefined,
             assignedBy: { name: req.user.name, email: req.user.email },
           });
         } catch (emailError) {
@@ -753,11 +1006,20 @@ export const bulkCreateTasks = async (req, res) => {
         await sendTaskAssignedConfirmationEmail(
           req.user.email,
           req.user.name,
-          { title: `${tasks.length} task(s) created`, description: `Bulk created and assigned to ${allAssignees.length} user(s).`, priority: "Medium", deadline: null, taskId: "" },
+          {
+            title: `${tasks.length} task(s) created`,
+            description: `Bulk created and assigned to ${allAssignees.length} user(s).`,
+            priority: "Medium",
+            deadline: null,
+            taskId: "",
+          },
           allAssignees.map((u) => u.name).join(", "),
         );
       } catch (emailError) {
-        console.error("Failed to send bulk create confirmation email:", emailError);
+        console.error(
+          "Failed to send bulk create confirmation email:",
+          emailError,
+        );
       }
     }
 
@@ -770,11 +1032,13 @@ export const bulkCreateTasks = async (req, res) => {
 
     const populatedTasks = await Task.find({
       _id: { $in: createdTasks },
-    }).lean().populate([
-      { path: "assignedTo", select: "name email role avatar employeeId" },
-      { path: "assignedBy", select: "name email role" },
-      { path: "assigneeProgress.user", select: "name email role" },
-    ]);
+    })
+      .lean()
+      .populate([
+        { path: "assignedTo", select: "name email role avatar employeeId" },
+        { path: "assignedBy", select: "name email role" },
+        { path: "assigneeProgress.user", select: "name email role" },
+      ]);
 
     res.status(201).json({
       success: true,
@@ -803,12 +1067,18 @@ export const bulkAssignTasks = async (req, res) => {
     }
 
     const [tasks, users] = await Promise.all([
-      Task.find({ _id: { $in: taskIds } }).lean().select("_id assignedTo assigneeProgress title"),
-      User.find({ _id: { $in: userIds } }).lean().select("_id name email"),
+      Task.find({ _id: { $in: taskIds } })
+        .lean()
+        .select("_id assignedTo assigneeProgress title"),
+      User.find({ _id: { $in: userIds } })
+        .lean()
+        .select("_id name email"),
     ]);
 
     const validUserIds = new Set(users.map((u) => u._id.toString()));
-    const invalidUserIds = userIds.filter((id) => !validUserIds.has(id.toString()));
+    const invalidUserIds = userIds.filter(
+      (id) => !validUserIds.has(id.toString()),
+    );
     if (invalidUserIds.length > 0) {
       return res.status(400).json({
         success: false,
@@ -831,6 +1101,25 @@ export const bulkAssignTasks = async (req, res) => {
             ),
         ),
       );
+      const newReminderEntries = userIds
+        .filter(
+          (id) =>
+            !task.assigneeProgress.some(
+              (p) => p.user.toString() === id.toString(),
+            ),
+        )
+        .map((userId) =>
+          createReminderStateEntry(
+            userId,
+            {
+              taskType: task.taskType,
+              recurrencePattern: task.recurrencePattern,
+              deadline: task.deadline,
+              status: task.status,
+            },
+            new Date(),
+          ),
+        );
 
       const reassignmentEntries = userIds.map((userId) => ({
         to: userId,
@@ -847,6 +1136,7 @@ export const bulkAssignTasks = async (req, res) => {
             $push: {
               assigneeProgress: { $each: newProgress },
               reassignmentHistory: { $each: reassignmentEntries },
+              reminderState: { $each: newReminderEntries },
             },
           },
         },
@@ -872,9 +1162,18 @@ export const bulkAssignTasks = async (req, res) => {
     await Notification.insertMany(notifications);
 
     try {
-      const addedUserNames = users.map((u) => u.name).filter(Boolean).join(", ");
+      const addedUserNames = users
+        .map((u) => u.name)
+        .filter(Boolean)
+        .join(", ");
       for (const task of tasks) {
-        await notifyAssigneeChanged(task._id, req.user._id, req.user.name, "previous assignees", addedUserNames || userIds.join(", "));
+        await notifyAssigneeChanged(
+          task._id,
+          req.user._id,
+          req.user.name,
+          "previous assignees",
+          addedUserNames || userIds.join(", "),
+        );
       }
     } catch (e) {
       console.error("Failed to create bulk assign system messages:", e);
@@ -884,15 +1183,25 @@ export const bulkAssignTasks = async (req, res) => {
       if (user.email) {
         try {
           await sendTaskAssignmentEmail(user.email, user.name, {
-            title: tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks`,
+            title:
+              tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks`,
             description: `You have been assigned to ${tasks.length} task(s).`,
             priority: "Medium",
             deadline: null,
             taskId: tasks.length === 1 ? String(tasks[0]._id) : undefined,
             userId: String(user._id),
-            completeToken: tasks.length === 1 ? generateCompleteToken(String(tasks[0]._id), String(user._id)) : undefined,
-            commentToken: tasks.length === 1 ? generateCommentToken(String(tasks[0]._id), String(user._id)) : undefined,
-            extensionToken: tasks.length === 1 ? generateExtensionToken(String(tasks[0]._id), String(user._id)) : undefined,
+            completeToken:
+              tasks.length === 1
+                ? generateCompleteToken(String(tasks[0]._id), String(user._id))
+                : undefined,
+            commentToken:
+              tasks.length === 1
+                ? generateCommentToken(String(tasks[0]._id), String(user._id))
+                : undefined,
+            extensionToken:
+              tasks.length === 1
+                ? generateExtensionToken(String(tasks[0]._id), String(user._id))
+                : undefined,
             assignedBy: { name: req.user.name, email: req.user.email },
           });
         } catch (emailError) {
@@ -905,11 +1214,20 @@ export const bulkAssignTasks = async (req, res) => {
         await sendTaskAssignedConfirmationEmail(
           req.user.email,
           req.user.name,
-          { title: `${tasks.length} task(s)`, description: `Bulk assigned to ${users.length} user(s).`, priority: "Medium", deadline: null, taskId: "" },
+          {
+            title: `${tasks.length} task(s)`,
+            description: `Bulk assigned to ${users.length} user(s).`,
+            priority: "Medium",
+            deadline: null,
+            taskId: "",
+          },
           users.map((u) => u.name).join(", "),
         );
       } catch (emailError) {
-        console.error("Failed to send bulk assignment confirmation email:", emailError);
+        console.error(
+          "Failed to send bulk assignment confirmation email:",
+          emailError,
+        );
       }
     }
 
@@ -920,11 +1238,13 @@ export const bulkAssignTasks = async (req, res) => {
       metadata: { taskIds, userIds },
     });
 
-    const updatedTasks = await Task.find({ _id: { $in: taskIds } }).lean().populate([
-      { path: "assignedTo", select: "name email role avatar employeeId" },
-      { path: "assignedBy", select: "name email role" },
-      { path: "assigneeProgress.user", select: "name email role" },
-    ]);
+    const updatedTasks = await Task.find({ _id: { $in: taskIds } })
+      .lean()
+      .populate([
+        { path: "assignedTo", select: "name email role avatar employeeId" },
+        { path: "assignedBy", select: "name email role" },
+        { path: "assigneeProgress.user", select: "name email role" },
+      ]);
 
     res.status(200).json({ success: true, tasks: updatedTasks });
   } catch (error) {
@@ -948,10 +1268,16 @@ export const reassignTask = async (req, res) => {
       User.findById(toUserId).lean().select("_id name email"),
     ]);
     if (!fromUser) {
-      return res.status(400).json({ success: false, message: `Source user does not exist: ${fromUserId}` });
+      return res.status(400).json({
+        success: false,
+        message: `Source user does not exist: ${fromUserId}`,
+      });
     }
     if (!toUser) {
-      return res.status(400).json({ success: false, message: `Target user does not exist: ${toUserId}` });
+      return res.status(400).json({
+        success: false,
+        message: `Target user does not exist: ${toUserId}`,
+      });
     }
 
     const oldAssignees = task.assignedTo.map((id) => id.toString());
@@ -977,10 +1303,32 @@ export const reassignTask = async (req, res) => {
     });
 
     task.assignedTo = newAssignees;
+    task.reminderState = (task.reminderState || []).filter(
+      (entry) => entry.user?.toString() !== fromUserId,
+    );
+    task.reminderState.push(
+      createReminderStateEntry(
+        toUserId,
+        {
+          ...task.toObject(),
+          taskType: task.taskType,
+          recurrencePattern: task.recurrencePattern,
+          deadline: task.deadline,
+          status: task.status,
+        },
+        new Date(),
+      ),
+    );
     await task.save();
 
     try {
-      await notifyAssigneeChanged(task._id, req.user._id, req.user.name, fromUser?.name || fromUserId, toUser?.name || toUserId);
+      await notifyAssigneeChanged(
+        task._id,
+        req.user._id,
+        req.user.name,
+        fromUser?.name || fromUserId,
+        toUser?.name || toUserId,
+      );
     } catch (e) {
       console.error("Failed to create assignee change system message:", e);
     }
@@ -1005,12 +1353,21 @@ export const reassignTask = async (req, res) => {
           deadline: task.deadline,
           taskId: String(task._id),
           userId: String(toUser._id),
-          completeToken: generateCompleteToken(String(task._id), String(toUser._id)),
-          commentToken: generateCommentToken(String(task._id), String(toUser._id)),
-          extensionToken: generateExtensionToken(String(task._id), String(toUser._id)),
+          completeToken: generateCompleteToken(
+            String(task._id),
+            String(toUser._id),
+          ),
+          commentToken: generateCommentToken(
+            String(task._id),
+            String(toUser._id),
+          ),
+          extensionToken: generateExtensionToken(
+            String(task._id),
+            String(toUser._id),
+          ),
           assignedBy: { name: req.user.name, email: req.user.email },
-          });
-        } catch (emailError) {
+        });
+      } catch (emailError) {
         console.error("Failed to send reassignment email:", emailError);
       }
     }
@@ -1019,11 +1376,20 @@ export const reassignTask = async (req, res) => {
         await sendTaskAssignedConfirmationEmail(
           req.user.email,
           req.user.name,
-          { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, taskId: task._id },
+          {
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            deadline: task.deadline,
+            taskId: task._id,
+          },
           toUser.name || toUserId,
         );
       } catch (emailError) {
-        console.error("Failed to send reassignment confirmation email:", emailError);
+        console.error(
+          "Failed to send reassignment confirmation email:",
+          emailError,
+        );
       }
     }
 
@@ -1035,11 +1401,13 @@ export const reassignTask = async (req, res) => {
       entityType: "Task",
     });
 
-    const updatedTask = await Task.findById(task._id).lean().populate([
-      { path: "assignedTo", select: "name email role avatar employeeId" },
-      { path: "assignedBy", select: "name email role" },
-      { path: "assigneeProgress.user", select: "name email role" },
-    ]);
+    const updatedTask = await Task.findById(task._id)
+      .lean()
+      .populate([
+        { path: "assignedTo", select: "name email role avatar employeeId" },
+        { path: "assignedBy", select: "name email role" },
+        { path: "assigneeProgress.user", select: "name email role" },
+      ]);
 
     res.status(200).json({ success: true, task: updatedTask });
   } catch (error) {
@@ -1058,9 +1426,14 @@ export const escalateTask = async (req, res) => {
         .json({ success: false, message: "Task not found" });
     }
 
-    const escalateeUser = await User.findById(escalatedTo).lean().select("_id name email");
+    const escalateeUser = await User.findById(escalatedTo)
+      .lean()
+      .select("_id name email");
     if (!escalateeUser) {
-      return res.status(400).json({ success: false, message: `User does not exist: ${escalatedTo}` });
+      return res.status(400).json({
+        success: false,
+        message: `User does not exist: ${escalatedTo}`,
+      });
     }
 
     task.escalated = true;
@@ -1087,7 +1460,12 @@ export const escalateTask = async (req, res) => {
         await sendTaskEscalationEmail(
           escalateeUser.email,
           escalateeUser.name,
-          { title: task.title, description: task.description, deadline: task.deadline, taskId: task._id },
+          {
+            title: task.title,
+            description: task.description,
+            deadline: task.deadline,
+            taskId: task._id,
+          },
           reason,
         );
       } catch (emailError) {
@@ -1099,11 +1477,20 @@ export const escalateTask = async (req, res) => {
         await sendTaskAssignedConfirmationEmail(
           req.user.email,
           req.user.name,
-          { title: task.title, description: `Escalated to ${escalateeUser?.name || escalatedTo}. Reason: ${reason}`, priority: "Critical", deadline: task.deadline, taskId: task._id },
+          {
+            title: task.title,
+            description: `Escalated to ${escalateeUser?.name || escalatedTo}. Reason: ${reason}`,
+            priority: "Critical",
+            deadline: task.deadline,
+            taskId: task._id,
+          },
           escalateeUser?.name || escalatedTo,
         );
       } catch (emailError) {
-        console.error("Failed to send escalation confirmation email:", emailError);
+        console.error(
+          "Failed to send escalation confirmation email:",
+          emailError,
+        );
       }
     }
 
@@ -1115,12 +1502,14 @@ export const escalateTask = async (req, res) => {
       entityType: "Task",
     });
 
-    const updatedTask = await Task.findById(task._id).lean().populate([
-      { path: "assignedTo", select: "name email role avatar employeeId" },
-      { path: "assignedBy", select: "name email role" },
-      { path: "escalatedTo", select: "name email role" },
-      { path: "assigneeProgress.user", select: "name email role" },
-    ]);
+    const updatedTask = await Task.findById(task._id)
+      .lean()
+      .populate([
+        { path: "assignedTo", select: "name email role avatar employeeId" },
+        { path: "assignedBy", select: "name email role" },
+        { path: "escalatedTo", select: "name email role" },
+        { path: "assigneeProgress.user", select: "name email role" },
+      ]);
 
     res.status(200).json({ success: true, task: updatedTask });
   } catch (error) {
@@ -1148,7 +1537,12 @@ export const addComment = async (req, res) => {
 
     let commentMessage = null;
     try {
-      commentMessage = await notifyCommentAdded(task._id, req.user._id, req.user.name, text);
+      commentMessage = await notifyCommentAdded(
+        task._id,
+        req.user._id,
+        req.user.name,
+        text,
+      );
     } catch (e) {
       console.error("Failed to create comment system message:", e);
     }
@@ -1156,8 +1550,11 @@ export const addComment = async (req, res) => {
     let commentConversation = null;
     if (commentMessage) {
       try {
-        const Conversation = (await import("../models/Conversation.js")).default;
-        commentConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+        const Conversation = (await import("../models/Conversation.js"))
+          .default;
+        commentConversation = await Conversation.findOne({ taskId: task._id })
+          .select("_id")
+          .lean();
       } catch (e) {
         console.error("Failed to find conversation:", e);
       }
@@ -1194,12 +1591,14 @@ export const addComment = async (req, res) => {
       console.error("Failed to create comment activity:", e);
     }
 
-    const updatedTask = await Task.findById(task._id).lean().populate([
-      { path: "assignedTo", select: "name email role avatar employeeId" },
-      { path: "assignedBy", select: "name email role" },
-      { path: "comments.user", select: "name email role avatar" },
-      { path: "assigneeProgress.user", select: "name email role" },
-    ]);
+    const updatedTask = await Task.findById(task._id)
+      .lean()
+      .populate([
+        { path: "assignedTo", select: "name email role avatar employeeId" },
+        { path: "assignedBy", select: "name email role" },
+        { path: "comments.user", select: "name email role avatar" },
+        { path: "assigneeProgress.user", select: "name email role" },
+      ]);
 
     res.status(201).json({ success: true, task: updatedTask });
   } catch (error) {

@@ -7,6 +7,7 @@ import Activity from "@/src/models/Activity";
 import { verifyExtensionToken } from "@/src/utils/extensionToken";
 import { generateExtensionResponseToken } from "@/src/utils/extensionResponseToken";
 import { notifyExtensionRequested } from "@/src/utils/conversationMessages.js";
+import { pauseReminderStateEntry } from "@/src/utils/reminderEngine";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
@@ -89,7 +90,10 @@ export async function GET(request, { params }) {
 
     const deadlineStr = task.deadline
       ? new Date(task.deadline).toLocaleDateString("en-US", {
-          weekday: "long", year: "numeric", month: "long", day: "numeric",
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
           timeZone: "UTC",
         })
       : "No deadline";
@@ -110,12 +114,15 @@ export async function GET(request, { params }) {
       </form>
     `;
 
-    return new NextResponse(pageHtml("Request Revised Target Date", bodyContent), {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store",
+    return new NextResponse(
+      pageHtml("Request Revised Target Date", bodyContent),
+      {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
       },
-    });
+    );
   } catch (err) {
     const msg =
       err.name === "TokenExpiredError"
@@ -142,7 +149,9 @@ export async function POST(request, { params }) {
 
     const formData = await request.formData();
     const revisedTargetDateStr = formData.get("revisedTargetDate");
-    const revisedTargetDate = revisedTargetDateStr ? new Date(revisedTargetDateStr + "T00:00:00Z") : null;
+    const revisedTargetDate = revisedTargetDateStr
+      ? new Date(revisedTargetDateStr + "T00:00:00Z")
+      : null;
     const reason = (formData.get("reason") || "").trim();
 
     if (!revisedTargetDate || isNaN(revisedTargetDate.getTime())) {
@@ -175,21 +184,43 @@ export async function POST(request, { params }) {
     );
     if (pendingRequest) {
       return new NextResponse(
-        resultHtml("You already have a pending extension request for this task", false),
+        resultHtml(
+          "You already have a pending extension request for this task",
+          false,
+        ),
         { headers: { "Content-Type": "text/html; charset=utf-8" } },
       );
     }
 
     const deadlineStr = task.deadline
       ? new Date(task.deadline).toLocaleDateString("en-US", {
-          weekday: "long", year: "numeric", month: "long", day: "numeric",
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
           timeZone: "UTC",
         })
       : "No deadline";
     const revisedDateStr = revisedTargetDate.toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
       timeZone: "UTC",
     });
+
+    if (task.reminderState?.length) {
+      task.reminderState = task.reminderState.map((entry) => {
+        if (entry.user?.toString() !== userId) {
+          return entry;
+        }
+        return pauseReminderStateEntry(
+          entry,
+          "extension_requested",
+          "extension",
+        );
+      });
+    }
 
     task.extensionRequests.push({
       user: userId,
@@ -200,19 +231,30 @@ export async function POST(request, { params }) {
     });
     await task.save();
 
-    const savedRequest = task.extensionRequests[task.extensionRequests.length - 1];
+    const savedRequest =
+      task.extensionRequests[task.extensionRequests.length - 1];
     const requestId = savedRequest._id.toString();
 
     const approveToken = generateExtensionResponseToken(
-      String(task._id), requestId, "approved",
+      String(task._id),
+      requestId,
+      "approved",
     );
     const rejectToken = generateExtensionResponseToken(
-      String(task._id), requestId, "rejected",
+      String(task._id),
+      requestId,
+      "rejected",
     );
 
     let extMessage = null;
     try {
-      extMessage = await notifyExtensionRequested(task._id, userId, user.name, reason, revisedTargetDate);
+      extMessage = await notifyExtensionRequested(
+        task._id,
+        userId,
+        user.name,
+        reason,
+        revisedTargetDate,
+      );
     } catch (e) {
       console.error("Failed to create extension request system message:", e);
     }
@@ -220,8 +262,11 @@ export async function POST(request, { params }) {
     let extConversation = null;
     if (extMessage) {
       try {
-        const Conversation = (await import("@/src/models/Conversation")).default;
-        extConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+        const Conversation = (await import("@/src/models/Conversation"))
+          .default;
+        extConversation = await Conversation.findOne({ taskId: task._id })
+          .select("_id")
+          .lean();
       } catch (e) {
         console.error("Failed to find conversation:", e);
       }
@@ -298,7 +343,10 @@ ${reason ? `<tr><td style="padding:8px 12px;background:#F6F4EF;font-size:13px;fo
 </html>`,
         });
       } catch (emailError) {
-        console.error("[Extension] Failed to send email to manager:", emailError.message);
+        console.error(
+          "[Extension] Failed to send email to manager:",
+          emailError.message,
+        );
       }
     }
 

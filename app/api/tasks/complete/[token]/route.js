@@ -8,6 +8,7 @@ import { sendTaskCompletionEmail } from "@/src/utils/emailService";
 import { verifyCompleteToken } from "@/src/utils/completeToken";
 import { ampCorsHeaders, ampJsonResponse } from "@/src/utils/amp";
 import { notifyTaskCompleted } from "@/src/utils/conversationMessages.js";
+import { pauseReminderStateEntry } from "@/src/utils/reminderEngine";
 
 async function processComplete(token) {
   const decoded = verifyCompleteToken(token);
@@ -48,6 +49,21 @@ async function processComplete(token) {
     task.completedAt = new Date();
   }
 
+  if (task.reminderState?.length) {
+    task.reminderState = task.reminderState.map((entry) => {
+      if (entry.user?.toString() !== userId) {
+        return entry;
+      }
+      return pauseReminderStateEntry(entry, "completed", "completion");
+    });
+  }
+
+  if (allCompleted && task.reminderState?.length) {
+    task.reminderState = task.reminderState.map((entry) =>
+      pauseReminderStateEntry(entry, "completed", "completion"),
+    );
+  }
+
   task.history.push({
     status: "Completed",
     changedBy: userId,
@@ -68,7 +84,9 @@ async function processComplete(token) {
   if (completeMessage) {
     try {
       const Conversation = (await import("@/src/models/Conversation")).default;
-      completeConversation = await Conversation.findOne({ taskId: task._id }).select("_id").lean();
+      completeConversation = await Conversation.findOne({ taskId: task._id })
+        .select("_id")
+        .lean();
     } catch (e) {
       console.error("Failed to find conversation:", e);
     }
@@ -99,12 +117,19 @@ async function processComplete(token) {
   if (assigner?.email) {
     sendTaskCompletionEmail(
       assigner.email,
-      { title: task.title, description: task.description, priority: task.priority },
+      {
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+      },
       user.name,
     ).catch(() => {});
   }
 
-  return { success: true, message: `Task "${task.title}" has been marked as completed. Thank you!` };
+  return {
+    success: true,
+    message: `Task "${task.title}" has been marked as completed. Thank you!`,
+  };
 }
 
 export async function GET(request, { params }) {
@@ -135,9 +160,12 @@ export async function POST(request, { params }) {
     }
     return htmlResponse(result.message, result.success);
   } catch (err) {
-    const msg = err.name === "TokenExpiredError"
-      ? "This link has expired"
-      : err.name === "JsonWebTokenError" ? "Invalid link" : "Something went wrong";
+    const msg =
+      err.name === "TokenExpiredError"
+        ? "This link has expired"
+        : err.name === "JsonWebTokenError"
+          ? "Invalid link"
+          : "Something went wrong";
     if (isAmp) {
       return ampJsonResponse({ success: false, message: msg }, { status: 400 });
     }

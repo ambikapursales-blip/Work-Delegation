@@ -169,18 +169,45 @@ const taskSchema = new mongoose.Schema(
     ],
     taskType: {
       type: String,
-      enum: ["One Time", "Daily", "Weekly", "Monthly", "Quarterly", "Half Yearly", "Yearly"],
+      enum: [
+        "One Time",
+        "Daily",
+        "Weekly",
+        "Monthly",
+        "Quarterly",
+        "Half Yearly",
+        "Yearly",
+        "Custom",
+      ],
       default: "One Time",
     },
     category: {
       type: String,
-      enum: ["Sales", "HR", "Operations", "Customer Support", "Admin", "General", "Marketing", "Strategic"],
+      enum: [
+        "Sales",
+        "HR",
+        "Operations",
+        "Customer Support",
+        "Admin",
+        "General",
+        "Marketing",
+        "Strategic",
+      ],
       trim: true,
     },
     emailSchedule: {
       taskType: {
         type: String,
-        enum: ["One Time", "Daily", "Weekly", "Monthly", "Quarterly", "Half Yearly", "Yearly"],
+        enum: [
+          "One Time",
+          "Daily",
+          "Weekly",
+          "Monthly",
+          "Quarterly",
+          "Half Yearly",
+          "Yearly",
+          "Custom",
+        ],
       },
       assignmentDate: {
         type: Date,
@@ -199,6 +226,54 @@ const taskSchema = new mongoose.Schema(
         default: false,
       },
     },
+    reminderState: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        lastReminderAt: {
+          type: Date,
+        },
+        nextReminderAt: {
+          type: Date,
+        },
+        lastReminderType: {
+          type: String,
+          enum: ["normal", "overdue", "stopped"],
+          default: "normal",
+        },
+        reminderCount: {
+          type: Number,
+          default: 0,
+        },
+        isPaused: {
+          type: Boolean,
+          default: false,
+        },
+        pausedReason: {
+          type: String,
+        },
+        lastReminderStatus: {
+          type: String,
+        },
+        lastEmailTemplate: {
+          type: String,
+          default: "assignment",
+        },
+        milestoneFlags: {
+          fourDays: { type: Boolean, default: false },
+          threeDays: { type: Boolean, default: false },
+          twoDays: { type: Boolean, default: false },
+          oneDay: { type: Boolean, default: false },
+          dueToday: { type: Boolean, default: false },
+        },
+        lockUntil: {
+          type: Date,
+          default: null,
+        },
+      },
+    ],
     deadlineAlerts: {
       fourDays: { type: Boolean, default: false },
       threeDays: { type: Boolean, default: false },
@@ -217,7 +292,16 @@ const taskSchema = new mongoose.Schema(
     recurrencePattern: {
       frequency: {
         type: String,
-        enum: ["daily", "weekly", "biweekly", "monthly", "custom", "quarterly", "halfyearly", "yearly"],
+        enum: [
+          "daily",
+          "weekly",
+          "biweekly",
+          "monthly",
+          "custom",
+          "quarterly",
+          "halfyearly",
+          "yearly",
+        ],
       },
       daysOfWeek: [
         {
@@ -230,6 +314,14 @@ const taskSchema = new mongoose.Schema(
       interval: {
         type: Number,
         default: 1,
+      },
+      intervalValue: {
+        type: Number,
+        default: 1,
+      },
+      intervalUnit: {
+        type: String,
+        enum: ["Minutes", "Hours", "Days", "Weeks", "Months"],
       },
       customDays: [Number],
     },
@@ -322,7 +414,9 @@ taskSchema.pre("save", function (next) {
       "One time": "One Time",
       "one-time": "One Time",
       "one time": "One Time",
-      "Custom": "One Time",
+      "half-yearly": "Half Yearly",
+      "half yearly": "Half Yearly",
+      "Half-Yearly": "Half Yearly",
     };
     if (taskTypeMap[this.taskType]) {
       this.taskType = taskTypeMap[this.taskType];
@@ -337,7 +431,7 @@ taskSchema.pre("save", function (next) {
   ) {
     this.isOverdue = new Date() > this.deadline;
   }
-  
+
   if (this.status === "Completed" && !this.completedAt) {
     this.completedAt = new Date();
   }

@@ -6,6 +6,7 @@ import Notification from "@/src/models/Notification";
 import Activity from "@/src/models/Activity";
 import { verifyCommentToken } from "@/src/utils/commentToken";
 import { ampCorsHeaders, ampJsonResponse } from "@/src/utils/amp";
+import { pauseReminderStateEntry } from "@/src/utils/reminderEngine";
 
 async function getAuthFromToken(token) {
   const decoded = verifyCommentToken(token);
@@ -51,8 +52,16 @@ export async function GET(request, { params }) {
       User.findById(userId).select("name"),
     ]);
 
-    if (!task) return new NextResponse(pageHtml("Error", '<h1>Error</h1><p>Task not found.</p>'), { headers: { "Content-Type": "text/html; charset=utf-8" } });
-    if (!user) return new NextResponse(pageHtml("Error", '<h1>Error</h1><p>User not found.</p>'), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    if (!task)
+      return new NextResponse(
+        pageHtml("Error", "<h1>Error</h1><p>Task not found.</p>"),
+        { headers: { "Content-Type": "text/html; charset=utf-8" } },
+      );
+    if (!user)
+      return new NextResponse(
+        pageHtml("Error", "<h1>Error</h1><p>User not found.</p>"),
+        { headers: { "Content-Type": "text/html; charset=utf-8" } },
+      );
 
     const bodyContent = `
       <h1>Add Comment</h1>
@@ -66,11 +75,19 @@ export async function GET(request, { params }) {
     `;
 
     return new NextResponse(pageHtml("Add Comment", bodyContent), {
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
     });
   } catch (err) {
-    const msg = err.name === "TokenExpiredError" ? "This link has expired" : "Invalid link";
-    return new NextResponse(pageHtml("Error", `<h1>Error</h1><p>${msg}.</p>`), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    const msg =
+      err.name === "TokenExpiredError"
+        ? "This link has expired"
+        : "Invalid link";
+    return new NextResponse(pageHtml("Error", `<h1>Error</h1><p>${msg}.</p>`), {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
 }
 
@@ -78,19 +95,34 @@ export async function POST(request, { params }) {
   const { token } = params;
   const isAmp = request.nextUrl.searchParams.get("amp") === "1";
 
-  const ampFail = (msg) => isAmp
-    ? ampJsonResponse({ success: false, message: msg }, { status: 400 })
-    : new NextResponse(pageHtml("Error", `<h1>Error</h1><p>${msg}</p>`), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  const ampFail = (msg) =>
+    isAmp
+      ? ampJsonResponse({ success: false, message: msg }, { status: 400 })
+      : new NextResponse(pageHtml("Error", `<h1>Error</h1><p>${msg}</p>`), {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
 
-  const ampOk = (msg) => isAmp
-    ? ampJsonResponse({ success: true, message: msg })
-    : new NextResponse(pageHtml("Comment Submitted", `
+  const ampOk = (msg) =>
+    isAmp
+      ? ampJsonResponse({ success: true, message: msg })
+      : new NextResponse(
+          pageHtml(
+            "Comment Submitted",
+            `
       <div style="text-align:center">
         <svg style="width:48px;height:48px;margin:0 auto 16px;display:block" viewBox="0 0 24 24" fill="none" stroke="#1F7A5C" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         <h1>Comment Submitted</h1>
         <p>${msg}</p>
       </div>
-    `), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, no-cache, must-revalidate" } });
+    `,
+          ),
+          {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "no-store, no-cache, must-revalidate",
+            },
+          },
+        );
 
   try {
     const decoded = await getAuthFromToken(token);
@@ -99,7 +131,8 @@ export async function POST(request, { params }) {
     const formData = await request.formData();
     const text = (formData.get("text") || "").trim();
     if (!text) return ampFail("Comment cannot be empty.");
-    if (text.length > 1000) return ampFail("Comment is too long (max 1000 characters).");
+    if (text.length > 1000)
+      return ampFail("Comment is too long (max 1000 characters).");
 
     await ensureDbConnection();
     const [task, user] = await Promise.all([
@@ -108,6 +141,15 @@ export async function POST(request, { params }) {
     ]);
 
     if (!task || !user) return ampFail("Task or user not found.");
+
+    if (task.reminderState?.length) {
+      task.reminderState = task.reminderState.map((entry) => {
+        if (entry.user?.toString() !== userId) {
+          return entry;
+        }
+        return pauseReminderStateEntry(entry, "commented", "comment");
+      });
+    }
 
     task.comments.push({ user: userId, text, createdAt: new Date() });
     await task.save();
@@ -135,7 +177,10 @@ export async function POST(request, { params }) {
 
     return ampOk("Your comment has been added to the task.");
   } catch (err) {
-    const msg = err.name === "TokenExpiredError" ? "This link has expired" : "Invalid link";
+    const msg =
+      err.name === "TokenExpiredError"
+        ? "This link has expired"
+        : "Invalid link";
     return ampFail(msg);
   }
 }
