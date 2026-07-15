@@ -250,7 +250,7 @@ export default function TasksPage() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await usersAPI.getAll();
+      const response = await usersAPI.getAssignable();
       setUsers(response.data?.users || []);
     } catch (err) {
       setError("Failed to load user list for task assignment");

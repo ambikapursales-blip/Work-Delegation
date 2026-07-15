@@ -217,7 +217,7 @@ const taskSchema = new mongoose.Schema(
     recurrencePattern: {
       frequency: {
         type: String,
-        enum: ["daily", "weekly", "biweekly", "monthly", "custom"],
+        enum: ["daily", "weekly", "biweekly", "monthly", "custom", "quarterly", "halfyearly", "yearly"],
       },
       daysOfWeek: [
         {
