@@ -452,4 +452,4 @@ taskSchema.index({ department: 1, status: 1 });
 taskSchema.index({ status: 1, deadline: 1 });
 taskSchema.index({ completedAt: -1 });
 
-export default mongoose.models.Task || mongoose.model("Task", taskSchema);
+export default mongoose.models?.Task || mongoose.model("Task", taskSchema);

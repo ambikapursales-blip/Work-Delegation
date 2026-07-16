@@ -92,4 +92,4 @@ dwrSchema.pre("save", function (next) {
   next();
 });
 
-export default mongoose.models.DWR || mongoose.model("DWR", dwrSchema);
+export default mongoose.models?.DWR || mongoose.model("DWR", dwrSchema);

@@ -45,4 +45,4 @@ const attendanceSchema = new mongoose.Schema(
 
 attendanceSchema.index({ employee: 1, date: 1 });
 attendanceSchema.index({ date: 1, status: 1 });
-export default mongoose.models.Attendance || mongoose.model("Attendance", attendanceSchema);
+export default mongoose.models?.Attendance || mongoose.model("Attendance", attendanceSchema);

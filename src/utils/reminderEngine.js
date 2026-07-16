@@ -13,6 +13,13 @@ function addMinutes(date, minutes) {
   return next;
 }
 
+function toKolkataDate(date) {
+  if (!date) return null;
+  const d = new Date(date);
+  const { year, month, day, hour, minute, second } = getKolkataDateParts(d);
+  return createKolkataDate(year, month, day, hour, minute, second);
+}
+
 function getKolkataDateParts(date) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -62,8 +69,8 @@ function getNextReminderAt(task, now = new Date(), reminderState = null) {
   if (taskType === "Custom") {
     const intervalMinutes = getReminderIntervalMinutes(task);
     const baseTime = reminderState?.lastReminderAt
-      ? toDate(reminderState.lastReminderAt)
-      : toDate(task?.createdAt) || toDate(now);
+      ? toKolkataDate(reminderState.lastReminderAt)
+      : toKolkataDate(task?.createdAt) || toKolkataDate(now);
 
     return intervalMinutes && baseTime
       ? addMinutes(baseTime, intervalMinutes)
@@ -292,7 +299,7 @@ export function updateReminderStateAfterSend(
   now = new Date(),
   mode = "normal",
 ) {
-  const current = toDate(now) || new Date();
+  const current = toKolkataDate(now) || new Date();
   const updated = {
     ...reminderState,
     lastReminderAt: current,

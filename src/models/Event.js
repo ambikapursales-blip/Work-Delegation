@@ -85,4 +85,4 @@ eventSchema.index({ type: 1 });
 eventSchema.index({ status: 1, startDate: 1 });
 eventSchema.index({ "assignedTo.employee": 1, status: 1 });
 
-export default mongoose.models.Event || mongoose.model("Event", eventSchema);
+export default mongoose.models?.Event || mongoose.model("Event", eventSchema);

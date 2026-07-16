@@ -148,4 +148,4 @@ userSchema.index({ managerId: 1 });
 userSchema.index({ name: 1 });
 userSchema.index({ isActive: 1, role: 1 });
 
-export default mongoose.models.User || mongoose.model("User", userSchema);
+export default mongoose.models?.User || mongoose.model("User", userSchema);

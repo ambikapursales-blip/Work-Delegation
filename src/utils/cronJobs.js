@@ -264,7 +264,72 @@ const ensureMongoConnection = async () => {
   return mongoConnectionPromise;
 };
 
+// ── Distributed lock for processScheduledEmails ──────────────
+
+const REMINDER_LOCK_KEY = "process_reminders_local";
+const REMINDER_LOCK_TTL_MS = 2 * 60 * 1000;
+
+const acquireReminderLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + REMINDER_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: REMINDER_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          {
+            lockedAt: {
+              $lt: new Date(now.getTime() - REMINDER_LOCK_TTL_MS),
+            },
+          },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: REMINDER_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (
+      doc &&
+      doc.lockedAt &&
+      doc.lockedAt.getTime() === now.getTime()
+    ) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) {
+      return false;
+    }
+    console.error("[CronJobs] Failed to acquire reminder lock:", error);
+    return false;
+  }
+};
+
+const releaseReminderLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: REMINDER_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release reminder lock:", error);
+  }
+};
+
 const processScheduledEmails = async () => {
+  const lockAcquired = await acquireReminderLock();
+  if (!lockAcquired) {
+    return;
+  }
+
   try {
     await ensureMongoConnection();
     const now = new Date();
@@ -346,6 +411,8 @@ const processScheduledEmails = async () => {
     console.log(`[CronJobs] Processed ${processedCount} reminder emails`);
   } catch (error) {
     console.error("[CronJobs] processScheduledEmails failed:", error.message);
+  } finally {
+    await releaseReminderLock();
   }
 };
 
@@ -413,19 +480,16 @@ const processOverdueTasks = async () => {
   }
 };
 
-let cronJobsInitialized = false;
-let cronJobsInitPromise = null;
-
 const initCronJobs = async () => {
-  if (cronJobsInitialized) {
+  if (globalThis.__cronJobsInitDone) {
     return;
   }
 
-  if (cronJobsInitPromise) {
-    return cronJobsInitPromise;
+  if (globalThis.__cronJobsInitPromise) {
+    return globalThis.__cronJobsInitPromise;
   }
 
-  cronJobsInitPromise = (async () => {
+  globalThis.__cronJobsInitPromise = (async () => {
     const { default: cron } = await import("node-cron");
 
     cron.schedule(
@@ -471,14 +535,17 @@ const initCronJobs = async () => {
       },
     );
 
-    cronJobsInitialized = true;
-    console.log("[CronJobs] Reminder scheduler initialized");
+    globalThis.__cronJobsInitDone = true;
+    if (!globalThis.__cronSchedulerLogged) {
+      globalThis.__cronSchedulerLogged = true;
+      console.log("[CronJobs] Reminder scheduler initialized");
+    }
   })().catch((error) => {
-    cronJobsInitPromise = null;
+    globalThis.__cronJobsInitPromise = null;
     throw error;
   });
 
-  return cronJobsInitPromise;
+  return globalThis.__cronJobsInitPromise;
 };
 
 export {

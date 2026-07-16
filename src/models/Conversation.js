@@ -46,4 +46,4 @@ conversationSchema.index({ lastActivityAt: -1 });
 conversationSchema.index({ "participants.userId": 1, lastActivityAt: -1 });
 conversationSchema.index({ "participants.userId": 1, taskId: 1 });
 
-export default mongoose.models.Conversation || mongoose.model("Conversation", conversationSchema);
+export default mongoose.models?.Conversation || mongoose.model("Conversation", conversationSchema);

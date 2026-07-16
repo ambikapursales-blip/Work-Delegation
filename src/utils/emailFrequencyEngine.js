@@ -1,9 +1,10 @@
 /**
  * Email Frequency Engine
- * 
+ *
  * Handles scheduling logic for task-based email notifications based on task type.
  * This engine calculates when the next email should be sent for each task type.
- * 
+ * All dates are calculated in Indian Standard Time (Asia/Kolkata).
+ *
  * Task Types:
  * - One Time: Email only once when task is assigned
  * - Daily: Email every day until completed
@@ -14,6 +15,49 @@
  * - Yearly: Every 12 months
  */
 
+const KOLKATA_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function getKolkataDateParts(date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+  };
+}
+
+function createKolkataDate(
+  year,
+  month,
+  day,
+  hour = 10,
+  minute = 0,
+  second = 0,
+) {
+  const utcTimestamp = Date.UTC(year, month - 1, day, hour, minute, second, 0);
+  return new Date(utcTimestamp - KOLKATA_OFFSET_MS);
+}
+
 /**
  * Calculate the next email schedule date based on task type and current date
  * @param {string} taskType - The type of task (One Time, Daily, Weekly, Monthly, Quarterly, Half Yearly, Yearly)
@@ -23,7 +67,8 @@
 export function calculateNextEmailDate(taskType, baseDate = new Date()) {
   if (!taskType || !baseDate) return null;
 
-  const date = new Date(baseDate);
+  const current = new Date(baseDate);
+  const { year, month, day } = getKolkataDateParts(current);
   
   switch (taskType) {
     case "One Time":
@@ -31,37 +76,30 @@ export function calculateNextEmailDate(taskType, baseDate = new Date()) {
       return null;
     
     case "Daily":
-      // Email every day
-      date.setDate(date.getDate() + 1);
-      return date;
+      // Email every day at 10 AM IST
+      return createKolkataDate(year, month, day + 1, 10, 0, 0);
     
     case "Weekly":
-      // Every 7 days
-      date.setDate(date.getDate() + 7);
-      return date;
+      // Every 7 days at 10 AM IST
+      return createKolkataDate(year, month, day + 7, 10, 0, 0);
     
     case "Monthly":
-      // Every month (same day of month)
-      date.setMonth(date.getMonth() + 1);
-      return date;
+      // Every month (same day of month) at 10 AM IST
+      return createKolkataDate(year, month + 1, day, 10, 0, 0);
     
     case "Quarterly":
-      // Every 3 months
-      date.setMonth(date.getMonth() + 3);
-      return date;
+      // Every 3 months at 10 AM IST
+      return createKolkataDate(year, month + 3, day, 10, 0, 0);
     
     case "Half Yearly":
-      // Every 6 months
-      date.setMonth(date.getMonth() + 6);
-      return date;
+      // Every 6 months at 10 AM IST
+      return createKolkataDate(year, month + 6, day, 10, 0, 0);
     
     case "Yearly":
-      // Every 12 months
-      date.setFullYear(date.getFullYear() + 1);
-      return date;
+      // Every 12 months at 10 AM IST
+      return createKolkataDate(year + 1, month, day, 10, 0, 0);
     
     default:
-      console.warn(`[EmailFrequencyEngine] Unknown task type: ${taskType}`);
       return null;
   }
 }
