@@ -50,7 +50,7 @@ function createKolkataDate(
   year,
   month,
   day,
-  hour = 10,
+  hour = 9,
   minute = 0,
   second = 0,
 ) {
@@ -76,28 +76,28 @@ export function calculateNextEmailDate(taskType, baseDate = new Date()) {
       return null;
     
     case "Daily":
-      // Email every day at 10 AM IST
-      return createKolkataDate(year, month, day + 1, 10, 0, 0);
+      // Email every day at 9 AM IST
+      return createKolkataDate(year, month, day + 1, 9, 0, 0);
     
     case "Weekly":
-      // Every 7 days at 10 AM IST
-      return createKolkataDate(year, month, day + 7, 10, 0, 0);
+      // Every 7 days at 9 AM IST
+      return createKolkataDate(year, month, day + 7, 9, 0, 0);
     
     case "Monthly":
-      // Every month (same day of month) at 10 AM IST
-      return createKolkataDate(year, month + 1, day, 10, 0, 0);
+      // Every month (same day of month) at 9 AM IST
+      return createKolkataDate(year, month + 1, day, 9, 0, 0);
     
     case "Quarterly":
-      // Every 3 months at 10 AM IST
-      return createKolkataDate(year, month + 3, day, 10, 0, 0);
+      // Every 3 months at 9 AM IST
+      return createKolkataDate(year, month + 3, day, 9, 0, 0);
     
     case "Half Yearly":
-      // Every 6 months at 10 AM IST
-      return createKolkataDate(year, month + 6, day, 10, 0, 0);
+      // Every 6 months at 9 AM IST
+      return createKolkataDate(year, month + 6, day, 9, 0, 0);
     
     case "Yearly":
-      // Every 12 months at 10 AM IST
-      return createKolkataDate(year + 1, month, day, 10, 0, 0);
+      // Every 12 months at 9 AM IST
+      return createKolkataDate(year + 1, month, day, 9, 0, 0);
     
     default:
       return null;

@@ -105,8 +105,8 @@ export const sendTaskAssignmentEmail = async (
   }
 
   const taskUrl = taskDetails.taskId
-    ? `${FRONTEND_URL}/tasks/${taskDetails.taskId}`
-    : `${FRONTEND_URL}/tasks`;
+    ? `${FRONTEND_URL}/dwr?task=${taskDetails.taskId}`
+    : `${FRONTEND_URL}/dwr`;
 
   const priorityBadgeColor =
     taskDetails.priority === "Critical"
@@ -279,7 +279,7 @@ export const sendTaskAssignmentEmail = async (
     ${
       taskDetails.commentToken
         ? `
-    ${buttonRow(button(`${FRONTEND_URL}/api/tasks/comment/${taskDetails.commentToken}`, "Add Comment", ACCENT.event))}`
+    ${buttonRow(button(`${FRONTEND_URL}/dwr?task=${taskDetails.taskId}`, "Add Comment", ACCENT.event))}`
         : ""
     }
     ${
@@ -394,7 +394,7 @@ export const sendTaskAssignedConfirmationEmail = async (
       ],
       ["Assigned To", assigneeNames],
     ])}
-    ${buttonRow(button(`${FRONTEND_URL}/tasks/${taskDetails.taskId || ""}`, "View task", ACCENT.assignment))}
+    ${buttonRow(button(`${FRONTEND_URL}/dwr?task=${taskDetails.taskId || ""}`, "View task", ACCENT.assignment))}
   `;
   const html = renderEmail(
     "assignment",
@@ -480,7 +480,7 @@ export const sendTaskEscalationEmail = async (
           : "No deadline",
       ],
     ])}
-    ${buttonRow(button(`${FRONTEND_URL}/tasks/${taskDetails.taskId || ""}`, "View task", ACCENT.reminder))}
+    ${buttonRow(button(`${FRONTEND_URL}/dwr?task=${taskDetails.taskId || ""}`, "View task", ACCENT.reminder))}
   `;
   const html = renderEmail(
     "reminder",
@@ -513,7 +513,7 @@ export const sendTaskStatusUpdateEmail = async (
           : "No deadline",
       ],
     ])}
-    ${buttonRow(button(`${FRONTEND_URL}/tasks/${taskDetails.taskId || ""}`, "View task", ACCENT.completion))}
+    ${buttonRow(button(`${FRONTEND_URL}/dwr?task=${taskDetails.taskId || ""}`, "View task", ACCENT.completion))}
   `;
   const html = renderEmail(
     "completion",
@@ -583,9 +583,9 @@ export const sendTaskOverdueAlertEmail = async (
       ["Pending Since", pendingSinceText],
     ])}
 
-    ${buttonRow(button(`${FRONTEND_URL}/tasks/${taskDetails.taskId || ""}`, "Open Task", ACCENT.security))}
+    ${buttonRow(button(`${FRONTEND_URL}/dwr?task=${taskDetails.taskId || ""}`, "Open Task", ACCENT.security))}
     ${taskDetails.completeToken ? buttonRow(button(`${FRONTEND_URL}/api/tasks/complete/${taskDetails.completeToken}`, "Complete Task", ACCENT.completion)) : ""}
-    ${taskDetails.commentToken ? buttonRow(button(`${FRONTEND_URL}/api/tasks/comment/${taskDetails.commentToken}`, "Add Comment", ACCENT.event)) : ""}
+    ${taskDetails.commentToken ? buttonRow(button(`${FRONTEND_URL}/dwr?task=${taskDetails.taskId}`, "Add Comment", ACCENT.event)) : ""}
     ${taskDetails.extensionToken ? buttonRow(button(`${FRONTEND_URL}/api/tasks/extend/${taskDetails.extensionToken}`, "Request Extension", ACCENT.reminder)) : ""}
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0; padding: 18px; background-color: #ffe8e8; border: 1px solid #f0c2c2; border-radius: 10px;">

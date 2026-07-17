@@ -53,7 +53,7 @@ function createKolkataDate(
   year,
   month,
   day,
-  hour = 10,
+  hour = 9,
   minute = 0,
   second = 0,
 ) {
@@ -82,17 +82,17 @@ function getNextReminderAt(task, now = new Date(), reminderState = null) {
 
   switch (taskType) {
     case "Daily":
-      return createKolkataDate(year, month, day + 1, 10, 0, 0);
+      return createKolkataDate(year, month, day + 1, 9, 0, 0);
     case "Weekly":
-      return createKolkataDate(year, month, day + 7, 10, 0, 0);
+      return createKolkataDate(year, month, day + 7, 9, 0, 0);
     case "Monthly":
-      return createKolkataDate(year, month + 1, day, 10, 0, 0);
+      return createKolkataDate(year, month + 1, day, 9, 0, 0);
     case "Quarterly":
-      return createKolkataDate(year, month + 3, day, 10, 0, 0);
+      return createKolkataDate(year, month + 3, day, 9, 0, 0);
     case "Half Yearly":
-      return createKolkataDate(year, month + 6, day, 10, 0, 0);
+      return createKolkataDate(year, month + 6, day, 9, 0, 0);
     case "Yearly":
-      return createKolkataDate(year + 1, month, day, 10, 0, 0);
+      return createKolkataDate(year + 1, month, day, 9, 0, 0);
     default:
       return null;
   }
