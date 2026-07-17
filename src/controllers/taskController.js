@@ -605,6 +605,8 @@ export const updateTask = async (req, res) => {
           assignee._id.toString() !== req.user._id.toString()
         ) {
           try {
+            const assigneeUserId = String(assignee._id);
+            const taskId = String(task._id);
             await sendTaskStatusUpdateEmail(
               assignee.email,
               assignee.name,
@@ -614,6 +616,14 @@ export const updateTask = async (req, res) => {
                 priority: task.priority,
                 deadline: task.deadline,
                 taskId: task._id,
+                userId: assignee._id,
+                assignedTo: assignee.name,
+                taskType: task.taskType,
+                createdAt: task.createdAt,
+                status: task.status,
+                completeToken: generateCompleteToken(taskId, assigneeUserId),
+                commentToken: generateCommentToken(taskId, assigneeUserId),
+                extensionToken: generateExtensionToken(taskId, assigneeUserId),
               },
               req.body.status,
               req.user.name,
@@ -635,6 +645,18 @@ export const updateTask = async (req, res) => {
           .select("name email");
         if (assignerNotify && assignerNotify.email) {
           try {
+            const assignerUserId = String(assignerNotify._id);
+            const taskId = String(task._id);
+            const assignedToNames = Array.isArray(task.assignedTo)
+              ? task.assignedTo.map((id) => id.toString())
+              : [task.assignedTo?.toString() || "Unassigned"];
+            const assignedToUsers = await User.find({ _id: { $in: assignedToNames } })
+              .lean()
+              .select("name");
+            const assignedToText = assignedToUsers.length > 0
+              ? assignedToUsers.map((u) => u.name).join(", ")
+              : "Unassigned";
+
             await sendTaskStatusUpdateEmail(
               assignerNotify.email,
               assignerNotify.name,
@@ -644,6 +666,14 @@ export const updateTask = async (req, res) => {
                 priority: task.priority,
                 deadline: task.deadline,
                 taskId: task._id,
+                userId: assignerNotify._id,
+                assignedTo: assignedToText,
+                taskType: task.taskType,
+                createdAt: task.createdAt,
+                status: task.status,
+                completeToken: generateCompleteToken(taskId, assignerUserId),
+                commentToken: generateCommentToken(taskId, assignerUserId),
+                extensionToken: generateExtensionToken(taskId, assignerUserId),
               },
               req.body.status,
               req.user.name,
@@ -1457,6 +1487,8 @@ export const escalateTask = async (req, res) => {
 
     if (escalateeUser.email) {
       try {
+        const escalateeUserId = String(escalateeUser._id);
+        const taskId = String(task._id);
         await sendTaskEscalationEmail(
           escalateeUser.email,
           escalateeUser.name,
@@ -1465,6 +1497,15 @@ export const escalateTask = async (req, res) => {
             description: task.description,
             deadline: task.deadline,
             taskId: task._id,
+            userId: escalateeUser._id,
+            priority: "Critical",
+            assignedTo: escalateeUser.name,
+            taskType: task.taskType,
+            createdAt: task.createdAt,
+            status: task.status,
+            completeToken: generateCompleteToken(taskId, escalateeUserId),
+            commentToken: generateCommentToken(taskId, escalateeUserId),
+            extensionToken: generateExtensionToken(taskId, escalateeUserId),
           },
           reason,
         );

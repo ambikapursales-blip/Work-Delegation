@@ -21,6 +21,9 @@ import {
   shouldSendDeadlineMilestone,
   markReminderPaused,
 } from "./reminderEngine.js";
+import { generateCompleteToken } from "./completeToken.js";
+import { generateCommentToken } from "./commentToken.js";
+import { generateExtensionToken } from "./extensionToken.js";
 
 const generateNextTaskOccurrence = async (parentTask) => {
   try {
@@ -203,20 +206,33 @@ const sendDeadlineAlerts = async () => {
 
           if (milestoneKey) {
             try {
+              const assigneeUserId = String(assignee._id);
+              const taskId = String(task._id);
+              const completeToken = generateCompleteToken(taskId, assigneeUserId);
+              const commentToken = generateCommentToken(taskId, assigneeUserId);
+              const extensionToken = generateExtensionToken(taskId, assigneeUserId);
+
+              const baseDetails = {
+                title: task.title,
+                description: task.description,
+                deadline: task.deadline,
+                priority: task.priority,
+                assignedBy: task.assignedBy?.name || "Unknown",
+                assignedTo: assignee.name,
+                taskType: task.taskType,
+                createdAt: task.createdAt,
+                taskId: task._id,
+                userId: assignee._id,
+                status: task.status,
+                completeToken,
+                commentToken,
+                extensionToken,
+              };
+
               if (milestoneKey === "dueToday") {
-                await sendTaskDueTodayEmail(assignee.email, assignee.name, {
-                  title: task.title,
-                  description: task.description,
-                  assignedBy: task.assignedBy?.name || "Unknown",
-                  priority: task.priority,
-                });
+                await sendTaskDueTodayEmail(assignee.email, assignee.name, baseDetails);
               } else {
-                await sendTaskReminderEmail(assignee.email, assignee.name, {
-                  title: task.title,
-                  description: task.description,
-                  deadline: task.deadline,
-                  priority: task.priority,
-                });
+                await sendTaskReminderEmail(assignee.email, assignee.name, baseDetails);
               }
               alertsSent++;
             } catch (emailError) {
@@ -266,7 +282,7 @@ const ensureMongoConnection = async () => {
 
 // ── Distributed lock for processScheduledEmails ──────────────
 
-const REMINDER_LOCK_KEY = "process_reminders_local";
+const REMINDER_LOCK_KEY = "process_reminders";
 const REMINDER_LOCK_TTL_MS = 2 * 60 * 1000;
 
 const acquireReminderLock = async () => {
@@ -356,30 +372,39 @@ const processScheduledEmails = async () => {
         }
 
         try {
+          const assigneeUserId = String(assignee._id);
+          const taskId = String(task._id);
+          const completeToken = generateCompleteToken(taskId, assigneeUserId);
+          const commentToken = generateCommentToken(taskId, assigneeUserId);
+          const extensionToken = generateExtensionToken(taskId, assigneeUserId);
+
+          const baseDetails = {
+            title: task.title,
+            description: task.description,
+            deadline: task.deadline,
+            priority: task.priority,
+            assignedBy: task.assignedBy?.name || "Unknown",
+            assignedTo: assignee.name,
+            taskType: task.taskType,
+            createdAt: task.createdAt,
+            taskId: task._id,
+            userId: assignee._id,
+            status: task.status,
+            completeToken,
+            commentToken,
+            extensionToken,
+          };
+
           if (mode === "overdue") {
             await sendTaskOverdueAlertEmail(assignee.email, assignee.name, {
-              title: task.title,
-              description: task.description,
-              deadline: task.deadline,
-              priority: task.priority,
-              assignedBy: task.assignedBy?.name || "Unknown",
-              taskId: task._id,
-              status: task.status,
+              ...baseDetails,
               daysOverdue: Math.ceil(
                 (now.getTime() - new Date(task.deadline).getTime()) /
                   (1000 * 60 * 60 * 24),
               ),
             });
           } else {
-            await sendTaskReminderEmail(assignee.email, assignee.name, {
-              title: task.title,
-              description: task.description,
-              deadline: task.deadline,
-              priority: task.priority,
-              assignedBy: task.assignedBy?.name || "Unknown",
-              taskId: task._id,
-              status: task.status,
-            });
+            await sendTaskReminderEmail(assignee.email, assignee.name, baseDetails);
           }
 
           const updatedState = updateReminderStateAfterSend(
