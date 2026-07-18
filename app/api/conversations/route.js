@@ -187,16 +187,6 @@ async function getNormalUserView(user, res) {
     $or: [{ assignedTo: user._id }, { assignedBy: user._id }],
   };
 
-  if (user.role === "Manager") {
-    const teamMembers = await User.find({ managerId: user._id })
-      .select("_id")
-      .lean();
-    const teamIds = teamMembers.map((member) => member._id);
-    if (teamIds.length > 0) {
-      taskMatch.$or.push({ assignedTo: { $in: teamIds } });
-    }
-  }
-
   const userTasks = await Task.find(taskMatch)
     .select("title status assignedTo assignedBy deadline priority createdAt")
     .populate("assignedBy", "name email role avatar")

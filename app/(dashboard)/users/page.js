@@ -210,7 +210,7 @@
 // }
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usersAPI } from "@/lib/api";
 import { SkeletonTable, SkeletonDetail } from "@/components/skeleton";
 import { Mail, Building2, Edit, Trash2, Phone, Users, X, Plus, CheckCircle2, AlertCircle } from "lucide-react";
@@ -438,6 +438,19 @@ export default function UsersPage() {
     }
   };
 
+  const sortedUsers = useMemo(() =>
+    [...users].sort((a, b) => {
+      const nameA = (a.name || "").toLowerCase();
+      const nameB = (b.name || "").toLowerCase();
+      const nameCompare = nameA.localeCompare(nameB);
+      if (nameCompare !== 0) return nameCompare;
+      // Secondary sort by email if names are the same
+      const emailA = (a.email || "").toLowerCase();
+      const emailB = (b.email || "").toLowerCase();
+      return emailA.localeCompare(emailB);
+    }),
+  [users]);
+
   const handleEdit = (user) => {
     setEditingUser(user);
     setFormData({
@@ -507,8 +520,8 @@ export default function UsersPage() {
 
   const filtered =
     activeFilter === "All"
-      ? users
-      : users.filter((u) => u.role === activeFilter);
+      ? sortedUsers
+      : sortedUsers.filter((u) => u.role === activeFilter);
 
   const canCreateUser = user?.role === "Super Admin";
 

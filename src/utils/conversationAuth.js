@@ -1,5 +1,3 @@
-import User from "../models/User.js";
-
 export async function canAccessConversation(user, task) {
   const isSuperAdmin = user.role === "Super Admin";
   const canViewAll = user.canViewAllTasks;
@@ -20,14 +18,6 @@ export async function canAccessConversation(user, task) {
 
   if (isAssigned || isAssigner) {
     return true;
-  }
-
-  if (user.role === "Manager") {
-    const teamMembers = await User.find({ managerId: user._id })
-      .select("_id")
-      .lean();
-    const teamIds = new Set(teamMembers.map((m) => m._id.toString()));
-    return assigneeIds.some((id) => teamIds.has(id));
   }
 
   return false;

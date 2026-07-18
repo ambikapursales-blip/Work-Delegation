@@ -26,7 +26,7 @@ const register = async (req, res) => {
       name,
       email,
       password,
-      role: role || "Sales Executive",
+      role: role || "Sales",
       department,
       phone,
       managerId,
@@ -61,10 +61,9 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  const roles = ["Super Admin", "Admin", "HR"];
-  if (!roles.includes(user.role)) {
+  if (user.role !== "Super Admin") {
     return NextResponse.json(
-      { success: false, message: `Role '${user.role}' is not authorized to access this route` },
+      { success: false, message: "Not authorized" },
       { status: 403 },
     );
   }

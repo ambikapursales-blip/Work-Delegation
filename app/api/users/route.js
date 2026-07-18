@@ -49,12 +49,38 @@ export async function GET(request) {
       const pageNum = parseInt(page);
       const limitNum = parseInt(limit);
       const skip = (pageNum - 1) * limitNum;
-      const total = await User.countDocuments(query);
-      const users = await User.find(query)
-        .select("-password")
-        .sort(sortOption)
-        .skip(skip)
-        .limit(limitNum);
+      const [result] = await User.aggregate([
+        { $match: query },
+        {
+          $project: {
+            password: 0,
+            name: 1,
+            email: 1,
+            role: 1,
+            department: 1,
+            phone: 1,
+            isActive: 1,
+            canAssignTasks: 1,
+            canViewAllTasks: 1,
+            avatar: 1,
+            employeeId: 1,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        },
+        {
+          $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+              { $sort: sortOption },
+              { $skip: skip },
+              { $limit: limitNum },
+            ],
+          },
+        },
+      ]);
+      const total = result.metadata[0]?.total || 0;
+      const users = result.data;
       return res.status(200).json({
         success: true,
         count: users.length,

@@ -24,9 +24,15 @@ export async function GET(request, { params }) {
 
     if (!dwr) {
       res.status(404).json({ success: false, message: "DWR not found" });
-    } else {
-      res.status(200).json({ success: true, dwr });
+      return finishRes(res);
     }
+
+    if (dwr.employee._id.toString() !== user._id.toString() && user.role !== "Super Admin" && !user.canViewAllTasks) {
+      res.status(403).json({ success: false, message: "Not authorized" });
+      return finishRes(res);
+    }
+
+    res.status(200).json({ success: true, dwr });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
   }
@@ -41,6 +47,17 @@ export async function PUT(request, { params }) {
   req.user = user;
   const res = createRes();
   try {
+    const existing = await DWR.findById(req.params.id);
+    if (!existing) {
+      res.status(404).json({ success: false, message: "DWR not found" });
+      return finishRes(res);
+    }
+
+    if (existing.employee.toString() !== user._id.toString() && user.role !== "Super Admin" && !user.canAssignTasks) {
+      res.status(403).json({ success: false, message: "Not authorized" });
+      return finishRes(res);
+    }
+
     const {
       completedTasks,
       pendingTasks,

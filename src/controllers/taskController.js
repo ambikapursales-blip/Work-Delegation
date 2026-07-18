@@ -119,7 +119,6 @@ export const getTasks = async (req, res) => {
       .populate([
         { path: "assignedTo", select: "name email role avatar employeeId" },
         { path: "assignedBy", select: "name email role" },
-        { path: "history.changedBy", select: "name" },
       ])
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -167,24 +166,11 @@ export const getTask = async (req, res) => {
       task.assignedBy?._id?.toString() === req.user._id.toString() ||
       task.assignedBy?.toString() === req.user._id.toString();
 
-    let isManagerOfAssignee = false;
-    if (req.user.role === "Manager") {
-      const assigneeIds = Array.isArray(task.assignedTo)
-        ? task.assignedTo.map((a) => a._id?.toString() || a.toString())
-        : [task.assignedTo?._id?.toString() || task.assignedTo?.toString()];
-      const teamMembers = await User.find({ managerId: req.user._id })
-        .select("_id")
-        .lean();
-      const teamIds = new Set(teamMembers.map((m) => m._id.toString()));
-      isManagerOfAssignee = assigneeIds.some((id) => teamIds.has(id));
-    }
-
     if (
       !isSuperAdmin &&
       !canViewAll &&
       !isAssigned &&
-      !isAssigner &&
-      !isManagerOfAssignee
+      !isAssigner
     ) {
       return res
         .status(403)
@@ -429,7 +415,7 @@ export const updateTask = async (req, res) => {
       ? task.assignedTo.some((id) => id.toString() === req.user._id.toString())
       : task.assignedTo.toString() === req.user._id.toString();
     const isAssigner = task.assignedBy.toString() === req.user._id.toString();
-    const isAdmin = ["Super Admin", "Admin", "HR"].includes(req.user.role);
+    const isAdmin = req.user.role === "Super Admin" || req.user.canAssignTasks;
 
     if (!isAssignee && !isAssigner && !isAdmin) {
       return res.status(403).json({

@@ -11,6 +11,12 @@ import User from "@/src/models/User";
 export async function GET(request, { params }) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
+  if (user.role !== "Super Admin" && !user.canViewAllTasks) {
+    return NextResponse.json(
+      { success: false, message: "Not authorized" },
+      { status: 403 },
+    );
+  }
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();

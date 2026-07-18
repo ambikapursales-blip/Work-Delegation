@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import Task from "../models/Task.js";
 import Activity from "../models/Activity.js";
@@ -6,10 +7,6 @@ import DWR from "../models/DWR.js";
 export const getTeamMembers = async (req, res) => {
   try {
     let query = { isActive: true };
-
-    if (req.user.role === "Manager") {
-      query.managerId = req.user._id;
-    }
 
     const users = await User.find(query).lean()
       .select(
@@ -84,18 +81,6 @@ export const getEmployeeTasks = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    if (req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      if (!teamIds.some((id) => id.toString() === userId)) {
-        return res
-          .status(403)
-          .json({ success: false, message: "Not authorized" });
-      }
-    }
-
     let query = { assignedTo: { $in: [userId] } };
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -130,18 +115,6 @@ export const getEmployeeActivity = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    if (req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      if (!teamIds.some((id) => id.toString() === userId)) {
-        return res
-          .status(403)
-          .json({ success: false, message: "Not authorized" });
-      }
-    }
-
     const skip = (page - 1) * limit;
     const total = await Activity.countDocuments({ user: userId });
     const activities = await Activity.find({ user: userId }).lean()
@@ -167,18 +140,6 @@ export const getEmployeeDWRs = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
-    }
-
-    if (req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      if (!teamIds.some((id) => id.toString() === userId)) {
-        return res
-          .status(403)
-          .json({ success: false, message: "Not authorized" });
-      }
     }
 
     let query = { employee: userId };
@@ -207,10 +168,6 @@ export const getEmployeeDWRs = async (req, res) => {
 export const getTeamStats = async (req, res) => {
   try {
     let matchQuery = { isActive: true };
-
-    if (req.user.role === "Manager") {
-      matchQuery.managerId = req.user._id;
-    }
 
     const teamMembers = await User.find(matchQuery).select(
       "_id name role department",
@@ -300,7 +257,8 @@ export const getTeamStats = async (req, res) => {
 
 export const getEmployeePerformance = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { userId: userIdStr } = req.params;
+    const userId = new mongoose.Types.ObjectId(userIdStr);
     const { period = "month" } = req.query;
 
     const user = await User.findById(userId).lean().select(
@@ -310,18 +268,6 @@ export const getEmployeePerformance = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
-    }
-
-    if (req.user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: req.user._id }).select(
-        "_id",
-      );
-      const teamIds = teamMembers.map((m) => m._id);
-      if (!teamIds.some((id) => id.toString() === userId)) {
-        return res
-          .status(403)
-          .json({ success: false, message: "Not authorized" });
-      }
     }
 
     const now = new Date();

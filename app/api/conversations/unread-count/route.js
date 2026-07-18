@@ -30,26 +30,62 @@ export async function GET(request) {
       return finishRes(res.status(200).json({ success: true, totalUnread: 0 }));
     }
 
-    const conversations = await Conversation.find({ taskId: { $in: taskIds } })
-      .select("taskId participants")
-      .lean();
-
-    let totalUnread = 0;
-    for (const conv of conversations) {
-      const participant = conv.participants?.find(
-        (p) => p.userId && p.userId.toString() === user._id.toString(),
-      );
-      const lastReadAt = participant?.lastReadAt || null;
-      const match = {
-        taskId: conv.taskId,
-        sender: { $ne: user._id },
-        isDeleted: { $ne: true },
-      };
-      if (lastReadAt) {
-        match.createdAt = { $gt: new Date(lastReadAt) };
+    const result = await Conversation.aggregate([
+      {
+        $match: {
+          taskId: { $in: taskIds }
+        }
+      },
+      {
+        $lookup: {
+          from: "messages",
+          let: {
+            taskId: "$taskId",
+            userId: user._id,
+            lastReadAt: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: "$participants",
+                    cond: { $eq: ["$$this.userId", user._id] }
+                  }
+                },
+                0
+              ]
+            }
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$taskId", "$$taskId"] },
+                    { $ne: ["$sender", "$$userId"] },
+                    { $ne: ["$isDeleted", true] },
+                    {
+                      $cond: {
+                        if: { $ne: ["$$lastReadAt.lastReadAt", null] },
+                        then: { $gt: ["$createdAt", "$$lastReadAt.lastReadAt"] },
+                        else: true
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          as: "unreadMessages"
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalUnread: { $sum: { $size: "$unreadMessages" } }
+        }
       }
-      totalUnread += await Message.countDocuments(match);
-    }
+    ]);
+
+    const totalUnread = result.length > 0 ? result[0].totalUnread : 0;
 
     return finishRes(res.status(200).json({ success: true, totalUnread }));
   } catch (error) {

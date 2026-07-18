@@ -79,5 +79,6 @@ const notificationSchema = new mongoose.Schema(
 );
 
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ recipient: 1, isRead: 1, type: 1, createdAt: -1 });
 notificationSchema.index({ entityId: 1, entityType: 1 });
 export default mongoose.models?.Notification || mongoose.model("Notification", notificationSchema);

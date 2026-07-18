@@ -24,11 +24,11 @@ export default function Toast({ type = "success", message, onClose, duration = 3
 
   return (
     <div
-      className={`fixed top-4 right-4 z-50 transition-all duration-300 ${
+      className={`fixed top-4 right-4 left-4 sm:left-auto z-50 transition-all duration-300 ${
         isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[-20px]"
       }`}
     >
-      <div className={`${bgClass} rounded-xl px-4 py-3 flex items-center gap-3 min-w-[300px]`} style={{ borderColor: `color-mix(in srgb, ${themeVar} 30%, transparent)`, backgroundColor: "var(--bg-card)" }}>
+      <div className={`${bgClass} rounded-xl px-4 py-3 flex items-center gap-3 min-w-0 sm:min-w-[300px]`} style={{ borderColor: `color-mix(in srgb, ${themeVar} 30%, transparent)`, backgroundColor: "var(--bg-card)" }}>
         {icon}
         <p className="text-sm font-medium flex-1" style={{ color: themeVar }}>{message}</p>
         <button

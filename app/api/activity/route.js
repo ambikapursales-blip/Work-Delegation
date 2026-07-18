@@ -29,12 +29,48 @@ export async function GET(request) {
 
     if (type) query.type = type;
 
-    const total = await Activity.countDocuments(query);
-    const activities = await Activity.find(query)
-      .populate("user", "name email role")
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
+    const [result] = await Activity.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+              $lookup: {
+                from: "users",
+                localField: "user",
+                foreignField: "_id",
+                as: "user",
+              },
+            },
+            { $unwind: "$user" },
+            {
+              $project: {
+                "user.name": 1,
+                "user.email": 1,
+                "user.role": 1,
+                user: 1,
+                type: 1,
+                description: 1,
+                metadata: 1,
+                entityId: 1,
+                entityType: 1,
+                ipAddress: 1,
+                userAgent: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const total = result.metadata[0]?.total || 0;
+    const activities = result.data;
 
     res
       .status(200)

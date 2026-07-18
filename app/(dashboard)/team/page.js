@@ -38,7 +38,7 @@ export default function TeamPage() {
   const [hoveredMember, setHoveredMember] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const canViewTeam = ["Super Admin", "Admin", "Manager", "HR"].includes(user?.role);
+  const canViewTeam = user?.role === "Super Admin" || user?.canViewAllTasks;
 
   useEffect(() => {
     if (!canViewTeam) return;

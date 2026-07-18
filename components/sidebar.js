@@ -16,53 +16,18 @@ import {
   Sparkles,
 } from "lucide-react";
 
-const getAllMenuItems = () => [
-  {
-    title: "Dashboard",
-    icon: LayoutDashboard,
-    href: "/dashboard",
-  },
-  {
-    title: "Tasks",
-    icon: CheckSquare,
-    href: "/tasks",
-  },
-  {
-    title: "DWR",
-    icon: FileText,
-    href: "/dwr",
-  },
-  {
-    title: "Events",
-    icon: Calendar,
-    href: "/events",
-  },
-  {
-    title: "Attendance",
-    icon: Activity,
-    href: "/attendance",
-  },
-  {
-    title: "Users",
-    icon: Users,
-    href: "/users",
-  },
-  {
-    title: "Performance",
-    icon: BarChart3,
-    href: "/performance",
-  },
+const ALL_MENU_ITEMS = [
+  { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  { title: "Tasks", icon: CheckSquare, href: "/tasks" },
+  { title: "DWR", icon: FileText, href: "/dwr" },
+  { title: "Events", icon: Calendar, href: "/events" },
+  { title: "Attendance", icon: Activity, href: "/attendance" },
+  { title: "Performance", icon: BarChart3, href: "/performance" },
 ];
 
-const ROLE_MENU = {
-  "Super Admin": ["Dashboard", "Tasks", "DWR", "Events", "Attendance", "Users", "Performance"],
-  Admin: ["Dashboard", "Tasks", "DWR", "Events"],
-  Manager: ["Dashboard", "Tasks", "DWR", "Events"],
-  HR: ["Dashboard", "Tasks", "DWR", "Attendance"],
-  "Sales Executive": ["Dashboard", "Tasks", "DWR", "Events"],
-  Coordinator: ["Dashboard", "Tasks", "DWR", "Events"],
-  It: ["Dashboard", "Tasks", "DWR", "Events"],
-};
+const SUPER_ADMIN_ONLY_ITEMS = [
+  { title: "Users", icon: Users, href: "/users" },
+];
 
 export default function Sidebar({ isOpen, setIsOpen }) {
   const router = useRouter();
@@ -74,11 +39,10 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     router.push("/auth/login");
   };
 
-  const allItems = getAllMenuItems();
-  const allowedTitles = ROLE_MENU[user?.role] || [];
-  const menuItems = allItems.filter((item) =>
-    allowedTitles.includes(item.title),
-  );
+  const menuItems = [
+    ...ALL_MENU_ITEMS,
+    ...(user?.role === "Super Admin" ? SUPER_ADMIN_ONLY_ITEMS : []),
+  ];
 
   const pathname = usePathname();
 
@@ -105,7 +69,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     <>
       <aside
         className={`
-          fixed lg:relative z-30 h-full w-72 overflow-y-auto
+          fixed lg:relative z-40 h-full w-72 overflow-y-auto
           transition-transform duration-300 ease-in-out
           bg-[var(--bg-base)]
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
@@ -191,7 +155,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
       {isOpen && (
         <div
-          className="fixed inset-0 z-20 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-[35] bg-black/60 lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}

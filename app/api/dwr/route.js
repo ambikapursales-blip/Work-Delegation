@@ -21,20 +21,70 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
 
     let query = {};
-    if (user.role !== "Super Admin" && user.role !== "Admin" && user.role !== "HR") {
+    if (user.role !== "Super Admin" && !user.canViewAllTasks) {
       query.employee = user._id;
     }
 
-    const total = await DWR.countDocuments(query);
-    const dwrs = await DWR.find(query)
-      .populate([
-        { path: "employee", select: "name email" },
-        { path: "completedTasks.task", select: "title" },
-        { path: "pendingTasks.task", select: "title" },
-      ])
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ date: -1 });
+    const [result] = await DWR.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { date: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+              $lookup: {
+                from: "users",
+                localField: "employee",
+                foreignField: "_id",
+                as: "employee",
+              },
+            },
+            { $unwind: "$employee" },
+            {
+              $lookup: {
+                from: "tasks",
+                localField: "completedTasks.task",
+                foreignField: "_id",
+                as: "completedTasks.task",
+              },
+            },
+            {
+              $lookup: {
+                from: "tasks",
+                localField: "pendingTasks.task",
+                foreignField: "_id",
+                as: "pendingTasks.task",
+              },
+            },
+            {
+              $project: {
+                "employee.name": 1,
+                "employee.email": 1,
+                employee: 1,
+                "completedTasks.task.title": 1,
+                completedTasks: 1,
+                "pendingTasks.task.title": 1,
+                pendingTasks: 1,
+                workSummary: 1,
+                challenges: 1,
+                nextDayPlan: 1,
+                totalHoursWorked: 1,
+                date: 1,
+                submittedAt: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const total = result.metadata[0]?.total || 0;
+    const dwrs = result.data;
 
     res.status(200).json({ success: true, total, count: dwrs.length, dwrs });
   } catch (error) {

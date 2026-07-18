@@ -427,7 +427,7 @@ export const getDashboardAnalytics = async (req, res) => {
     };
 
     if (userId && canQueryOtherUsers) {
-      taskMatch.assignedTo = userId;
+      taskMatch.assignedTo = { $in: userIds };
     } else {
       const taskScope = await getTaskScopeFilter(req.user);
       Object.assign(taskMatch, taskScope);

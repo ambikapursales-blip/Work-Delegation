@@ -13,9 +13,15 @@ import DWR from "@/src/models/DWR";
 
 export async function GET(request, { params }) {
   await ensureDbConnection();
-  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
+  const authUser = await requireAuth(request); if (authUser instanceof NextResponse) return authUser;
+  if (authUser.role !== "Super Admin" && !authUser.canViewAllTasks && authUser._id.toString() !== params.id) {
+    return NextResponse.json(
+      { success: false, message: "Not authorized" },
+      { status: 403 },
+    );
+  }
   const req = createReq(request, params);
-  req.user = user;
+  req.user = authUser;
   const res = createRes();
   try {
     const found = await User.findById(req.params.id)

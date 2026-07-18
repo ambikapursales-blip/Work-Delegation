@@ -206,6 +206,7 @@ export default function TasksPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [userFilter, setUserFilter] = useState(""); // user ID filter
+  const [isMobile, setIsMobile] = useState(false);
 
   const canAssignTasks = user?.role === "Super Admin" || user?.canAssignTasks;
   const canViewAllTasks = user?.role === "Super Admin" || user?.canViewAllTasks;
@@ -226,6 +227,19 @@ export default function TasksPage() {
       setIsSearching(true);
     }
   }, [searchQuery, debouncedSearchQuery]);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Scroll <main> to top on mount so the sticky header isn't pre-stuck
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (main) main.scrollTop = 0;
+  }, []);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -621,7 +635,7 @@ export default function TasksPage() {
           boxShadow: "var(--shadow-card)",
         }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1
               className="text-2xl sm:text-3xl font-bold tracking-tight"
@@ -690,13 +704,13 @@ export default function TasksPage() {
               />
 
               <CardHeader
-                className="px-8 py-6 relative z-10"
+                className="px-4 sm:px-8 py-4 sm:py-6 relative z-10"
                 style={{ borderBottom: "1px solid var(--border)" }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
                     <div
-                      className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl p-[2px] flex-shrink-0"
                       style={{
                         background:
                           "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
@@ -707,16 +721,16 @@ export default function TasksPage() {
                         style={{ backgroundColor: "var(--bg-card)" }}
                       >
                         <Plus
-                          className="w-6 h-6"
+                          className="w-5 h-5 sm:w-6 sm:h-6"
                           style={{ color: "var(--active-start)" }}
                         />
                       </div>
                     </div>
                     <div>
-                      <CardTitle className="text-2xl font-bold tracking-tight">
+                      <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">
                         Create New Task
                       </CardTitle>
-                      <CardDescription className="mt-1 text-base">
+                      <CardDescription className="mt-1 text-sm sm:text-base">
                         Assign tasks to team members
                       </CardDescription>
                     </div>
@@ -743,7 +757,7 @@ export default function TasksPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="px-8 py-6 relative z-10">
+              <CardContent className="px-4 sm:px-8 py-4 sm:py-6 relative z-10">
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {/* Title - Full width */}
                   <div className="space-y-2">
@@ -1197,13 +1211,13 @@ export default function TasksPage() {
               />
 
               <CardHeader
-                className="px-8 py-6 relative z-10"
+                className="px-4 sm:px-8 py-4 sm:py-6 relative z-10"
                 style={{ borderBottom: "1px solid var(--border)" }}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
                     <div
-                      className="w-12 h-12 rounded-2xl p-[2px] flex-shrink-0"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl p-[2px] flex-shrink-0"
                       style={{
                         background:
                           "linear-gradient(135deg, var(--color-info) 0%, var(--accent) 100%)",
@@ -1215,7 +1229,7 @@ export default function TasksPage() {
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="w-6 h-6"
+                          className="w-5 h-5 sm:w-6 sm:h-6"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -1230,10 +1244,10 @@ export default function TasksPage() {
                       </div>
                     </div>
                     <div>
-                      <CardTitle className="text-2xl font-bold tracking-tight">
+                      <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">
                         Edit Task
                       </CardTitle>
-                      <CardDescription className="mt-1 text-base">
+                      <CardDescription className="mt-1 text-sm sm:text-base">
                         Update task details
                       </CardDescription>
                     </div>
@@ -1260,7 +1274,7 @@ export default function TasksPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="px-8 py-6 relative z-10">
+              <CardContent className="px-4 sm:px-8 py-4 sm:py-6 relative z-10">
                 <form onSubmit={handleEditSubmit} className="space-y-5">
                   {/* Title */}
                   <div className="space-y-2">
@@ -1604,16 +1618,16 @@ export default function TasksPage() {
           ) : (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
               {/* Filter Bar */}
-              <div className="glass-card p-5 mb-6">
+              <div className="glass-card p-3 sm:p-5 mb-4 sm:mb-6">
                 <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                  <div className="flex flex-wrap gap-3 items-center">
-                    <span
-                      className="text-sm font-medium"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      Status:
-                    </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-3 items-center w-full lg:w-auto">
+                      <span
+                        className="text-sm font-medium shrink-0"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Status:
+                      </span>
+                      <div className="flex gap-2 overflow-x-auto flex-nowrap min-w-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {["all", "completed", "inprogress", "overdue"].map(
                         (status) => (
                           <button
@@ -1622,7 +1636,7 @@ export default function TasksPage() {
                               setTaskViewTab(status);
                               setCurrentPage(1);
                             }}
-                            className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-sm font-medium transition-all"
                             style={
                               taskViewTab === status
                                 ? {
@@ -1676,7 +1690,7 @@ export default function TasksPage() {
                         setCurrentPage(1);
                       }}
                       className="input-field text-sm font-medium"
-                      style={{ width: "auto", minWidth: "140px" }}
+                      style={{ width: "auto", minWidth: isMobile ? "auto" : "140px" }}
                     >
                       <option value="all">All Time</option>
                       <option value="today">Today</option>
@@ -1701,7 +1715,7 @@ export default function TasksPage() {
                           setCurrentPage(1);
                         }}
                         className="input-field text-sm font-medium"
-                        style={{ width: "auto", minWidth: "140px" }}
+                        style={{ width: "auto", minWidth: isMobile ? "auto" : "140px" }}
                       >
                         <option value="">All Users</option>
                         {users.map((u) => (
@@ -1717,7 +1731,7 @@ export default function TasksPage() {
                 {/* Custom Date Range */}
                 {dateFilter === "custom" && (
                   <div
-                    className="flex gap-4 mt-4 pt-4"
+                    className="flex flex-col sm:flex-row gap-4 mt-4 pt-4"
                     style={{ borderTop: "1px solid var(--border)" }}
                   >
                     <div className="flex-1">
@@ -1830,6 +1844,7 @@ export default function TasksPage() {
                     </button>
                   </div>
                 )}
+                {!isMobile && (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -2148,7 +2163,7 @@ export default function TasksPage() {
                                     >
                                       <MessageSquare className="w-4 h-4" />
                                     </Link>
-                                    {user?.role === "Super Admin" && (
+                                    {canAssignTasks && (
                                       <button
                                         onClick={() => handleDelete(task._id)}
                                         disabled={deletingTaskId === task._id}
@@ -2358,10 +2373,498 @@ export default function TasksPage() {
                     </tbody>
                   </table>
                 </div>
+                )}
+                {isMobile && (
+                  <div className="p-3 space-y-3">
+                    {tasksToDisplay.length === 0 ? (
+                      <div className="flex flex-col items-center gap-3 py-12">
+                        <div
+                          className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                          style={{ backgroundColor: "var(--bg-muted)" }}
+                        >
+                          <CheckCircle2
+                            size={28}
+                            style={{ color: "var(--text-muted)" }}
+                          />
+                        </div>
+                        <p
+                          className="font-medium"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          No tasks found
+                        </p>
+                      </div>
+                    ) : (
+                      tasksToDisplay.map((task) => {
+                        const status =
+                          task.status?.toLowerCase() === "completed"
+                            ? "Completed"
+                            : task.isOverdue
+                              ? "Overdue"
+                              : "In Progress";
+
+                        const now = new Date();
+                        const deadlineDate = new Date(task.deadline);
+                        now.setHours(0, 0, 0, 0);
+                        deadlineDate.setHours(0, 0, 0, 0);
+                        const diffTime = deadlineDate - now;
+                        const daysRemaining = Math.ceil(
+                          diffTime / (1000 * 60 * 60 * 24),
+                        );
+
+                        let remainingText = "";
+                        let remainingColor = "";
+
+                        if (status === "Completed") {
+                          if (task.completedAt) {
+                            remainingText = `Completed on ${new Date(task.completedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
+                          } else {
+                            remainingText = "Completed";
+                          }
+                          remainingColor = "var(--color-success)";
+                        } else if (status === "Overdue") {
+                          const overdueDays = Math.abs(daysRemaining);
+                          remainingText = `Overdue by ${overdueDays} Day${overdueDays > 1 ? "s" : ""}`;
+                          remainingColor = "var(--color-danger)";
+                        } else if (daysRemaining === 0) {
+                          remainingText = "Due Today";
+                          remainingColor = "var(--color-danger)";
+                        } else if (daysRemaining <= 5) {
+                          remainingText = `${daysRemaining} Day${daysRemaining > 1 ? "s" : ""} Left`;
+                          remainingColor = "var(--color-warning)";
+                        } else {
+                          remainingText = `${daysRemaining} Days Left`;
+                          remainingColor = "var(--color-success)";
+                        }
+
+                        return (
+                          <div
+                            key={task._id}
+                            className="rounded-xl overflow-hidden"
+                            style={{
+                              background: "var(--bg-card)",
+                              border: "1px solid var(--border)",
+                              boxShadow: "var(--shadow-sm)",
+                            }}
+                            onClick={() =>
+                              canAssignTasks &&
+                              task.status === "Completed" &&
+                              setExpandedTask(
+                                expandedTask === task._id ? null : task._id,
+                              )
+                            }
+                          >
+                            {/* Card Header */}
+                            <div className="flex items-start gap-2 px-3 pt-3 pb-1">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTasks.includes(task._id)}
+                                  onChange={() => handleSelectTask(task._id)}
+                                  className="mt-0.5 shrink-0"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className="font-medium text-sm cursor-pointer"
+                                  style={{ color: "var(--text-primary)" }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTaskForModal(task);
+                                    setShowTaskModal(true);
+                                  }}
+                                >
+                                  {task.title}
+                                </p>
+                                {task.description && (
+                                  <p
+                                    className="text-xs mt-0.5 line-clamp-2"
+                                    style={{ color: "var(--text-muted)" }}
+                                  >
+                                    {task.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Badges */}
+                            <div className="flex flex-wrap gap-1.5 px-3 pb-1.5">
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
+                                style={statusStyle(status)}
+                              >
+                                {status}
+                              </span>
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
+                                style={priorityStyle(task.priority)}
+                              >
+                                {task.priority}
+                              </span>
+                            </div>
+
+                            {/* Details */}
+                            <div
+                              className="px-3 pb-1.5 space-y-0.5 text-xs"
+                              style={{ color: "var(--text-secondary)" }}
+                            >
+                              {task.assignedTo &&
+                                task.assignedTo.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-medium">
+                                      {task.assignedTo
+                                        .map((u) => u.name || u)
+                                        .join(", ")}
+                                    </span>
+                                  </div>
+                                )}
+                              <div>
+                                Created:{" "}
+                                {task.createdAt
+                                  ? new Date(
+                                      task.createdAt,
+                                    ).toLocaleDateString("en-IN", {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                    })
+                                  : "N/A"}
+                              </div>
+                              <div>
+                                Deadline:{" "}
+                                {task.deadline
+                                  ? new Date(
+                                      task.deadline,
+                                    ).toLocaleDateString("en-IN", {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                    })
+                                  : "No deadline"}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span>Category:</span>
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
+                                  style={{
+                                    color: "var(--color-info)",
+                                    backgroundColor:
+                                      "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                    borderColor:
+                                      "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                                  }}
+                                >
+                                  {task.category || "General"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Remaining / Overdue */}
+                            <div className="px-3 pb-1.5">
+                              <span
+                                className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                style={{
+                                  color: remainingColor,
+                                  backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
+                                  borderColor: `color-mix(in srgb, ${remainingColor} 20%, transparent)`,
+                                }}
+                              >
+                                {remainingText}
+                              </span>
+                            </div>
+
+                            {/* Completion input */}
+                            {showCompleteInput === task._id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-3 pb-2 pt-1"
+                                style={{
+                                  backgroundColor:
+                                    "color-mix(in srgb, var(--color-success) 4%, transparent)",
+                                }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <label
+                                    className="text-xs font-medium shrink-0"
+                                    style={{ color: "var(--text-primary)" }}
+                                  >
+                                    Proof{" "}
+                                    <span
+                                      style={{
+                                        color: "var(--color-danger)",
+                                      }}
+                                    >
+                                      *
+                                    </span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={completionProof}
+                                    onChange={(e) =>
+                                      setCompletionProof(e.target.value)
+                                    }
+                                    placeholder="URL, description..."
+                                    className="input-field flex-1 text-xs min-w-0"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        handleCompleteSubmit(task._id);
+                                      } else if (e.key === "Escape") {
+                                        setShowCompleteInput(null);
+                                        setCompletionProof("");
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex gap-1 shrink-0">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCompleteSubmit(task._id);
+                                      }}
+                                      disabled={
+                                        completingTaskId === task._id
+                                      }
+                                      className="btn-primary px-2.5 py-1 text-xs"
+                                    >
+                                      {completingTaskId === task._id ? (
+                                        "..."
+                                      ) : (
+                                        "Submit"
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowCompleteInput(null);
+                                        setCompletionProof("");
+                                      }}
+                                      className="btn-secondary px-2.5 py-1 text-xs"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Expanded completion details for completed tasks */}
+                            {expandedTask === task._id &&
+                              canAssignTasks &&
+                              task.status === "Completed" && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-3 pb-2 pt-1"
+                                  style={{
+                                    backgroundColor: "var(--bg-muted)",
+                                  }}
+                                >
+                                  <div
+                                    className="rounded-lg p-3"
+                                    style={{
+                                      backgroundColor: "var(--bg-muted)",
+                                      border:
+                                        "1px solid var(--border)",
+                                    }}
+                                  >
+                                    <p
+                                      className="text-xs font-medium mb-1"
+                                      style={{
+                                        color: "var(--text-secondary)",
+                                      }}
+                                    >
+                                      Completion Details
+                                    </p>
+                                    <p
+                                      className="text-xs"
+                                      style={{
+                                        color: "var(--text-secondary)",
+                                      }}
+                                    >
+                                      {(task.history &&
+                                        task.history.find(
+                                          (h) =>
+                                            h.status === "Completed",
+                                        )?.note) ||
+                                        "No completion proof provided"}
+                                    </p>
+                                    {task.history &&
+                                      task.history.find(
+                                        (h) =>
+                                          h.status === "Completed",
+                                      )?.changedAt && (
+                                        <p
+                                          className="text-xs mt-1"
+                                          style={{
+                                            color: "var(--text-muted)",
+                                          }}
+                                        >
+                                          Completed on:{" "}
+                                          {new Date(
+                                            task.history.find(
+                                              (h) =>
+                                                h.status ===
+                                                "Completed",
+                                            ).changedAt,
+                                          ).toLocaleString()}
+                                        </p>
+                                      )}
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Action buttons */}
+                            <div
+                              className="flex items-center gap-1 px-3 py-2 border-t"
+                              style={{ borderColor: "var(--border)" }}
+                            >
+                              {(task.assignedBy?._id === user?._id ||
+                                task.assignedBy === user?._id) &&
+                                task.status !== "Completed" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEdit(task);
+                                    }}
+                                    className="p-2 rounded-md transition-colors"
+                                    title="Edit task"
+                                    style={{
+                                      color: "var(--color-info)",
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.backgroundColor =
+                                        "color-mix(in srgb, var(--color-info) 8%, transparent)")
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.backgroundColor =
+                                        "transparent")
+                                    }
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className="w-4 h-4"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                    </svg>
+                                  </button>
+                                )}
+                              {task.status !== "Completed" && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompletionProof("");
+                                    setShowCompleteInput(
+                                      showCompleteInput === task._id
+                                        ? null
+                                        : task._id,
+                                    );
+                                  }}
+                                  className="p-2 rounded-md transition-colors"
+                                  title="Mark as complete"
+                                  style={{
+                                    color: "var(--color-success)",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.backgroundColor =
+                                      "color-mix(in srgb, var(--color-success) 8%, transparent)")
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.backgroundColor =
+                                      "transparent")
+                                  }
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              <Link
+                                href={`/dwr?tab=conversations&task=${task._id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-2 rounded-md transition-colors"
+                                title="Open conversation"
+                                style={{
+                                  color: "var(--color-primary)",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.backgroundColor =
+                                    "color-mix(in srgb, var(--color-primary) 8%, transparent)")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.backgroundColor =
+                                    "transparent")
+                                }
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </Link>
+                              {canAssignTasks && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(task._id);
+                                  }}
+                                  disabled={
+                                    deletingTaskId === task._id
+                                  }
+                                  className="p-2 rounded-md transition-colors"
+                                  title="Delete task"
+                                  style={{
+                                    color: "var(--color-danger)",
+                                    opacity:
+                                      deletingTaskId === task._id
+                                        ? 0.6
+                                        : 1,
+                                    cursor:
+                                      deletingTaskId === task._id
+                                        ? "not-allowed"
+                                        : "pointer",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (
+                                      deletingTaskId !== task._id
+                                    ) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "color-mix(in srgb, var(--color-danger) 8%, transparent)";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (
+                                      deletingTaskId !== task._id
+                                    ) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "transparent";
+                                    }
+                                  }}
+                                >
+                                  {deletingTaskId === task._id ? (
+                                    <span
+                                      className="animate-shimmer inline-block rounded-full w-3.5 h-3.5"
+                                      style={{
+                                        background:
+                                          "linear-gradient(90deg, var(--bg-card) 25%, var(--bg-surface) 50%, var(--bg-card) 75%)",
+                                        backgroundSize: "200% 100%",
+                                      }}
+                                    />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
                 {/* Pagination */}
-                {totalTasks > 15 && (
+                 {totalTasks > 15 && (
                   <div
-                    className="px-4 py-3 flex items-center justify-between"
+                    className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0"
                     style={{
                       borderTop: "1px solid var(--border)",
                       background: "var(--bg-muted)",
@@ -2436,10 +2939,10 @@ export default function TasksPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="flex items-start justify-between mb-4">
                 <h2
-                  className="text-xl font-bold"
+                  className="text-lg sm:text-xl font-bold"
                   style={{ color: "var(--text-primary)" }}
                 >
                   Task Details
@@ -2488,7 +2991,7 @@ export default function TasksPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label
                       className="text-xs font-semibold uppercase tracking-wide mb-1 block"
@@ -2530,9 +3033,7 @@ export default function TasksPage() {
                       {selectedTaskForModal.priority}
                     </span>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
                       className="text-xs font-semibold uppercase tracking-wide mb-1 block"
@@ -2562,9 +3063,7 @@ export default function TasksPage() {
                       {selectedTaskForModal.taskType || "One Time"}
                     </p>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
                       className="text-xs font-semibold uppercase tracking-wide mb-1 block"
@@ -2600,9 +3099,7 @@ export default function TasksPage() {
                         : selectedTaskForModal.assignedBy || "Unknown"}
                     </p>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label
                       className="text-xs font-semibold uppercase tracking-wide mb-1 block"

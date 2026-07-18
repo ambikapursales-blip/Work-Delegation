@@ -30,23 +30,48 @@ export async function GET(request) {
 
     if (employeeId && canQueryOtherUsers) {
       query.employee = employeeId;
-    } else if (user.role === "Manager" && !canQueryOtherUsers) {
-      const teamMembers = await User.find({ managerId: user._id }).select("_id").lean();
-      const teamIds = teamMembers.map((m) => m._id);
-      query.employee = { $in: teamIds };
-    } else if (
-      !canQueryOtherUsers &&
-      (user.role === "Sales Executive" || user.role === "Coordinator" || user.role === "HR")
-    ) {
+    } else if (!canQueryOtherUsers) {
       query.employee = user._id;
     }
 
-    const total = await Attendance.countDocuments(query);
-    const records = await Attendance.find(query)
-      .populate("employee", "name email employeeId")
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ date: -1 });
+    const [result] = await Attendance.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { date: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+              $lookup: {
+                from: "users",
+                localField: "employee",
+                foreignField: "_id",
+                as: "employee",
+              },
+            },
+            { $unwind: "$employee" },
+            {
+              $project: {
+                "employee.name": 1,
+                "employee.email": 1,
+                "employee.employeeId": 1,
+                employee: 1,
+                date: 1,
+                status: 1,
+                remarks: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const total = result.metadata[0]?.total || 0;
+    const records = result.data;
 
     res
       .status(200)

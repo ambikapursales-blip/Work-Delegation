@@ -127,10 +127,12 @@ export default function ActionCenter() {
     }
   }, [user?.role]);
 
+  const canViewAll = user?.role === "Super Admin" || user?.canViewAllTasks;
+
   const fetchData = useCallback(async () => {
     try {
       const params = { filter: activeFilter };
-      if (selectedUser && user?.role === "Super Admin") {
+      if (selectedUser && canViewAll) {
         params.userId = selectedUser;
       }
       const res = await actionCenterAPI.getItems(params);
@@ -142,16 +144,11 @@ export default function ActionCenter() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, selectedUser, user?.role]);
+  }, [activeFilter, selectedUser, canViewAll]);
 
   useEffect(() => {
     setLoading(true);
     fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
   }, [fetchData]);
 
   useEffect(() => {
@@ -207,7 +204,7 @@ export default function ActionCenter() {
             ? items.filter((i) => i.type === "extension_request")
             : items;
 
-  const canManage = user && ["Super Admin", "Admin", "Manager", "HR"].includes(user.role);
+  const canManage = user && (user.role === "Super Admin" || user.canAssignTasks);
 
   if (!user) {
     return (
@@ -271,7 +268,7 @@ export default function ActionCenter() {
               {f.label}
             </button>
           ))}
-          {user?.role === "Super Admin" && (
+          {canViewAll && (
             <>
               <div style={{ width: "1px", height: "24px", background: "var(--border)", margin: "0 4px" }} />
               <select

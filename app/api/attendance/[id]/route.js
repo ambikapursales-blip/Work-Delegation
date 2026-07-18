@@ -24,9 +24,15 @@ export async function GET(request, { params }) {
       res
         .status(404)
         .json({ success: false, message: "Attendance record not found" });
-    } else {
-      res.status(200).json({ success: true, attendance });
+      return finishRes(res);
     }
+
+    if (attendance.employee._id.toString() !== user._id.toString() && user.role !== "Super Admin" && !user.canViewAllTasks) {
+      res.status(403).json({ success: false, message: "Not authorized" });
+      return finishRes(res);
+    }
+
+    res.status(200).json({ success: true, attendance });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
   }

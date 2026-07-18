@@ -63,6 +63,7 @@ export default function EventsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [rsvpingEventId, setRsvpingEventId] = useState(null);
   const [completingEventId, setCompletingEventId] = useState(null);
+  const canManage = user?.role === "Super Admin" || user?.canAssignTasks;
 
   const [formData, setFormData] = useState({
     title: "",
@@ -78,8 +79,6 @@ export default function EventsPage() {
     tags: [],
   });
 
-  const canManage = ["Super Admin", "Admin", "Manager", "HR"].includes(user?.role);
-
   useEffect(() => {
     if (alert) {
       const t = setTimeout(() => setAlert(null), 3500);
@@ -92,7 +91,7 @@ export default function EventsPage() {
       setLoading(true);
       const [eventsRes, usersRes] = await Promise.all([
         eventsAPI.getAll(),
-        canManage
+        user?.role === "Super Admin" || user?.canViewAllTasks
           ? usersAPI.getAll()
           : Promise.resolve({ data: { users: [] } }),
       ]);
@@ -103,7 +102,7 @@ export default function EventsPage() {
     } finally {
       setLoading(false);
     }
-  }, [canManage]);
+  }, [user?.role, user?.canViewAllTasks]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -674,38 +673,38 @@ export default function EventsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
-                    <th className="px-4 py-3 text-left table-head w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedEvents.length === sorted.length && sorted.length > 0}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4 rounded cursor-pointer"
-                        style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Event
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Start Date
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Priority
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Attendees
-                    </th>
-                    <th className="px-4 py-3 text-left table-head">
-                      Actions
-                    </th>
-                  </tr>
+                    <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-muted)" }}>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedEvents.length === sorted.length && sorted.length > 0}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 rounded cursor-pointer"
+                          style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
+                        />
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head">
+                        Event
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head hidden md:table-cell">
+                        Type
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head">
+                        Start Date
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head">
+                        Status
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head hidden sm:table-cell">
+                        Priority
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head hidden md:table-cell">
+                        Attendees
+                      </th>
+                      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left table-head">
+                        Actions
+                      </th>
+                    </tr>
                 </thead>
                 <tbody>
                   {sorted.map((event) => (
@@ -714,7 +713,7 @@ export default function EventsPage() {
                       className="table-row-hover"
                       style={{ borderBottom: "1px solid var(--border)" }}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3">
                         <input
                           type="checkbox"
                           checked={selectedEvents.includes(event._id)}
@@ -723,7 +722,7 @@ export default function EventsPage() {
                           style={{ borderColor: "var(--text-muted)", accentColor: "var(--color-success)" }}
                         />
                       </td>
-                      <td className="px-4 py-3 max-w-xs">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 max-w-xs">
                         <div>
                           <p className="font-semibold text-sm truncate" style={{ color: "var(--text-primary)" }}>
                             {event.title}
@@ -735,7 +734,7 @@ export default function EventsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 hidden md:table-cell">
                         <span
                           className="text-xs font-medium px-2 py-1 rounded-md"
                           style={{ color: "var(--text-secondary)", background: "var(--bg-muted)" }}
@@ -743,12 +742,12 @@ export default function EventsPage() {
                           {event.type}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3">
                         <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                           {fmtDateTime(event.startDate)}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3">
                         <span
                           className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
                           style={badgeStyle(STATUS_STYLE[event.status]?.clr || "var(--text-muted)")}
@@ -756,7 +755,7 @@ export default function EventsPage() {
                           {event.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 hidden sm:table-cell">
                         <span
                           className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
                           style={getPriorityStyle(event.priority)}
@@ -764,7 +763,7 @@ export default function EventsPage() {
                           {event.priority}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3 hidden md:table-cell">
                         <div className="flex items-center gap-2">
                           {event.assignedTo && event.assignedTo.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
@@ -802,7 +801,7 @@ export default function EventsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-2 sm:py-3">
                         <div className="flex items-center gap-1">
                           {event.status !== "Completed" && (
                             <button

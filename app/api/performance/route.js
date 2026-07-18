@@ -21,15 +21,34 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
 
     let query = {};
-    if (user.role !== "Super Admin") {
+    if (user.role !== "Super Admin" && !user.canViewAllTasks) {
       query._id = user._id;
     }
 
-    const total = await User.countDocuments(query);
-    const users = await User.find(query)
-      .select("name email role performanceScore grade email")
-      .skip(skip)
-      .limit(parseInt(limit));
+    const [result] = await User.aggregate([
+      { $match: query },
+      {
+        $project: {
+          name: 1,
+          email: 1,
+          role: 1,
+          performanceScore: 1,
+          grade: 1,
+        },
+      },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+          ],
+        },
+      },
+    ]);
+
+    const total = result.metadata[0]?.total || 0;
+    const users = result.data;
 
     res.status(200).json({ success: true, total, count: users.length, users });
   } catch (error) {

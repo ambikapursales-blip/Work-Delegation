@@ -8,8 +8,7 @@ export const TASK_STATUS_MAP = {
   overdue: "Overdue",
 };
 
-export const RESTRICTED_ROLES = ["Sales Executive", "Coordinator", "HR"];
-export const ADMIN_ROLES = ["Super Admin", "Admin", "HR"];
+
 
 export function normalizeTaskStatus(rawStatus) {
   return TASK_STATUS_MAP[rawStatus.toLowerCase()] || rawStatus;

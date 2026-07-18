@@ -21,17 +21,7 @@ export async function GET(request, { params }) {
     // Authorization check
     const isOwn = userId.toString() === authUser._id.toString();
     const canQueryOtherUsers = authUser.role === "Super Admin" || authUser.canViewAllTasks;
-    let isManagerOfUser = false;
-    if (authUser.role === "Manager" && !isOwn) {
-      const teamMember = await User.findOne({
-        _id: userId,
-        managerId: authUser._id,
-      })
-        .select("_id")
-        .lean();
-      isManagerOfUser = !!teamMember;
-    }
-    if (!isOwn && !canQueryOtherUsers && !isManagerOfUser) {
+    if (!isOwn && !canQueryOtherUsers) {
       return NextResponse.json(
         { success: false, message: "Not authorized" },
         { status: 403 },

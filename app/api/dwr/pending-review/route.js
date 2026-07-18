@@ -7,12 +7,11 @@ import {
   requireAuth,
 } from "@/src/lib/route-adapter";
 import DWR from "@/src/models/DWR";
-import User from "@/src/models/User";
 
 export async function GET(request) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Admin", "Manager", "HR"].includes(user.role)) {
+  if (user.role !== "Super Admin" && !user.canViewAllTasks && !user.canAssignTasks) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -27,23 +26,50 @@ export async function GET(request) {
 
     let query = { reviewStatus: "Pending Review" };
 
-    if (user.role === "Manager") {
-      try {
-        const teamMembers = await User.find({ managerId: user._id }).select("_id");
-        const teamIds = teamMembers.map((m) => m._id);
-        teamIds.push(user._id);
-        query.employee = { $in: teamIds };
-      } catch (userError) {
-        query.employee = user._id;
-      }
-    }
+    const [result] = await DWR.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { date: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+              $lookup: {
+                from: "users",
+                localField: "employee",
+                foreignField: "_id",
+                as: "employee",
+              },
+            },
+            { $unwind: "$employee" },
+            {
+              $project: {
+                "employee.name": 1,
+                "employee.email": 1,
+                "employee.employeeId": 1,
+                "employee.role": 1,
+                "employee.department": 1,
+                employee: 1,
+                reviewStatus: 1,
+                workSummary: 1,
+                challenges: 1,
+                nextDayPlan: 1,
+                totalHoursWorked: 1,
+                date: 1,
+                submittedAt: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
 
-    const total = await DWR.countDocuments(query);
-    const dwrs = await DWR.find(query)
-      .populate("employee", "name email employeeId role department")
-      .sort({ date: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const total = result.metadata[0]?.total || 0;
+    const dwrs = result.data;
 
     res.status(200).json({ success: true, total, count: dwrs.length, dwrs });
   } catch (error) {

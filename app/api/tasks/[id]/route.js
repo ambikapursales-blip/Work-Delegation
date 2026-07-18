@@ -12,6 +12,7 @@ import {
   updateTask,
   deleteTask,
 } from "@/src/controllers/taskController";
+import Task from "@/src/models/Task";
 
 export async function GET(request, { params }) {
   await ensureDbConnection();
@@ -30,6 +31,17 @@ export async function PUT(request, { params }) {
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();
+  const task = await Task.findById(req.params.id);
+  if (task) {
+    const isAssignee = task.assignedTo?.some((id) => id.toString() === user._id.toString());
+    const isAssigner = task.assignedBy?.toString() === user._id.toString();
+    if (!isAssignee && !isAssigner && user.role !== "Super Admin" && !user.canAssignTasks) {
+      return NextResponse.json(
+        { success: false, message: "Not authorized" },
+        { status: 403 },
+      );
+    }
+  }
   await updateTask(req, res);
   return finishRes(res);
 }
@@ -37,9 +49,9 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Manager", "Admin"].includes(user.role)) {
+  if (user.role !== "Super Admin" && !user.canAssignTasks) {
     return NextResponse.json(
-      { success: false, message: `Role '${user.role}' is not authorized` },
+      { success: false, message: "Not authorized" },
       { status: 403 },
     );
   }

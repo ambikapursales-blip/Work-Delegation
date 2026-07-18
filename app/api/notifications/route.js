@@ -27,12 +27,53 @@ export async function GET(request) {
       query.isRead = isRead === "true";
     }
 
-    const total = await Notification.countDocuments(query);
-    const notifications = await Notification.find(query)
-      .populate("sender", "name email")
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
+    const [result] = await Notification.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+              $lookup: {
+                from: "users",
+                localField: "sender",
+                foreignField: "_id",
+                as: "sender",
+              },
+            },
+            { $unwind: { path: "$sender", preserveNullAndEmptyArrays: true } },
+            {
+              $project: {
+                "sender.name": 1,
+                "sender.email": 1,
+                sender: 1,
+                recipient: 1,
+                type: 1,
+                title: 1,
+                message: 1,
+                data: 1,
+                entityId: 1,
+                entityType: 1,
+                isRead: 1,
+                readAt: 1,
+                actionUrl: 1,
+                conversationId: 1,
+                messageId: 1,
+                priority: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const total = result.metadata[0]?.total || 0;
+    const notifications = result.data;
 
     res.status(200).json({
       success: true,

@@ -13,7 +13,7 @@ import DWR from "@/src/models/DWR";
 export async function GET(request, { params }) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Manager", "HR"].includes(user.role)) {
+  if (user.role !== "Super Admin" && !user.canViewAllTasks && params.userId !== user._id.toString()) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },
@@ -30,15 +30,6 @@ export async function GET(request, { params }) {
     if (!targetUser) {
       res.status(404).json({ success: false, message: "User not found" });
       return finishRes(res);
-    }
-
-    if (user.role === "Manager") {
-      const teamMembers = await User.find({ managerId: user._id }).select("_id");
-      const teamIds = teamMembers.map((m) => m._id);
-      if (!teamIds.some((id) => id.toString() === userId)) {
-        res.status(403).json({ success: false, message: "Not authorized" });
-        return finishRes(res);
-      }
     }
 
     const now = new Date();

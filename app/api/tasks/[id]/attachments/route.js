@@ -24,7 +24,7 @@ export async function POST(request, { params }) {
 
   const isAssignee = task.assignedTo.some((a) => a.toString() === user._id.toString());
   const isAssigner = task.assignedBy.toString() === user._id.toString();
-  const isAdmin = ["Super Admin", "Admin"].includes(user.role);
+  const isAdmin = user.role === "Super Admin" || user.canAssignTasks;
   if (!isAssignee && !isAssigner && !isAdmin) {
     return NextResponse.json({ success: false, message: "Not authorized" }, { status: 403 });
   }

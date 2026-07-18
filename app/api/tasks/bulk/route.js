@@ -13,9 +13,9 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Manager", "Admin", "HR"].includes(user.role)) {
+  if (user.role !== "Super Admin" && !user.canAssignTasks) {
     return NextResponse.json(
-      { success: false, message: `Role '${user.role}' is not authorized` },
+      { success: false, message: "Not authorized" },
       { status: 403 },
     );
   }

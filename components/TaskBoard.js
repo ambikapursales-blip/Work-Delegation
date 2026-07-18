@@ -179,7 +179,7 @@ const TaskBoard = ({
                   Filter
                 </Button>
                 {filterOpen && (
-                  <div className="absolute top-full mt-2 right-0 bg-[var(--bg-surface)] backdrop-blur-xl rounded-xl shadow-glass border border-[var(--border)] z-10 p-3 min-w-max">
+                  <div className="absolute top-full mt-2 right-0 bg-[var(--bg-surface)] backdrop-blur-xl rounded-xl shadow-glass border border-[var(--border)] z-10 p-3 min-w-max max-w-[80vw] overflow-y-auto">
                     <button
                       onClick={() => {
                         setSelectedStatus(null);

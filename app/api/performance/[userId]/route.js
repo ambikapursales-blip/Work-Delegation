@@ -14,7 +14,7 @@ export async function PUT(request, { params }) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Manager", "Admin", "HR"].includes(user.role)) {
+  if (user.role !== "Super Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },

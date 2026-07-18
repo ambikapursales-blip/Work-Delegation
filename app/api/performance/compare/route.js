@@ -13,7 +13,7 @@ import DWR from "@/src/models/DWR";
 export async function GET(request) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Manager", "HR"].includes(user.role)) {
+  if (user.role !== "Super Admin" && !user.canViewAllTasks) {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },

@@ -8,7 +8,7 @@ import { generateRecurringTasks } from "@/src/utils/cronJobs";
 export async function POST(request) {
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (user.role !== "Admin") {
+  if (user.role !== "Super Admin") {
     return NextResponse.json(
       { success: false, message: "Not authorized" },
       { status: 403 },

@@ -7,48 +7,6 @@ import Sidebar from "@/components/sidebar";
 import Header from "@/components/header";
 import { DashboardSkeleton } from "@/components/skeleton";
 
-const ROLE_ROUTES = {
-  "Super Admin": [
-    "dashboard",
-    "tasks",
-    "dwr",
-    "events",
-    "attendance",
-    "users",
-    "performance",
-    "profile",
-  ],
-  Admin: [
-    "dashboard",
-    "tasks",
-    "dwr",
-    "events",
-    "profile",
-  ],
-  Manager: [
-    "dashboard",
-    "tasks",
-    "dwr",
-    "events",
-    "profile",
-  ],
-  HR: ["dashboard", "tasks", "dwr", "attendance", "profile"],
-  "Sales Executive": [
-    "dashboard",
-    "tasks",
-    "dwr",
-    "events",
-    "profile",
-  ],
-  Coordinator: [
-    "dashboard",
-    "tasks",
-    "dwr",
-    "events",
-    "profile",
-  ],
-};
-
 export default function DashboardLayout({ children }) {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -64,9 +22,8 @@ export default function DashboardLayout({ children }) {
     if (user && typeof window !== "undefined") {
       const currentPath =
         window.location.pathname.split("/").filter(Boolean)[0] || "dashboard";
-      const allowedRoutes = ROLE_ROUTES[user.role] || [];
 
-      if (!allowedRoutes.includes(currentPath)) {
+      if (!["dashboard", "tasks", "dwr", "events", "attendance", "users", "performance", "profile", "team"].includes(currentPath)) {
         router.push("/dashboard");
       }
     }

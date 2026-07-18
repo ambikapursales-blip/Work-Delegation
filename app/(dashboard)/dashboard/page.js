@@ -191,6 +191,7 @@ export default function DashboardPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { theme } = useTheme();
 
   const chartRefs = {
@@ -200,8 +201,8 @@ export default function DashboardPage() {
   };
   const chartInstances = useRef({});
 
-  const isAdminOrManager = useMemo(() => ["Super Admin", "Manager"].includes(user?.role), [user?.role]);
-  const isHR = useMemo(() => user?.role === "HR", [user?.role]);
+  const canViewAll = useMemo(() => user?.role === "Super Admin" || user?.canViewAllTasks, [user?.role, user?.canViewAllTasks]);
+  const hasFullAccess = useMemo(() => user?.role === "Super Admin" || user?.canViewAllTasks, [user?.role, user?.canViewAllTasks]);
   const completionRate = useMemo(
     () =>
       analytics?.tasks?.total > 0
@@ -210,76 +211,78 @@ export default function DashboardPage() {
     [analytics?.tasks?.total, analytics?.tasks?.completed],
   );
 
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      setLoading(true);
-      let period = timePeriod;
-      let customStartDate, customEndDate;
+  useEffect(() => {
+    const abortController = new AbortController();
+    const signal = abortController.signal;
 
-      if (timePeriod === "today") {
-        const now = new Date();
-        customStartDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-        );
-        customStartDate.setHours(0, 0, 0, 0);
-        customEndDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-        );
-        customEndDate.setHours(23, 59, 59, 999);
-      } else if (timePeriod === "custom" && startDate && endDate) {
-        customStartDate = new Date(startDate);
-        customStartDate.setHours(0, 0, 0, 0);
-        customEndDate = new Date(endDate);
-        customEndDate.setHours(23, 59, 59, 999);
+    const loadAllData = async () => {
+      try {
+        setLoading(true);
+        let period = timePeriod;
+        let customStartDate, customEndDate;
+
+        if (timePeriod === "today") {
+          const now = new Date();
+          customStartDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
+          customStartDate.setHours(0, 0, 0, 0);
+          customEndDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
+          customEndDate.setHours(23, 59, 59, 999);
+        } else if (timePeriod === "custom" && startDate && endDate) {
+          customStartDate = new Date(startDate);
+          customStartDate.setHours(0, 0, 0, 0);
+          customEndDate = new Date(endDate);
+          customEndDate.setHours(23, 59, 59, 999);
+        }
+
+        const [analyticsRes, tasksRes, activitiesRes, usersRes] = await Promise.all([
+          reportsAPI.getDashboardAnalytics({
+            period,
+            userId: selectedUser === "all" ? undefined : selectedUser,
+            status: statusFilter === "all" ? undefined : statusFilter,
+            startDate: customStartDate?.toISOString(),
+            endDate: customEndDate?.toISOString(),
+          }),
+          taskAPI.getTasks({
+            userId: selectedUser === "all" ? undefined : selectedUser,
+            status: statusFilter === "all" ? undefined : statusFilter,
+            period,
+            startDate: customStartDate?.toISOString(),
+            endDate: customEndDate?.toISOString(),
+          }),
+          dashboardAPI.getRecentActivities().catch(() => ({ data: { activities: [] } })),
+          canViewAll ? usersAPI.getAll().catch(() => ({ data: { users: [] } })) : Promise.resolve({ data: { users: [] } }),
+        ]);
+
+        if (signal.aborted) return;
+
+        setAnalytics(analyticsRes.data?.analytics || null);
+        setDashboardTasks(tasksRes.data?.tasks || []);
+        setRecentActivities(activitiesRes.data?.activities || []);
+        setUsersList(usersRes.data?.users || []);
+      } catch (err) {
+        if (signal.aborted) return;
+        setError("Failed to load dashboard data");
+      } finally {
+        if (!signal.aborted) {
+          setLoading(false);
+        }
       }
+    };
 
-      const [analyticsRes, tasksRes] = await Promise.all([
-        reportsAPI.getDashboardAnalytics({
-          period,
-          userId: selectedUser === "all" ? undefined : selectedUser,
-          status: statusFilter === "all" ? undefined : statusFilter,
-          startDate: customStartDate?.toISOString(),
-          endDate: customEndDate?.toISOString(),
-        }),
-        taskAPI.getTasks({
-          userId: selectedUser === "all" ? undefined : selectedUser,
-          status: statusFilter === "all" ? undefined : statusFilter,
-          period,
-          startDate: customStartDate?.toISOString(),
-          endDate: customEndDate?.toISOString(),
-        }),
-      ]);
+    loadAllData();
 
-      setAnalytics(analyticsRes.data?.analytics || null);
-      setDashboardTasks(tasksRes.data?.tasks || []);
-    } catch (err) {
-      setError("Failed to load dashboard data");
-    } finally {
-      setLoading(false);
-    }
-  }, [timePeriod, selectedUser, statusFilter, startDate, endDate]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  useEffect(() => {
-    dashboardAPI.getRecentActivities().then((res) => {
-      setRecentActivities(res.data?.activities || []);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (isAdminOrManager) {
-      usersAPI.getAll().then((res) => {
-        setUsersList(res.data?.users || []);
-      }).catch(() => {});
-    }
-  }, [isAdminOrManager]);
+    return () => {
+      abortController.abort();
+    };
+  }, [timePeriod, selectedUser, statusFilter, startDate, endDate, canViewAll]);
 
   useEffect(() => {
     if (!loading && analytics && viewMode === "graphs") {
@@ -289,6 +292,13 @@ export default function DashboardPage() {
     return () => Object.values(instances).forEach((c) => c?.destroy());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analytics, loading, viewMode, theme]);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const updateCharts = async () => {
     const { default: Chart } = await import("chart.js/auto");
@@ -502,7 +512,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Filter toggle */}
-          {isAdminOrManager && (
+          {canViewAll && (
             <button
               onClick={() => setShowFilters((v) => !v)}
               className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-medium border transition-all duration-200 whitespace-nowrap"
@@ -537,7 +547,7 @@ export default function DashboardPage() {
             </button>
           )}
 
-          {isAdminOrManager && (
+          {canViewAll && (
             <Link href="/tasks">
               <button
                 className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 whitespace-nowrap"
@@ -587,7 +597,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Filters Panel ── */}
-        {isAdminOrManager && showFilters && (
+        {canViewAll && showFilters && (
           <div className="mb-6 rounded-2xl p-5"
             style={{
               backgroundColor: "var(--bg-card)",
@@ -766,142 +776,273 @@ export default function DashboardPage() {
                     </span>
                   }
                 />
-                <div className="overflow-x-auto -mx-4 sm:-mx-0">
-                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="table-head">
-                        {[
-                          "Task",
-                          "Status",
-                          "Priority",
-                          "Assigned To",
-                          "Deadline",
-                        ].map((h) => (
-                          <th
-                            key={h}
-                            className="px-3 sm:px-5 py-3 text-left first:pl-4 sm:first:pl-6 last:pr-4 sm:last:pr-6 whitespace-nowrap"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y"
-                      style={{ borderColor: "var(--border)" }}>
-                      {dashboardTasks.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="px-4 sm:px-6 py-12 sm:py-16 text-center">
-                            <div className="flex flex-col items-center gap-3">
-                              <div className="w-14 sm:w-16 h-14 sm:h-16 rounded-2xl flex items-center justify-center"
-                                style={{ backgroundColor: "var(--bg-muted)" }}>
-                                <CheckSquare
-                                  size={24}
-                                  style={{ color: "var(--text-muted)" }}
-                                />
-                              </div>
-                              <p className="text-sm font-medium"
-                                style={{ color: "var(--text-secondary)" }}>
-                                No tasks found
-                              </p>
-                              <p className="text-xs"
-                                style={{ color: "var(--text-muted)" }}>
-                                Try adjusting your filters
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        dashboardTasks.slice(0, 10).map((task) => {
-                          const status =
-                            task.status?.toLowerCase() === "completed"
-                              ? "Completed"
-                              : task.isOverdue
-                                ? "Overdue"
-                                : task.status?.toLowerCase() === "in progress"
-                                  ? "In Progress"
-                                  : "Pending";
-
-                          return (
-                            <tr
-                              key={task._id}
-                              onClick={() => router.push(`/dwr?tab=conversations&task=${task._id}`)}
-                              className="table-row-hover transition-colors group"
-                              style={{ cursor: "pointer" }}
+                {!isMobile ? (
+                  <div className="overflow-x-auto -mx-4 sm:-mx-0">
+                    <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <table className="min-w-full">
+                      <thead>
+                        <tr className="table-head">
+                          {[
+                            "Task",
+                            "Status",
+                            "Priority",
+                            "Assigned To",
+                            "Deadline",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-3 sm:px-5 py-3 text-left first:pl-4 sm:first:pl-6 last:pr-4 sm:last:pr-6 whitespace-nowrap"
                             >
-                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 pl-4 sm:pl-6 max-w-[160px] sm:max-w-xs">
-                                <p className="font-medium text-sm truncate"
-                                  style={{ color: "var(--text-primary)" }}>
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y"
+                        style={{ borderColor: "var(--border)" }}>
+                        {dashboardTasks.length === 0 ? (
+                          <tr>
+                            <td colSpan="5" className="px-4 sm:px-6 py-12 sm:py-16 text-center">
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="w-14 sm:w-16 h-14 sm:h-16 rounded-2xl flex items-center justify-center"
+                                  style={{ backgroundColor: "var(--bg-muted)" }}>
+                                  <CheckSquare
+                                    size={24}
+                                    style={{ color: "var(--text-muted)" }}
+                                  />
+                                </div>
+                                <p className="text-sm font-medium"
+                                  style={{ color: "var(--text-secondary)" }}>
+                                  No tasks found
+                                </p>
+                                <p className="text-xs"
+                                  style={{ color: "var(--text-muted)" }}>
+                                  Try adjusting your filters
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          dashboardTasks.slice(0, 10).map((task) => {
+                            const status =
+                              task.status?.toLowerCase() === "completed"
+                                ? "Completed"
+                                : task.isOverdue
+                                  ? "Overdue"
+                                  : task.status?.toLowerCase() === "in progress"
+                                    ? "In Progress"
+                                    : "Pending";
+
+                            return (
+                              <tr
+                                key={task._id}
+                                onClick={() => router.push(`/dwr?tab=conversations&task=${task._id}`)}
+                                className="table-row-hover transition-colors group"
+                                style={{ cursor: "pointer" }}
+                              >
+                                <td className="px-3 sm:px-5 py-3 sm:py-3.5 pl-4 sm:pl-6 max-w-[180px] sm:max-w-xs">
+                                  <p className="font-medium text-sm truncate"
+                                    style={{ color: "var(--text-primary)" }}>
+                                    {task.title}
+                                  </p>
+                                  {task.description && (
+                                    <p className="text-xs mt-0.5 truncate"
+                                      style={{ color: "var(--text-muted)" }}>
+                                      {task.description}
+                                    </p>
+                                  )}
+                                </td>
+                                <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
+                                  <StatusBadge status={status} />
+                                </td>
+                                <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
+                                  <PriorityBadge priority={task.priority} />
+                                </td>
+                                <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
+                                  {task.assignedTo?.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {task.assignedTo.slice(0, 2).map((u, i) => (
+                                        <span
+                                          key={u._id || u.name || i}
+                                          className="text-xs font-medium px-2 py-0.5 rounded-md border whitespace-nowrap"
+                                          style={{
+                                            color: "var(--color-info)",
+                                            backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                            borderColor: "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                                          }}
+                                        >
+                                          {u.name || "User"}
+                                        </span>
+                                      ))}
+                                      {task.assignedTo.length > 2 && (
+                                        <span className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                          style={{
+                                            color: "var(--text-secondary)",
+                                            backgroundColor: "var(--bg-muted)",
+                                            borderColor: "var(--border)",
+                                          }}>
+                                          +{task.assignedTo.length - 2}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                      Unassigned
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 sm:px-5 py-3 sm:py-3.5 pr-4 sm:pr-6 whitespace-nowrap">
+                                  <span className="text-xs font-medium"
+                                    style={{ color: "var(--text-secondary)" }}>
+                                    {task.deadline
+                                      ? new Date(
+                                          task.deadline,
+                                        ).toLocaleDateString("en-IN", {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
+                                      : "No deadline"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 space-y-2">
+                    {dashboardTasks.length === 0 ? (
+                      <div className="flex flex-col items-center gap-3 py-12">
+                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                          style={{ backgroundColor: "var(--bg-muted)" }}>
+                          <CheckSquare size={24} style={{ color: "var(--text-muted)" }} />
+                        </div>
+                        <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                          No tasks found
+                        </p>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          Try adjusting your filters
+                        </p>
+                      </div>
+                    ) : (
+                      dashboardTasks.slice(0, 10).map((task) => {
+                        const status =
+                          task.status?.toLowerCase() === "completed"
+                            ? "Completed"
+                            : task.isOverdue
+                              ? "Overdue"
+                              : task.status?.toLowerCase() === "in progress"
+                                ? "In Progress"
+                                : "Pending";
+
+                        const now = new Date();
+                        const deadlineDate = new Date(task.deadline);
+                        now.setHours(0, 0, 0, 0);
+                        deadlineDate.setHours(0, 0, 0, 0);
+                        const diffTime = deadlineDate - now;
+                        const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                        let remainingText = "";
+                        let remainingColor = "";
+                        if (status === "Completed") {
+                          remainingText = "Completed";
+                          remainingColor = "var(--color-success)";
+                        } else if (task.isOverdue) {
+                          const overdueDays = Math.abs(daysRemaining);
+                          remainingText = `Overdue by ${overdueDays} day${overdueDays > 1 ? "s" : ""}`;
+                          remainingColor = "var(--color-danger)";
+                        } else if (daysRemaining === 0) {
+                          remainingText = "Due Today";
+                          remainingColor = "var(--color-danger)";
+                        } else if (daysRemaining <= 5) {
+                          remainingText = `${daysRemaining} day${daysRemaining > 1 ? "s" : ""} left`;
+                          remainingColor = "var(--color-warning)";
+                        } else {
+                          remainingText = `${daysRemaining} days left`;
+                          remainingColor = "var(--color-success)";
+                        }
+
+                        return (
+                          <div
+                            key={task._id}
+                            onClick={() => router.push(`/dwr?tab=conversations&task=${task._id}`)}
+                            className="rounded-xl transition-colors active:scale-[0.98]"
+                            style={{
+                              background: "var(--bg-card)",
+                              border: "1px solid var(--border)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div className="p-3 space-y-2">
+                              <div>
+                                <p className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
                                   {task.title}
                                 </p>
                                 {task.description && (
-                                  <p className="text-xs mt-0.5 truncate"
-                                    style={{ color: "var(--text-muted)" }}>
+                                  <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-muted)" }}>
                                     {task.description}
                                   </p>
                                 )}
-                              </td>
-                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 <StatusBadge status={status} />
-                              </td>
-                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
                                 <PriorityBadge priority={task.priority} />
-                              </td>
-                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 whitespace-nowrap">
-                                {task.assignedTo?.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {task.assignedTo.slice(0, 2).map((u, i) => (
-                                      <span
-                                        key={u._id || u.name || i}
-                                        className="text-xs font-medium px-2 py-0.5 rounded-md border whitespace-nowrap"
-                                        style={{
-                                          color: "var(--color-info)",
-                                          backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
-                                          borderColor: "color-mix(in srgb, var(--color-info) 20%, transparent)",
-                                        }}
-                                      >
-                                        {u.name || "User"}
-                                      </span>
-                                    ))}
-                                    {task.assignedTo.length > 2 && (
-                                      <span className="text-xs font-medium px-2 py-0.5 rounded-md border"
-                                        style={{
-                                          color: "var(--text-secondary)",
-                                          backgroundColor: "var(--bg-muted)",
-                                          borderColor: "var(--border)",
-                                        }}>
-                                        +{task.assignedTo.length - 2}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                                    Unassigned
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 sm:px-5 py-3 sm:py-3.5 pr-4 sm:pr-6 whitespace-nowrap">
-                                <span className="text-xs font-medium"
-                                  style={{ color: "var(--text-secondary)" }}>
+                              </div>
+                              {task.assignedTo?.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {task.assignedTo.slice(0, 2).map((u, i) => (
+                                    <span key={u._id || u.name || i}
+                                      className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                      style={{
+                                        color: "var(--color-info)",
+                                        backgroundColor: "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                                        borderColor: "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                                      }}>
+                                      {u.name || "User"}
+                                    </span>
+                                  ))}
+                                  {task.assignedTo.length > 2 && (
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                      style={{
+                                        color: "var(--text-secondary)",
+                                        backgroundColor: "var(--bg-muted)",
+                                        borderColor: "var(--border)",
+                                      }}>
+                                      +{task.assignedTo.length - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between gap-2 pt-1" style={{ borderTop: "1px solid var(--border)" }}>
+                                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                                   {task.deadline
-                                    ? new Date(
-                                        task.deadline,
-                                      ).toLocaleDateString("en-IN", {
-                                        day: "numeric",
-                                        month: "short",
-                                        year: "numeric",
+                                    ? new Date(task.deadline).toLocaleDateString("en-IN", {
+                                        day: "numeric", month: "short", year: "numeric",
                                       })
                                     : "No deadline"}
                                 </span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                {remainingText && (
+                                  <span className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                    style={{
+                                      color: remainingColor,
+                                      backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
+                                      borderColor: `color-mix(in srgb, ${remainingColor} 20%, transparent)`,
+                                    }}>
+                                    {remainingText}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                </div>
+                )}
               </Card>
             ) : (
               /* Graphs View */
@@ -942,7 +1083,7 @@ export default function DashboardPage() {
             )}
 
             {/* HR Tools */}
-            {isHR && (
+            {hasFullAccess && (
               <Card>
                 <CardHeader
                   title="HR Dashboard"
@@ -1127,7 +1268,7 @@ Today&apos;s Snapshot
             </Card>
 
             {/* Quick Actions */}
-            {isAdminOrManager && (
+            {canViewAll && (
               <Card>
                 <div className="px-4 sm:px-5 py-3 sm:py-4">
                   <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"

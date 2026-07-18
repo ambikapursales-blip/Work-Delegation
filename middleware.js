@@ -12,7 +12,7 @@ const DASHBOARD_ROUTES = [
   "/profile",
 ];
 
-const SUPER_ADMIN_ONLY_ROUTES = ["/users", "/performance"];
+const SUPER_ADMIN_ONLY_ROUTES = ["/users"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;

@@ -9,7 +9,6 @@ import {
 } from "@/src/lib/route-adapter";
 import Event from "@/src/models/Event";
 import Activity from "@/src/models/Activity";
-import User from "@/src/models/User";
 import { sendEventInvitationEmail } from "@/src/utils/emailService";
 
 export async function GET(request) {
@@ -25,13 +24,61 @@ export async function GET(request) {
     let query = {};
     if (status) query.status = status;
 
-    const total = await Event.countDocuments(query);
-    const events = await Event.find(query)
-      .populate("createdBy", "name email")
-      .populate("assignedTo.employee", "name email")
-      .skip(skip)
-      .limit(parseInt(limit))
-      .sort({ startDate: -1 });
+    const [result] = await Event.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { startDate: -1 } },
+            { $skip: skip },
+            { $limit: parseInt(limit) },
+            {
+              $lookup: {
+                from: "users",
+                localField: "createdBy",
+                foreignField: "_id",
+                as: "createdBy",
+              },
+            },
+            { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
+            {
+              $lookup: {
+                from: "users",
+                localField: "assignedTo.employee",
+                foreignField: "_id",
+                as: "assignedTo.employee",
+              },
+            },
+            {
+              $project: {
+                "createdBy.name": 1,
+                "createdBy.email": 1,
+                createdBy: 1,
+                "assignedTo.employee.name": 1,
+                "assignedTo.employee.email": 1,
+                assignedTo: 1,
+                title: 1,
+                description: 1,
+                type: 1,
+                startDate: 1,
+                endDate: 1,
+                location: 1,
+                isVirtual: 1,
+                meetingLink: 1,
+                priority: 1,
+                tags: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const total = result.metadata[0]?.total || 0;
+    const events = result.data;
 
     res
       .status(200)
@@ -46,12 +93,6 @@ export async function POST(request) {
   await parseBody(request);
   await ensureDbConnection();
   const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (!["Super Admin", "Manager", "Admin", "HR"].includes(user.role)) {
-    return NextResponse.json(
-      { success: false, message: "Not authorized" },
-      { status: 403 },
-    );
-  }
   const req = createReq(request);
   req.user = user;
   const res = createRes();

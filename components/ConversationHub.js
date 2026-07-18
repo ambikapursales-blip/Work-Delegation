@@ -99,7 +99,7 @@ function badgeStyle(color) {
   };
 }
 
-function TaskHeader({ task, loading, user, onBack }) {
+function TaskHeader({ task, loading, user, onBack, isMobile }) {
   if (loading) {
     return (
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", background: "var(--bg-surface)", flexShrink: 0 }}>
@@ -181,12 +181,13 @@ function TaskHeader({ task, loading, user, onBack }) {
         borderBottom: "1px solid var(--border)",
         background: "var(--bg-surface)",
         flexShrink: 0,
+        ...(isMobile ? { maxHeight: "35vh", overflowY: "auto" } : {}),
       }}
     >
       <button
         onClick={onBack}
         className="mobile-back-btn"
-        style={{ padding: "6px", borderRadius: "8px", border: "none", background: "var(--bg-muted)", color: "var(--text-secondary)", cursor: "pointer", display: "none", flexShrink: 0, lineHeight: 0, marginBottom: "8px" }}
+        style={{ padding: "6px", borderRadius: "8px", border: "none", background: "var(--bg-muted)", color: "var(--text-secondary)", cursor: "pointer", display: isMobile ? "inline-flex" : "none", flexShrink: 0, lineHeight: 0, marginBottom: "8px", position: isMobile ? "sticky" : "static", top: 0, zIndex: 1 }}
       >
         <ArrowLeft className="w-4 h-4" />
       </button>
@@ -1076,6 +1077,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
   const [editingMessage, setEditingMessage] = useState(null);
   const [editText, setEditText] = useState("");
   const [showLeftPanel, setShowLeftPanel] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const [showActionCenter, setShowActionCenter] = useState(false);
   const [pendingActionCount, setPendingActionCount] = useState(0);
   const [cursor, setCursor] = useState(null);
@@ -1091,7 +1093,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
   const initialLoadHandledRef = useRef(false);
   const isAtBottomRef = useRef(true);
 
-  const isSuperAdmin = user?.role === "Super Admin" || user?.canViewAllTasks;
+  const canViewAllTasks = user?.role === "Super Admin" || user?.canViewAllTasks;
 
   const scrollToMessage = useCallback((messageId) => {
     setTimeout(() => {
@@ -1110,10 +1112,10 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
       }
-    }, 100);
+    }, 50);
   }, []);
 
   const fetchConversations = useCallback(async () => {
@@ -1135,6 +1137,9 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
   useEffect(() => {
     if (initialTaskId) {
       setActiveTaskId(initialTaskId);
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        setShowLeftPanel(false);
+      }
     }
   }, [initialTaskId]);
 
@@ -1150,14 +1155,19 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       }
     };
     fetchCount();
-    const interval = setInterval(fetchCount, 30000);
     const handler = () => fetchCount();
     window.addEventListener("actionCenterUpdate", handler);
     return () => {
       cancelled = true;
-      clearInterval(interval);
       window.removeEventListener("actionCenterUpdate", handler);
     };
+  }, []);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   const fetchMessages = useCallback(async (taskId, opts = {}) => {
@@ -1314,7 +1324,9 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
                 if (prev.some((m) => m._id === latestNew._id)) return prev;
                 if (isAtBottomRef.current) {
                   setTimeout(() => {
-                    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                    if (messagesContainerRef.current) {
+                      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+                    }
                   }, 50);
                   return [...prev, latestNew];
                 }
@@ -1324,13 +1336,12 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
             }
           })
           .catch((e) => console.error("[ConversationHub] poll error:", e));
-        fetchConversations();
       }, 15000);
     }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [activeTaskId, fetchConversations]);
+  }, [activeTaskId]);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -1350,6 +1361,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
     setActiveTaskId(taskId);
     setEditingMessage(null);
     setShowActionCenter(false);
+    if (isMobile) setShowLeftPanel(false);
   };
 
   const handleCompleteTask = async (remarks) => {
@@ -1501,7 +1513,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
   const hasUnreadTasks = (group) => group.unreadTotal > 0;
 
   const getGroupName = (group) => {
-    if (isSuperAdmin) return group.user?.name || "Employee";
+    if (canViewAllTasks) return group.user?.name || "Employee";
     return group.user?.name || "Assigner";
   };
 
@@ -1527,7 +1539,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       style={{
         display: "flex",
         height: "100%",
-        minHeight: "520px",
+        minHeight: isMobile ? "100%" : "520px",
         border: "1px solid var(--border)",
         borderRadius: "12px",
         overflow: "hidden",
@@ -1538,15 +1550,21 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       <div
         className="conversation-list-panel"
         style={{
-          width: "350px",
-          minWidth: "350px",
-          maxWidth: "350px",
-          borderRight: "1px solid var(--border)",
+          width: isMobile ? "100%" : "350px",
+          minWidth: isMobile ? "100%" : "350px",
+          maxWidth: isMobile ? "100%" : "350px",
+          borderRight: isMobile ? "none" : "1px solid var(--border)",
           background: "var(--bg-surface)",
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
+          ...(isMobile ? {
+            position: "absolute",
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 10,
+            visibility: showLeftPanel ? "visible" : "hidden",
+          } : {}),
         }}
       >
           <div
@@ -1571,7 +1589,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
                   color: "var(--text-primary)",
                 }}
               >
-                {isSuperAdmin ? "Employees" : "Conversations"}
+                {canViewAllTasks ? "Employees" : "Conversations"}
               </span>
               {!loading && conversations.length > 0 && (
                 <span
@@ -1602,6 +1620,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
               onClick={() => {
                 setShowActionCenter(true);
                 setActiveTaskId(null);
+                if (isMobile) setShowLeftPanel(false);
               }}
               style={{
                 width: "100%",
@@ -1738,7 +1757,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
                         display: "flex",
                         alignItems: "center",
                         gap: "12px",
-                        padding: "10px 10px",
+                        padding: isMobile ? "12px 10px" : "10px 10px",
                         border: "none",
                         background: "transparent",
                         cursor: "pointer",
@@ -1825,7 +1844,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
                             color: "var(--text-muted)",
                           }}
                         >
-                          {isSuperAdmin
+                          {canViewAllTasks
                             ? group.user?.role || ""
                             : `${group.tasks.length} task${group.tasks.length !== 1 ? "s" : ""}`}
                         </span>
@@ -1886,7 +1905,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
                                 display: "flex",
                                 alignItems: "center",
                                 gap: "8px",
-                                padding: "9px 10px",
+                                padding: isMobile ? "12px 10px" : "9px 10px",
                                 border: "none",
                                 borderLeft: isActive
                                   ? "3px solid var(--color-primary)"
@@ -2026,20 +2045,20 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
           </div>
         </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {showActionCenter ? (
+        <div
+          style={{
+            flex: 1,
+            display: isMobile && showLeftPanel ? "none" : "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          {showActionCenter ? (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderBottom: "1px solid var(--border)", background: "var(--bg-surface)", flexShrink: 0 }}>
             <button
-              onClick={() => { setShowActionCenter(false); }}
+              onClick={() => { setShowActionCenter(false); if (isMobile) setShowLeftPanel(true); }}
               className="mobile-back-btn"
-              style={{ padding: "4px", borderRadius: "6px", border: "none", background: "var(--bg-muted)", color: "var(--text-secondary)", cursor: "pointer", display: "none", flexShrink: 0 }}
+              style={{ padding: "4px", borderRadius: "6px", border: "none", background: "var(--bg-muted)", color: "var(--text-secondary)", cursor: "pointer", display: isMobile ? "inline-flex" : "none", flexShrink: 0 }}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -2053,7 +2072,8 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
             task={taskDetail}
             loading={taskDetailLoading}
             user={user}
-            onBack={() => { setActiveTaskId(null); }}
+            isMobile={isMobile}
+            onBack={() => { setActiveTaskId(null); if (isMobile) setShowLeftPanel(true); }}
           />
         )}
 
@@ -2128,9 +2148,10 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
               ref={messagesContainerRef}
               style={{
                 flex: 1,
+                minHeight: 0,
                 overflowY: "auto",
                 overflowX: "hidden",
-                padding: "16px 24px",
+                padding: isMobile ? "12px 14px" : "16px 24px",
                 scrollBehavior: "smooth",
               }}
             >
@@ -2375,14 +2396,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       <style jsx>{`
         @media (max-width: 768px) {
           .conversation-list-panel {
-            width: 280px !important;
-            min-width: 280px !important;
-            max-width: 280px !important;
-            border-right: 1px solid var(--border) !important;
-            position: relative !important;
-          }
-          .mobile-back-btn {
-            display: none !important;
+            border-right: none !important;
           }
         }
       `}</style>

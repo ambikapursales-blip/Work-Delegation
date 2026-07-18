@@ -72,29 +72,23 @@ export async function GET(request) {
       }
     }
 
-    const [taskCounts] = await Task.aggregate([
-      { $match: taskQuery },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: 1 },
-          inProgress: {
-            $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
-          },
-          completed: {
-            $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
+    const [taskResult, userResult] = await Promise.all([
+      Task.aggregate([
+        { $match: taskQuery },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            inProgress: {
+              $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] },
+            },
+            completed: {
+              $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] },
+            },
           },
         },
-      },
-    ]);
-
-    taskStats.total = (taskCounts && taskCounts.total) || 0;
-    taskStats.pending = 0;
-    taskStats.inProgress = (taskCounts && taskCounts.inProgress) || 0;
-    taskStats.completed = (taskCounts && taskCounts.completed) || 0;
-
-    if (canViewAll || isPrivilegedRole) {
-      const [userCounts] = await User.aggregate([
+      ]),
+      canViewAll ? User.aggregate([
         { $match: { role: { $ne: "Super Admin" } } },
         {
           $group: {
@@ -108,7 +102,17 @@ export async function GET(request) {
             },
           },
         },
-      ]);
+      ]) : Promise.resolve(null),
+    ]);
+
+    const taskCounts = taskResult[0];
+    taskStats.total = (taskCounts && taskCounts.total) || 0;
+    taskStats.pending = 0;
+    taskStats.inProgress = (taskCounts && taskCounts.inProgress) || 0;
+    taskStats.completed = (taskCounts && taskCounts.completed) || 0;
+
+    if (canViewAll) {
+      const userCounts = userResult[0];
       userStats.total = (userCounts && userCounts.total) || 0;
       userStats.active = (userCounts && userCounts.active) || 0;
       userStats.inactive = (userCounts && userCounts.inactive) || 0;

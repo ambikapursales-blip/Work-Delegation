@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import ConversationHub from "@/components/ConversationHub";
@@ -9,6 +10,26 @@ export default function DWRPage() {
   const searchParams = useSearchParams();
   const taskParam = searchParams.get("task");
   const messageParam = searchParams.get("message");
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (wrapperRef.current) {
+        wrapperRef.current.style.height = `${window.innerHeight - 64}px`;
+      }
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
+
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return;
+    const originalOverflow = main.style.overflowY;
+    main.style.overflowY = "hidden";
+    return () => { main.style.overflowY = originalOverflow; };
+  }, []);
 
   if (!user) {
     return (
@@ -28,7 +49,7 @@ export default function DWRPage() {
   }
 
   return (
-    <div className="-m-4 -mx-3 sm:-m-6 sm:-mx-4 lg:-mx-6 h-[calc(100vh-64px)]">
+    <div ref={wrapperRef} className="-m-4 -mx-3 sm:-m-6 sm:-mx-4 lg:-mx-6 h-[calc(100dvh-64px)]">
       <ConversationHub
         initialTaskId={taskParam}
         initialMessageId={messageParam}
