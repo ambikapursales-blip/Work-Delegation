@@ -21,70 +21,128 @@ export async function GET(request) {
   req.user = user;
 
   try {
-    const taskScope = await getTaskScopeFilter(user);
-    const userTasks = await Task.find(taskScope).select("_id").lean();
+    const isSuperAdmin = user.role === "Super Admin" || user.canViewAllTasks;
+    
+    let aggregationPipeline;
 
-    const taskIds = userTasks.map((t) => t._id);
-
-    if (taskIds.length === 0) {
-      return finishRes(res.status(200).json({ success: true, totalUnread: 0 }));
-    }
-
-    const result = await Conversation.aggregate([
-      {
-        $match: {
-          taskId: { $in: taskIds }
-        }
-      },
-      {
-        $lookup: {
-          from: "messages",
-          let: {
-            taskId: "$taskId",
-            userId: user._id,
-            lastReadAt: {
-              $arrayElemAt: [
-                {
-                  $filter: {
-                    input: "$participants",
-                    cond: { $eq: ["$$this.userId", user._id] }
-                  }
-                },
-                0
-              ]
-            }
-          },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$taskId", "$$taskId"] },
-                    { $ne: ["$sender", "$$userId"] },
-                    { $ne: ["$isDeleted", true] },
-                    {
-                      $cond: {
-                        if: { $ne: ["$$lastReadAt.lastReadAt", null] },
-                        then: { $gt: ["$createdAt", "$$lastReadAt.lastReadAt"] },
-                        else: true
-                      }
+    if (isSuperAdmin) {
+      // For Super Admin, aggregate directly without task ID filtering
+      aggregationPipeline = [
+        {
+          $lookup: {
+            from: "messages",
+            let: {
+              taskId: "$taskId",
+              userId: user._id,
+              lastReadAt: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$participants",
+                      cond: { $eq: ["$$this.userId", user._id] }
                     }
-                  ]
+                  },
+                  0
+                ]
+              }
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$taskId", "$$taskId"] },
+                      { $ne: ["$sender", "$$userId"] },
+                      { $ne: ["$isDeleted", true] },
+                      {
+                        $cond: {
+                          if: { $ne: ["$$lastReadAt.lastReadAt", null] },
+                          then: { $gt: ["$createdAt", "$$lastReadAt.lastReadAt"] },
+                          else: true
+                        }
+                      }
+                    ]
+                  }
                 }
               }
-            }
-          ],
-          as: "unreadMessages"
+            ],
+            as: "unreadMessages"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalUnread: { $sum: { $size: "$unreadMessages" } }
+          }
         }
-      },
-      {
-        $group: {
-          _id: null,
-          totalUnread: { $sum: { $size: "$unreadMessages" } }
-        }
-      }
-    ]);
+      ];
+    } else {
+      // For normal users, get task IDs first to filter by assignedTo
+      const taskScope = await getTaskScopeFilter(user);
+      const userTasks = await Task.find(taskScope).select("_id").lean();
+      const taskIds = userTasks.map((t) => t._id);
 
+      if (taskIds.length === 0) {
+        return finishRes(res.status(200).json({ success: true, totalUnread: 0 }));
+      }
+
+      aggregationPipeline = [
+        {
+          $match: {
+            taskId: { $in: taskIds }
+          }
+        },
+        {
+          $lookup: {
+            from: "messages",
+            let: {
+              taskId: "$taskId",
+              userId: user._id,
+              lastReadAt: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$participants",
+                      cond: { $eq: ["$$this.userId", user._id] }
+                    }
+                  },
+                  0
+                ]
+              }
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$taskId", "$$taskId"] },
+                      { $ne: ["$sender", "$$userId"] },
+                      { $ne: ["$isDeleted", true] },
+                      {
+                        $cond: {
+                          if: { $ne: ["$$lastReadAt.lastReadAt", null] },
+                          then: { $gt: ["$createdAt", "$$lastReadAt.lastReadAt"] },
+                          else: true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "unreadMessages"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalUnread: { $sum: { $size: "$unreadMessages" } }
+          }
+        }
+      ];
+    }
+
+    const result = await Conversation.aggregate(aggregationPipeline);
     const totalUnread = result.length > 0 ? result[0].totalUnread : 0;
 
     return finishRes(res.status(200).json({ success: true, totalUnread }));

@@ -2,6 +2,7 @@ import Task from "../models/Task.js";
 import Activity from "../models/Activity.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
+import RecurringTemplate from "../models/RecurringTemplate.js";
 import { generateNextTaskOccurrence } from "../utils/cronJobs.js";
 import {
   sendTaskAssignmentEmail,
@@ -14,6 +15,7 @@ import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { generateCompleteToken } from "../utils/completeToken.js";
 import { generateCommentToken } from "../utils/commentToken.js";
 import { generateExtensionToken } from "../utils/extensionToken.js";
+import { calculateNextGenerationDate } from "../utils/taskGenerationEngine.js";
 import {
   normalizeTaskStatus,
   toArray,
@@ -72,8 +74,15 @@ export const getTasks = async (req, res) => {
     }
     if (assignedBy) query.assignedBy = assignedBy;
     if (overdue === "true") {
-      query.deadline = { $lt: new Date() };
-      query.status = { $nin: ["Completed", "Cancelled"] };
+      const now = new Date();
+      query.$and = [
+        {
+          $or: [
+            { deadline: { $lt: now }, status: { $nin: ["Completed", "Cancelled"] } },
+            { status: "Overdue" },
+          ],
+        },
+      ];
     }
 
     if (startDate || endDate) {
@@ -146,6 +155,7 @@ export const getTask = async (req, res) => {
         { path: "assignedTo", select: "name email role avatar" },
         { path: "assignedBy", select: "name email role" },
         { path: "history.changedBy", select: "name email" },
+        { path: "templateId", select: "title taskType isActive" },
       ]);
 
     if (!task) {
@@ -271,13 +281,10 @@ export const createTask = async (req, res) => {
     }
 
     if (isRecurring) {
-      if (recurrencePattern) {
-        taskData.recurrencePattern = recurrencePattern;
-      }
       if (recurrenceEndDate) {
         taskData.recurrenceEndDate = new Date(recurrenceEndDate);
       }
-      const nextDate = new Date(deadline);
+      const nextDate = deadline ? new Date(deadline) : new Date();
       if (recurrencePattern.frequency === "daily") {
         nextDate.setDate(
           nextDate.getDate() + (recurrencePattern.interval || 1),
@@ -298,6 +305,41 @@ export const createTask = async (req, res) => {
     }
 
     const task = await Task.create(taskData);
+
+    if (isRecurring) {
+      const template = await RecurringTemplate.create({
+        title: taskData.title,
+        description: taskData.description,
+        priority: taskData.priority,
+        department: taskData.department,
+        tags: taskData.tags,
+        assignedTo: taskData.assignedTo,
+        assignedBy: taskData.assignedBy,
+        category: taskData.category,
+        taskType: taskData.taskType,
+        recurrencePattern: taskData.recurrencePattern,
+        isActive: true,
+        startDate: new Date(),
+        endDate: deadline ? new Date(deadline) : null,
+        repeatForever: !deadline,
+        scheduledHour: 9,
+        scheduledMinute: 0,
+        timezone: "Asia/Kolkata",
+        nextGenerationDate: calculateNextGenerationDate(
+          {
+            taskType: taskData.taskType,
+            recurrencePattern: taskData.recurrencePattern,
+            startDate: new Date(),
+            scheduledHour: 9,
+            scheduledMinute: 0,
+          },
+          new Date(),
+        ),
+        generatedCount: 0,
+      });
+      task.templateId = template._id;
+      await task.save();
+    }
 
     const recurringText = isRecurring ? ` (${taskType})` : "";
 
@@ -563,23 +605,9 @@ export const updateTask = async (req, res) => {
           console.error("Failed to send completion email:", emailError);
         }
 
-        if (task.parentTaskId) {
-          try {
-            const parentTask = await Task.findById(task.parentTaskId)
-              .lean()
-              .select("_id isRecurring taskType title assignedTo assignedBy")
-              .populate("assignedTo assignedBy");
-            if (
-              parentTask &&
-              parentTask.isRecurring &&
-              parentTask.taskType !== "One-time"
-            ) {
-              await generateNextTaskOccurrence(parentTask);
-            }
-          } catch (err) {
-            console.error("Error generating next task occurrence:", err);
-          }
-        }
+        // REMOVED: Completion-based recurrence generation
+        // New system generates tasks based on schedule, not completion
+        // This logic removed to prevent dependency on task completion
       }
 
       const assigneeUsers = await User.find({ _id: { $in: assigneeIds } })
@@ -839,6 +867,30 @@ export const deleteTask = async (req, res) => {
     }
 
     await task.save();
+
+    // CASE 1: Generated child task — delete only, never touch the template
+    if (task.isGeneratedOccurrence) {
+      await task.deleteOne();
+      return res
+        .status(200)
+        .json({ success: true, message: "Generated task deleted successfully" });
+    }
+
+    // CASE 2: Master recurring task — delete task AND its template
+    if (task.templateId) {
+      const template = await RecurringTemplate.findById(task.templateId);
+      if (template) {
+        template.isActive = false;
+        await template.save();
+        await template.deleteOne();
+      }
+      await task.deleteOne();
+      return res
+        .status(200)
+        .json({ success: true, message: "Recurring task and template deleted successfully" });
+    }
+
+    // CASE 3: Regular one-time task — just delete
     await task.deleteOne();
 
     res

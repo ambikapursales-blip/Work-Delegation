@@ -127,32 +127,67 @@ async function getSuperAdminView(user, res) {
     .filter((c) => c.taskId)
     .map((c) => c.taskId._id);
 
-  const unreadCounts =
-    allTaskIds.length > 0
-      ? await Promise.all(
-          conversations.map(async (c) => {
-            const tid = c.taskId?._id?.toString() || c.taskId?.toString();
-            const participant = c.participants?.find(
-              (p) => p.userId && p.userId.toString() === user._id.toString(),
-            );
-            const lastReadAt = participant?.lastReadAt || null;
-            const match = {
-              taskId: c.taskId?._id || c.taskId,
-              sender: { $ne: user._id },
-              isDeleted: { $ne: true },
-            };
-            if (lastReadAt) {
-              match.createdAt = { $gt: new Date(lastReadAt) };
-            }
-            const count = await Message.countDocuments(match);
-            return { _id: tid, count };
-          }),
-        )
-      : [];
+  // Single aggregation to get unread counts grouped by task
+  const unreadCounts = allTaskIds.length > 0
+    ? await Conversation.aggregate([
+        {
+          $match: {
+            taskId: { $in: allTaskIds }
+          }
+        },
+        {
+          $lookup: {
+            from: "messages",
+            let: {
+              taskId: "$taskId",
+              userId: user._id,
+              lastReadAt: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$participants",
+                      cond: { $eq: ["$$this.userId", user._id] }
+                    }
+                  },
+                  0
+                ]
+              }
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$taskId", "$$taskId"] },
+                      { $ne: ["$sender", "$$userId"] },
+                      { $ne: ["$isDeleted", true] },
+                      {
+                        $cond: {
+                          if: { $ne: ["$$lastReadAt.lastReadAt", null] },
+                          then: { $gt: ["$createdAt", "$$lastReadAt.lastReadAt"] },
+                          else: true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "unreadMessages"
+          }
+        },
+        {
+          $group: {
+            _id: "$taskId",
+            count: { $sum: { $size: "$unreadMessages" } }
+          }
+        }
+      ])
+    : [];
 
   const unreadMap = {};
   for (const u of unreadCounts) {
-    unreadMap[u._id] = u.count;
+    unreadMap[u._id?.toString()] = u.count;
   }
 
   const result = employeeIds
@@ -207,32 +242,67 @@ async function getNormalUserView(user, res) {
     convMap[c.taskId.toString()] = c;
   }
 
-  const unreadCounts =
-    taskIds.length > 0
-      ? await Promise.all(
-          taskIds.map(async (tid) => {
-            const c = convMap[tid.toString()];
-            const participant = c?.participants?.find(
-              (p) => p.userId && p.userId.toString() === user._id.toString(),
-            );
-            const lastReadAt = participant?.lastReadAt || null;
-            const match = {
-              taskId: tid,
-              sender: { $ne: user._id },
-              isDeleted: { $ne: true },
-            };
-            if (lastReadAt) {
-              match.createdAt = { $gt: new Date(lastReadAt) };
-            }
-            const count = await Message.countDocuments(match);
-            return { _id: tid.toString(), count };
-          }),
-        )
-      : [];
+  // Single aggregation to get unread counts grouped by task
+  const unreadCounts = taskIds.length > 0
+    ? await Conversation.aggregate([
+        {
+          $match: {
+            taskId: { $in: taskIds }
+          }
+        },
+        {
+          $lookup: {
+            from: "messages",
+            let: {
+              taskId: "$taskId",
+              userId: user._id,
+              lastReadAt: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$participants",
+                      cond: { $eq: ["$$this.userId", user._id] }
+                    }
+                  },
+                  0
+                ]
+              }
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$taskId", "$$taskId"] },
+                      { $ne: ["$sender", "$$userId"] },
+                      { $ne: ["$isDeleted", true] },
+                      {
+                        $cond: {
+                          if: { $ne: ["$$lastReadAt.lastReadAt", null] },
+                          then: { $gt: ["$createdAt", "$$lastReadAt.lastReadAt"] },
+                          else: true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "unreadMessages"
+          }
+        },
+        {
+          $group: {
+            _id: "$taskId",
+            count: { $sum: { $size: "$unreadMessages" } }
+          }
+        }
+      ])
+    : [];
 
   const unreadMap = {};
   for (const u of unreadCounts) {
-    unreadMap[u._id] = u.count;
+    unreadMap[u._id?.toString()] = u.count;
   }
 
   const assignerGroups = {};

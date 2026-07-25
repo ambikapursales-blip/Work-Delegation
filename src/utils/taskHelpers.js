@@ -21,7 +21,7 @@ export function toArray(value) {
 export function buildAssigneeProgress(userIds) {
   return userIds.map((userId) => ({
     user: userId,
-    status: "Pending",
+    status: "In Progress", // Changed from "Pending" to match new status workflow
     actualHours: 0,
   }));
 }

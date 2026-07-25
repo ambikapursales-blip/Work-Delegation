@@ -1,3 +1,5 @@
+import { isRecurringTaskOverdue } from "./overdueEngine.js";
+
 const MINUTE = 60 * 1000;
 const KOLKATA_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -170,11 +172,19 @@ export function getReminderMode(task, now = new Date()) {
   const deadline = toDate(task?.deadline);
   const status = task?.status;
 
+  // Stop reminders for completed tasks
+  // "Cancelled" check kept for backward compatibility with existing data
   if (status === "Completed" || status === "Cancelled") {
     return "stopped";
   }
 
+  // Deadline-based overdue
   if (deadline && currentDate > deadline) {
+    return "overdue";
+  }
+
+  // Recurring schedule-based overdue (tasks without deadline)
+  if (!deadline && isRecurringTaskOverdue(task, now)) {
     return "overdue";
   }
 
@@ -267,6 +277,8 @@ export function shouldSendReminder(task, reminderState, now = new Date()) {
     return false;
   }
 
+  // Stop reminders for completed tasks
+  // "Cancelled" check kept for backward compatibility with existing data
   if (task?.status === "Completed" || task?.status === "Cancelled") {
     return false;
   }
@@ -352,6 +364,8 @@ export function shouldSendDeadlineMilestone(
   now = new Date(),
 ) {
   const status = task?.status;
+  // Stop milestone reminders for completed tasks
+  // "Cancelled" check kept for backward compatibility with existing data
   if (status === "Completed" || status === "Cancelled") {
     return false;
   }

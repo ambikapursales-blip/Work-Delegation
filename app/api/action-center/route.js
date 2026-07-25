@@ -31,13 +31,37 @@ export async function GET(request) {
 
     const taskQuery = { assignedBy: targetUserId };
 
-    const pendingExtensions = await Task.find({
-      ...taskQuery,
-      "extensionRequests.status": "pending",
-    })
-      .populate("extensionRequests.user", "name email")
-      .select("title priority deadline assignedBy extensionRequests")
-      .lean();
+    // Parallelize independent queries
+    const [pendingExtensions, notifications] = await Promise.all([
+      Task.find({
+        ...taskQuery,
+        "extensionRequests.status": "pending",
+      })
+        .populate("extensionRequests.user", "name email")
+        .select("title priority deadline assignedBy extensionRequests")
+        .lean(),
+      (() => {
+        const notificationsQuery = {
+          recipient: targetUserId,
+          isRead: false,
+          createdAt: { $gte: thirtyDaysAgo },
+        };
+
+        if (filter === "pending") {
+          notificationsQuery.type = { $in: ["task_completed"] };
+        } else if (filter === "comments") {
+          notificationsQuery.title = "New Comment on Task";
+        } else if (filter === "deadline") {
+          notificationsQuery.type = { $in: ["deadline_extended"] };
+        }
+
+        return Notification.find(notificationsQuery)
+          .populate("sender", "name email")
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean();
+      })()
+    ]);
 
     for (const task of pendingExtensions) {
       for (const req of task.extensionRequests) {
@@ -59,26 +83,6 @@ export async function GET(request) {
         }
       }
     }
-
-    const notificationsQuery = {
-      recipient: targetUserId,
-      isRead: false,
-      createdAt: { $gte: thirtyDaysAgo },
-    };
-
-    if (filter === "pending") {
-      notificationsQuery.type = { $in: ["task_completed"] };
-    } else if (filter === "comments") {
-      notificationsQuery.title = "New Comment on Task";
-    } else if (filter === "deadline") {
-      notificationsQuery.type = { $in: ["deadline_extended"] };
-    }
-
-    const notifications = await Notification.find(notificationsQuery)
-      .populate("sender", "name email")
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
 
     const taskIds = notifications
       .filter((n) => n.entityId)

@@ -49,9 +49,6 @@ export async function GET(request) {
             { $unwind: "$user" },
             {
               $project: {
-                "user.name": 1,
-                "user.email": 1,
-                "user.role": 1,
                 user: 1,
                 type: 1,
                 description: 1,

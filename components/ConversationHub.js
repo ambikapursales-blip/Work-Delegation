@@ -1092,6 +1092,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
   const pollingRef = useRef(null);
   const initialLoadHandledRef = useRef(false);
   const isAtBottomRef = useRef(true);
+  const initialConversationsFetchedRef = useRef(false);
 
   const canViewAllTasks = user?.role === "Super Admin" || user?.canViewAllTasks;
 
@@ -1132,6 +1133,7 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
   useEffect(() => {
     setLoading(true);
     fetchConversations();
+    initialConversationsFetchedRef.current = true;
   }, [fetchConversations]);
 
   useEffect(() => {
@@ -1393,7 +1395,28 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       setMessages((prev) => [...prev, systemMessage]);
       
       await fetchMessages(activeTaskId);
-      await fetchConversations();
+      // Update conversations list locally for status change
+      setConversations((prev) => {
+        return prev.map((group) => {
+          const updatedTasks = group.tasks.map((task) => {
+            const tid = task.taskId?._id || task.taskId;
+            if (tid?.toString() === activeTaskId?.toString()) {
+              return {
+                ...task,
+                status: "Completed",
+                lastActivityAt: new Date().toISOString(),
+              };
+            }
+            return task;
+          });
+          return {
+            ...group,
+            tasks: updatedTasks.sort(
+              (a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt),
+            ),
+          };
+        });
+      });
       refreshUnreadCount();
       setShowCompleteModal(false);
       scrollToBottom();
@@ -1426,7 +1449,27 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       setMessages((prev) => [...prev, systemMessage]);
       
       await fetchMessages(activeTaskId);
-      await fetchConversations();
+      // Update conversations list locally for last activity
+      setConversations((prev) => {
+        return prev.map((group) => {
+          const updatedTasks = group.tasks.map((task) => {
+            const tid = task.taskId?._id || task.taskId;
+            if (tid?.toString() === activeTaskId?.toString()) {
+              return {
+                ...task,
+                lastActivityAt: new Date().toISOString(),
+              };
+            }
+            return task;
+          });
+          return {
+            ...group,
+            tasks: updatedTasks.sort(
+              (a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt),
+            ),
+          };
+        });
+      });
       refreshUnreadCount();
       setShowExtensionModal(false);
       scrollToBottom();
@@ -1448,7 +1491,13 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
       try {
         await conversationAPI.markAsRead(activeTaskId);
         if (cancelled) return;
-        await Promise.all([fetchConversations(), refreshUnreadCount()]);
+        // Skip fetchConversations if initial fetch just happened to avoid duplicate call
+        if (initialConversationsFetchedRef.current) {
+          initialConversationsFetchedRef.current = false;
+          await refreshUnreadCount();
+        } else {
+          await Promise.all([fetchConversations(), refreshUnreadCount()]);
+        }
       } catch (e) {
         console.error("[ConversationHub] sync read state error:", e);
       }
@@ -1470,11 +1519,35 @@ export default function ConversationHub({ initialTaskId, initialMessageId }) {
         type: "text",
       });
       if (res.data?.data) {
-        setMessages((prev) => [...prev, res.data.data]);
+        const newMessage = res.data.data;
+        setMessages((prev) => [...prev, newMessage]);
         scrollToBottom();
+        
+        // Update conversations list locally to avoid full API refresh
+        setConversations((prev) => {
+          return prev.map((group) => {
+            const updatedTasks = group.tasks.map((task) => {
+              const tid = task.taskId?._id || task.taskId;
+              if (tid?.toString() === activeTaskId?.toString()) {
+                return {
+                  ...task,
+                  lastMessageText: newMessage.text,
+                  lastMessageTime: newMessage.createdAt,
+                  lastActivityAt: newMessage.createdAt,
+                };
+              }
+              return task;
+            });
+            return {
+              ...group,
+              tasks: updatedTasks.sort(
+                (a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt),
+              ),
+            };
+          });
+        });
       }
       setError(null);
-      await fetchConversations();
       refreshUnreadCount();
     } catch {
       setError("Failed to send message");

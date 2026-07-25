@@ -25,7 +25,6 @@ const taskSchema = new mongoose.Schema(
     },
     deadline: {
       type: Date,
-      required: [true, "Deadline is required"],
     },
     assignedTo: [
       {
@@ -387,6 +386,49 @@ const taskSchema = new mongoose.Schema(
         },
       },
     ],
+    // New fields for recurring task generation
+    templateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "RecurringTemplate",
+    },
+    occurrenceDate: {
+      type: Date,
+    },
+    occurrenceNumber: {
+      type: Number,
+    },
+    generatedAt: {
+      type: Date,
+    },
+    generatedByCron: {
+      type: Boolean,
+      default: false,
+    },
+    isGeneratedOccurrence: {
+      type: Boolean,
+      default: false,
+    },
+    assignmentEmailSent: {
+      type: Boolean,
+      default: false,
+    },
+    assignmentEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    assignmentEmailStatus: {
+      type: String,
+      enum: ["pending", "sent", "failed", "skipped"],
+      default: "pending",
+    },
+    assignmentEmailRetryCount: {
+      type: Number,
+      default: 0,
+    },
+    assignmentEmailLastError: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -423,6 +465,11 @@ taskSchema.pre("save", function (next) {
     }
   }
 
+  // Deadline is required only for One Time tasks
+  if (this.taskType === "One Time" && !this.deadline) {
+    return next(new Error("Deadline is required for One Time tasks"));
+  }
+
   // Overdue logic: automatically set isOverdue when deadline passed and not completed
   if (
     this.deadline &&
@@ -452,5 +499,10 @@ taskSchema.index({ status: 1, priority: 1 });
 taskSchema.index({ department: 1, status: 1 });
 taskSchema.index({ status: 1, deadline: 1 });
 taskSchema.index({ completedAt: -1 });
+// New indexes for recurring task generation
+taskSchema.index({ templateId: 1, occurrenceDate: -1 });
+taskSchema.index({ isGeneratedOccurrence: 1, occurrenceDate: -1 });
+taskSchema.index({ generatedByCron: 1, generatedAt: -1 });
+taskSchema.index({ assignmentEmailStatus: 1, assignmentEmailRetryCount: 1 });
 
 export default mongoose.models?.Task || mongoose.model("Task", taskSchema);

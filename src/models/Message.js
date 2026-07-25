@@ -84,5 +84,6 @@ messageSchema.index({ sender: 1, createdAt: -1 });
 messageSchema.index({ parentId: 1 });
 messageSchema.index({ "mentions": 1 });
 messageSchema.index({ isDeleted: 1, taskId: 1, createdAt: -1 });
+messageSchema.index({ taskId: 1, sender: 1, isDeleted: 1, createdAt: -1 });
 
 export default mongoose.models?.Message || mongoose.model("Message", messageSchema);

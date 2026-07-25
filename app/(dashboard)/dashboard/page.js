@@ -939,31 +939,60 @@ export default function DashboardPage() {
                                 ? "In Progress"
                                 : "Pending";
 
-                        const now = new Date();
-                        const deadlineDate = new Date(task.deadline);
-                        now.setHours(0, 0, 0, 0);
-                        deadlineDate.setHours(0, 0, 0, 0);
-                        const diffTime = deadlineDate - now;
-                        const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
                         let remainingText = "";
                         let remainingColor = "";
                         if (status === "Completed") {
                           remainingText = "Completed";
                           remainingColor = "var(--color-success)";
-                        } else if (task.isOverdue) {
-                          const overdueDays = Math.abs(daysRemaining);
-                          remainingText = `Overdue by ${overdueDays} day${overdueDays > 1 ? "s" : ""}`;
-                          remainingColor = "var(--color-danger)";
-                        } else if (daysRemaining === 0) {
-                          remainingText = "Due Today";
-                          remainingColor = "var(--color-danger)";
-                        } else if (daysRemaining <= 5) {
-                          remainingText = `${daysRemaining} day${daysRemaining > 1 ? "s" : ""} left`;
-                          remainingColor = "var(--color-warning)";
+                        } else if (!task.deadline) {
+                          switch (task.taskType) {
+                            case "Daily":
+                              remainingText = "Daily Task";
+                              break;
+                            case "Weekly":
+                              remainingText = "Weekly Task";
+                              break;
+                            case "Monthly":
+                              remainingText = "Monthly Task";
+                              break;
+                            case "Quarterly":
+                              remainingText = "Quarterly Task";
+                              break;
+                            case "Half Yearly":
+                              remainingText = "Half Yearly Task";
+                              break;
+                            case "Yearly":
+                              remainingText = "Yearly Task";
+                              break;
+                            case "Custom": {
+                              const val = task.recurrencePattern?.intervalValue ?? task.recurrencePattern?.interval ?? "";
+                              const unit = task.recurrencePattern?.intervalUnit ?? "";
+                              remainingText = `Repeats Every ${val} ${unit}`;
+                              break;
+                            }
+                          }
+                          remainingColor = "var(--color-info)";
                         } else {
-                          remainingText = `${daysRemaining} days left`;
-                          remainingColor = "var(--color-success)";
+                          const now = new Date();
+                          const deadlineDate = new Date(task.deadline);
+                          now.setHours(0, 0, 0, 0);
+                          deadlineDate.setHours(0, 0, 0, 0);
+                          const diffTime = deadlineDate - now;
+                          const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          if (task.isOverdue) {
+                            const overdueDays = Math.abs(daysRemaining);
+                            remainingText = `Overdue by ${overdueDays} day${overdueDays > 1 ? "s" : ""}`;
+                            remainingColor = "var(--color-danger)";
+                          } else if (daysRemaining === 0) {
+                            remainingText = "Due Today";
+                            remainingColor = "var(--color-danger)";
+                          } else if (daysRemaining <= 5) {
+                            remainingText = `${daysRemaining} day${daysRemaining > 1 ? "s" : ""} left`;
+                            remainingColor = "var(--color-warning)";
+                          } else {
+                            remainingText = `${daysRemaining} days left`;
+                            remainingColor = "var(--color-success)";
+                          }
                         }
 
                         return (
