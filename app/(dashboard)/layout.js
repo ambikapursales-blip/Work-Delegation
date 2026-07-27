@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }) {
       const currentPath =
         window.location.pathname.split("/").filter(Boolean)[0] || "dashboard";
 
-      if (!["dashboard", "tasks", "dwr", "events", "attendance", "users", "performance", "profile", "team"].includes(currentPath)) {
+      if (!["dashboard", "tasks", "master-tasks", "dwr", "events", "attendance", "users", "performance", "profile", "team"].includes(currentPath)) {
         router.push("/dashboard");
       }
     }

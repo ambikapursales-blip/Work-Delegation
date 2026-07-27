@@ -14,6 +14,7 @@ import {
   Activity,
   BarChart3,
   Sparkles,
+  GitBranch,
 } from "lucide-react";
 
 const ALL_MENU_ITEMS = [
@@ -29,6 +30,8 @@ const SUPER_ADMIN_ONLY_ITEMS = [
   { title: "Users", icon: Users, href: "/users" },
 ];
 
+const MASTER_TASKS_ITEM = { title: "Master Tasks", icon: GitBranch, href: "/master-tasks" };
+
 export default function Sidebar({ isOpen, setIsOpen }) {
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -39,8 +42,10 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     router.push("/auth/login");
   };
 
+  const canSeeMasterTasks = user?.role === "Super Admin" || user?.canAssignTasks === true;
   const menuItems = [
     ...ALL_MENU_ITEMS,
+    ...(canSeeMasterTasks ? [MASTER_TASKS_ITEM] : []),
     ...(user?.role === "Super Admin" ? SUPER_ADMIN_ONLY_ITEMS : []),
   ];
 

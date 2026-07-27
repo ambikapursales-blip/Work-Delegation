@@ -214,6 +214,9 @@ export const updateTemplate = async (req, res) => {
       isActive,
       endDate,
       defaultDeadlineHours,
+      scheduledHour,
+      scheduledMinute,
+      startDate,
     } = req.body;
 
     if (title) template.title = title;
@@ -223,7 +226,6 @@ export const updateTemplate = async (req, res) => {
     if (department) template.department = department;
     if (tags) template.tags = tags;
     if (category) template.category = category;
-    if (recurrencePattern) template.recurrencePattern = recurrencePattern;
     if (isActive !== undefined) template.isActive = isActive;
     if (endDate !== undefined) {
       template.endDate = endDate ? new Date(endDate) : null;
@@ -231,9 +233,12 @@ export const updateTemplate = async (req, res) => {
     if (defaultDeadlineHours !== undefined) {
       template.defaultDeadlineHours = defaultDeadlineHours;
     }
+    if (scheduledHour !== undefined) template.scheduledHour = scheduledHour;
+    if (scheduledMinute !== undefined) template.scheduledMinute = scheduledMinute;
+    if (startDate !== undefined) template.startDate = new Date(startDate);
 
-    // Recalculate next generation date if recurrence pattern changed
-    if (recurrencePattern) {
+    // Recalculate next generation date if any scheduling-related field changed
+    if (recurrencePattern || scheduledHour !== undefined || scheduledMinute !== undefined || startDate !== undefined) {
       template.nextGenerationDate = calculateNextGenerationDate(template);
     }
 
@@ -281,13 +286,13 @@ export const deleteTemplate = async (req, res) => {
         .json({ success: false, message: "Not authorized to delete this template" });
     }
 
-    // Optionally delete generated tasks
+    // Optionally delete generated tasks (never the parent task)
     if (deleteOccurrences === "true") {
-      await Task.deleteMany({ templateId: template._id });
+      await Task.deleteMany({ templateId: template._id, isGeneratedOccurrence: true });
     } else {
-      // Keep tasks but remove template reference
+      // Keep tasks but remove template reference from generated occurrences
       await Task.updateMany(
-        { templateId: template._id },
+        { templateId: template._id, isGeneratedOccurrence: true },
         { $unset: { templateId: 1 } },
       );
     }
@@ -421,8 +426,12 @@ export const resumeTemplate = async (req, res) => {
     }
 
     template.isActive = true;
-    // Recalculate next generation date
-    template.nextGenerationDate = calculateNextGenerationDate(template, new Date());
+    // Recalculate next generation date from where we left off,
+    // so missed generations are caught up naturally by the cron cycle
+    template.nextGenerationDate = calculateNextGenerationDate(
+      template,
+      template.lastGeneratedDate || template.startDate || new Date(),
+    );
     await template.save();
 
     await Activity.create({

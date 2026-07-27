@@ -1,7 +1,7 @@
 import { isRecurringTaskOverdue } from "./overdueEngine.js";
+import { getKolkataDateParts, createKolkataDate, toKolkataDate } from "./istTime.js";
 
 const MINUTE = 60 * 1000;
-const KOLKATA_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 function toDate(value) {
   if (!value) return null;
@@ -13,54 +13,6 @@ function addMinutes(date, minutes) {
   const next = new Date(date);
   next.setTime(next.getTime() + minutes * MINUTE);
   return next;
-}
-
-function toKolkataDate(date) {
-  if (!date) return null;
-  const d = new Date(date);
-  const { year, month, day, hour, minute, second } = getKolkataDateParts(d);
-  return createKolkataDate(year, month, day, hour, minute, second);
-}
-
-function getKolkataDateParts(date) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-
-  const parts = formatter.formatToParts(date);
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
-  return {
-    year: Number(values.year),
-    month: Number(values.month),
-    day: Number(values.day),
-    hour: Number(values.hour),
-    minute: Number(values.minute),
-    second: Number(values.second),
-  };
-}
-
-function createKolkataDate(
-  year,
-  month,
-  day,
-  hour = 9,
-  minute = 0,
-  second = 0,
-) {
-  const utcTimestamp = Date.UTC(year, month - 1, day, hour, minute, second, 0);
-  return new Date(utcTimestamp - KOLKATA_OFFSET_MS);
 }
 
 function getNextReminderAt(task, now = new Date(), reminderState = null) {
@@ -171,6 +123,11 @@ export function getReminderMode(task, now = new Date()) {
   const currentDate = toDate(now) || new Date();
   const deadline = toDate(task?.deadline);
   const status = task?.status;
+
+  // Parent recurring tasks are metadata only — never send overdue reminders
+  if (task?.isRecurring && !task?.isGeneratedOccurrence) {
+    return "normal";
+  }
 
   // Stop reminders for completed tasks
   // "Cancelled" check kept for backward compatibility with existing data
@@ -376,11 +333,12 @@ export function shouldSendDeadlineMilestone(
   }
 
   const current = toDate(now) || new Date();
-  const deadlineDate = new Date(deadline);
-  deadlineDate.setHours(0, 0, 0, 0);
-  current.setHours(0, 0, 0, 0);
+  const deadlineParts = getKolkataDateParts(deadline);
+  const currentParts = getKolkataDateParts(current);
+  const deadlineDate = createKolkataDate(deadlineParts.year, deadlineParts.month, deadlineParts.day, 0, 0, 0);
+  const currentDate = createKolkataDate(currentParts.year, currentParts.month, currentParts.day, 0, 0, 0);
 
-  const diffTime = deadlineDate.getTime() - current.getTime();
+  const diffTime = deadlineDate.getTime() - currentDate.getTime();
   const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
   const milestoneMap = {

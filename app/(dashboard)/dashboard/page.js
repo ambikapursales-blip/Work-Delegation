@@ -901,6 +901,7 @@ export default function DashboardPage() {
                                           day: "numeric",
                                           month: "short",
                                           year: "numeric",
+                                          timeZone: "Asia/Kolkata",
                                         })
                                       : "No deadline"}
                                   </span>
@@ -939,60 +940,61 @@ export default function DashboardPage() {
                                 ? "In Progress"
                                 : "Pending";
 
+                        const getRecurrenceLabel = (t) => {
+                          if (!t.taskType || t.taskType === "One Time") return null;
+                          if (t.taskType === "Custom") {
+                            const v = t.recurrencePattern?.intervalValue ?? t.recurrencePattern?.interval ?? "";
+                            const u = t.recurrencePattern?.intervalUnit ?? "";
+                            const displayUnit = v === 1 ? u.replace(/s$/, "").toLowerCase() : u.toLowerCase();
+                            return `Every ${v} ${displayUnit}`;
+                          }
+                          return t.taskType;
+                        };
+
+                        const recurrenceLabel = getRecurrenceLabel(task);
+
                         let remainingText = "";
                         let remainingColor = "";
                         if (status === "Completed") {
                           remainingText = "Completed";
                           remainingColor = "var(--color-success)";
-                        } else if (!task.deadline) {
-                          switch (task.taskType) {
-                            case "Daily":
-                              remainingText = "Daily Task";
-                              break;
-                            case "Weekly":
-                              remainingText = "Weekly Task";
-                              break;
-                            case "Monthly":
-                              remainingText = "Monthly Task";
-                              break;
-                            case "Quarterly":
-                              remainingText = "Quarterly Task";
-                              break;
-                            case "Half Yearly":
-                              remainingText = "Half Yearly Task";
-                              break;
-                            case "Yearly":
-                              remainingText = "Yearly Task";
-                              break;
-                            case "Custom": {
-                              const val = task.recurrencePattern?.intervalValue ?? task.recurrencePattern?.interval ?? "";
-                              const unit = task.recurrencePattern?.intervalUnit ?? "";
-                              remainingText = `Repeats Every ${val} ${unit}`;
-                              break;
-                            }
-                          }
-                          remainingColor = "var(--color-info)";
-                        } else {
+                        } else if (task.isOverdue || status === "Overdue") {
                           const now = new Date();
-                          const deadlineDate = new Date(task.deadline);
-                          now.setHours(0, 0, 0, 0);
-                          deadlineDate.setHours(0, 0, 0, 0);
-                          const diffTime = deadlineDate - now;
-                          const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          if (task.isOverdue) {
-                            const overdueDays = Math.abs(daysRemaining);
-                            remainingText = `Overdue by ${overdueDays} day${overdueDays > 1 ? "s" : ""}`;
-                            remainingColor = "var(--color-danger)";
-                          } else if (daysRemaining === 0) {
-                            remainingText = "Due Today";
-                            remainingColor = "var(--color-danger)";
-                          } else if (daysRemaining <= 5) {
-                            remainingText = `${daysRemaining} day${daysRemaining > 1 ? "s" : ""} left`;
+                          const dl = new Date(task.deadline || task.occurrenceDate);
+                          const diffMs = now.getTime() - dl.getTime();
+                          if (diffMs < 60000) {
+                            remainingText = "Overdue";
+                          } else if (diffMs < 3600000) {
+                            remainingText = `Overdue by ${Math.ceil(diffMs / 60000)} min`;
+                          } else if (diffMs < 86400000) {
+                            remainingText = `Overdue by ${Math.ceil(diffMs / 3600000)} hr`;
+                          } else {
+                            remainingText = `Overdue by ${Math.ceil(diffMs / 86400000)} days`;
+                          }
+                          remainingColor = "var(--color-danger)";
+                        } else if (task.deadline) {
+                          const now = new Date();
+                          const dl = new Date(task.deadline);
+                          const diffMs = dl.getTime() - now.getTime();
+                          if (diffMs < 60000) {
+                            remainingText = "Due now";
+                            remainingColor = "var(--color-warning)";
+                          } else if (diffMs < 3600000) {
+                            remainingText = `${Math.ceil(diffMs / 60000)} min left`;
+                            remainingColor = "var(--color-warning)";
+                          } else if (diffMs < 86400000) {
+                            remainingText = `${Math.ceil(diffMs / 3600000)} hr left`;
+                            remainingColor = "var(--color-warning)";
+                          } else if (diffMs < 172800000) {
+                            remainingText = "1 day left";
                             remainingColor = "var(--color-warning)";
                           } else {
-                            remainingText = `${daysRemaining} days left`;
+                            remainingText = `${Math.ceil(diffMs / 86400000)} days left`;
                             remainingColor = "var(--color-success)";
                           }
+                        } else {
+                          remainingText = "No deadline";
+                          remainingColor = "var(--text-muted)";
                         }
 
                         return (
@@ -1046,11 +1048,17 @@ export default function DashboardPage() {
                                   )}
                                 </div>
                               )}
+                              {recurrenceLabel && (
+                                <div className="text-[10px] font-medium" style={{ color: "var(--color-info)" }}>
+                                  {recurrenceLabel}
+                                </div>
+                              )}
                               <div className="flex items-center justify-between gap-2 pt-1" style={{ borderTop: "1px solid var(--border)" }}>
                                 <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                                   {task.deadline
                                     ? new Date(task.deadline).toLocaleDateString("en-IN", {
                                         day: "numeric", month: "short", year: "numeric",
+                                        timeZone: "Asia/Kolkata",
                                       })
                                     : "No deadline"}
                                 </span>

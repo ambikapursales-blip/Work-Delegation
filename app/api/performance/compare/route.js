@@ -55,7 +55,16 @@ export async function GET(request) {
         .select("name email role department performanceScore grade employeeId avatar")
         .lean(),
       Task.aggregate([
-        { $match: { assignedTo: { $in: objectIds }, createdAt: { $gte: startDate } } },
+        {
+          $match: {
+            assignedTo: { $in: objectIds },
+            createdAt: { $gte: startDate },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
+          },
+        },
         { $unwind: "$assignedTo" },
         { $match: { assignedTo: { $in: objectIds } } },
         {
@@ -84,6 +93,10 @@ export async function GET(request) {
             status: "Completed",
             completedAt: { $exists: true },
             createdAt: { $gte: startDate },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
           },
         },
         { $unwind: "$assignedTo" },

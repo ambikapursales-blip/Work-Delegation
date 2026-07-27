@@ -3,7 +3,10 @@
  * 
  * Generates task names for recurring task occurrences with date information.
  * Each occurrence gets a unique name that includes the occurrence date/time.
+ * All dates are extracted in IST (Asia/Kolkata) for consistency.
  */
+
+import { getKolkataDateParts } from "./istTime.js";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -11,57 +14,53 @@ const MONTHS = [
 ];
 
 /**
- * Format date as "25 Jul 2026"
+ * Format date as "25 Jul 2026" using IST date parts
  */
 function formatDate(date) {
   if (!date) return "";
-  const d = new Date(date);
-  const day = d.getDate();
-  const month = MONTHS[d.getMonth()];
-  const year = d.getFullYear();
-  return `${day} ${month} ${year}`;
+  const { year, month, day } = getKolkataDateParts(new Date(date));
+  return `${day} ${MONTHS[month - 1]} ${year}`;
 }
 
 /**
- * Format date with time as "25 Jul 2026 14:30"
+ * Format date with time as "25 Jul 2026 14:30" using IST date parts
  */
 function formatDateTime(date) {
   if (!date) return "";
-  const d = new Date(date);
-  const day = d.getDate();
-  const month = MONTHS[d.getMonth()];
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day} ${month} ${year} ${hours}:${minutes}`;
+  const { year, month, day, hour, minute } = getKolkataDateParts(new Date(date));
+  const hours = String(hour).padStart(2, '0');
+  const minutes = String(minute).padStart(2, '0');
+  return `${day} ${MONTHS[month - 1]} ${year} ${hours}:${minutes}`;
 }
 
 /**
- * Get week number from date
+ * Get ISO week number from date (IST-based)
  */
 function getWeekNumber(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-  const yearStart = new Date(d.getFullYear(), 0, 1);
-  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  const { year, month, day } = getKolkataDateParts(new Date(date));
+  // Create a Date using IST values interpreted as local to compute week number
+  const istDate = new Date(year, month - 1, day);
+  istDate.setHours(0, 0, 0, 0);
+  istDate.setDate(istDate.getDate() + 4 - (istDate.getDay() || 7));
+  const yearStart = new Date(istDate.getFullYear(), 0, 1);
+  const weekNo = Math.ceil((((istDate - yearStart) / 86400000) + 1) / 7);
   return weekNo;
 }
 
 /**
- * Get quarter from date (1-4)
+ * Get quarter from date (1-4) using IST month
  */
 function getQuarter(date) {
-  const month = new Date(date).getMonth();
-  return Math.floor(month / 3) + 1;
+  const { month } = getKolkataDateParts(new Date(date));
+  return Math.floor((month - 1) / 3) + 1;
 }
 
 /**
- * Get half year from date (1-2)
+ * Get half year from date (1-2) using IST month
  */
 function getHalfYear(date) {
-  const month = new Date(date).getMonth();
-  return month < 6 ? 1 : 2;
+  const { month } = getKolkataDateParts(new Date(date));
+  return month <= 6 ? 1 : 2;
 }
 
 /**
@@ -79,7 +78,7 @@ export function generateDailyName(baseTitle, occurrenceDate) {
  */
 export function generateWeeklyName(baseTitle, occurrenceDate) {
   const weekNumber = getWeekNumber(occurrenceDate);
-  const year = new Date(occurrenceDate).getFullYear();
+  const { year } = getKolkataDateParts(occurrenceDate);
   return `${baseTitle} - Week ${weekNumber} - ${year}`;
 }
 
@@ -88,8 +87,8 @@ export function generateWeeklyName(baseTitle, occurrenceDate) {
  * Example: "GST Filing - August 2026"
  */
 export function generateMonthlyName(baseTitle, occurrenceDate) {
-  const monthName = MONTHS[new Date(occurrenceDate).getMonth()];
-  const year = new Date(occurrenceDate).getFullYear();
+  const { year, month } = getKolkataDateParts(occurrenceDate);
+  const monthName = MONTHS[month - 1];
   return `${baseTitle} - ${monthName} ${year}`;
 }
 
@@ -99,7 +98,7 @@ export function generateMonthlyName(baseTitle, occurrenceDate) {
  */
 export function generateQuarterlyName(baseTitle, occurrenceDate) {
   const quarter = getQuarter(occurrenceDate);
-  const year = new Date(occurrenceDate).getFullYear();
+  const { year } = getKolkataDateParts(occurrenceDate);
   return `${baseTitle} - Q${quarter} ${year}`;
 }
 
@@ -109,7 +108,7 @@ export function generateQuarterlyName(baseTitle, occurrenceDate) {
  */
 export function generateHalfYearlyName(baseTitle, occurrenceDate) {
   const half = getHalfYear(occurrenceDate);
-  const year = new Date(occurrenceDate).getFullYear();
+  const { year } = getKolkataDateParts(occurrenceDate);
   return `${baseTitle} - H${half} ${year}`;
 }
 
@@ -118,7 +117,7 @@ export function generateHalfYearlyName(baseTitle, occurrenceDate) {
  * Example: "AMC Renewal - 2026"
  */
 export function generateYearlyName(baseTitle, occurrenceDate) {
-  const year = new Date(occurrenceDate).getFullYear();
+  const { year } = getKolkataDateParts(occurrenceDate);
   return `${baseTitle} - ${year}`;
 }
 

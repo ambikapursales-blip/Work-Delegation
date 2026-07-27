@@ -40,7 +40,6 @@ const generateNextTaskOccurrence = async (parentTask) => {
     const {
       recurrencePattern,
       recurrenceEndDate,
-      deadline,
       assignedTo,
       assignedBy,
       title,
@@ -54,8 +53,8 @@ const generateNextTaskOccurrence = async (parentTask) => {
       return null;
     }
 
-    const currentDeadline = new Date(deadline);
-    let nextDeadline = new Date(currentDeadline);
+    const baseDate = new Date(parentTask.nextOccurrenceDate || new Date());
+    let nextDeadline = new Date(baseDate);
 
     if (recurrencePattern.frequency === "daily") {
       nextDeadline.setDate(
@@ -183,6 +182,11 @@ const generateRecurringTasksLegacy = async () => {
 // NEW: Generate recurring tasks from RecurringTemplate model
 // This replaces the old Task-based generation
 const generateRecurringTasks = async () => {
+  const lockAcquired = await acquireGenerationLock();
+  if (!lockAcquired) {
+    return;
+  }
+
   try {
     // Use the new task generation engine
     const result = await generateDueTasks();
@@ -193,6 +197,8 @@ const generateRecurringTasks = async () => {
     // Fallback to legacy if new engine fails during migration
     console.log("[CronJobs] Falling back to legacy generation");
     await generateRecurringTasksLegacy();
+  } finally {
+    await releaseGenerationLock();
   }
 };
 
@@ -268,6 +274,11 @@ const sendAssignmentEmailsForNewTasks = async () => {
 };
 
 const sendDeadlineAlerts = async () => {
+  const lockAcquired = await acquireDeadlineAlertLock();
+  if (!lockAcquired) {
+    return;
+  }
+
   try {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -275,6 +286,10 @@ const sendDeadlineAlerts = async () => {
     const activeTasks = await Task.find({
       status: { $nin: ["Completed", "Cancelled", "Overdue"] },
       deadline: { $exists: true, $ne: null },
+      $or: [
+        { isRecurring: { $ne: true } },
+        { isGeneratedOccurrence: true },
+      ],
     }).populate("assignedTo assignedBy");
 
     let alertsSent = 0;
@@ -341,25 +356,26 @@ const sendDeadlineAlerts = async () => {
               );
             }
 
-            reminderState.milestoneFlags = markDeadlineMilestoneSent(
-              reminderState,
-              milestoneKey,
-            ).milestoneFlags;
-            reminderState.lastReminderType = "normal";
-            reminderState.lastEmailTemplate =
-              milestoneKey === "dueToday" ? "dueToday" : "reminder";
+            await Task.updateOne(
+              { _id: task._id, "reminderState.user": assignee._id },
+              {
+                $set: {
+                  "reminderState.$.milestoneFlags": markDeadlineMilestoneSent(reminderState, milestoneKey).milestoneFlags,
+                  "reminderState.$.lastReminderType": "normal",
+                  "reminderState.$.lastEmailTemplate": milestoneKey === "dueToday" ? "dueToday" : "reminder",
+                },
+              },
+            );
           }
         }
-      }
-
-      if (task.reminderState && task.reminderState.length > 0) {
-        await task.save();
       }
     }
 
     console.log(`[CronJobs] Sent ${alertsSent} deadline alerts`);
   } catch (error) {
     console.error("[CronJobs] sendDeadlineAlerts failed:", error.message);
+  } finally {
+    await releaseDeadlineAlertLock();
   }
 };
 
@@ -439,6 +455,126 @@ const releaseReminderLock = async () => {
   }
 };
 
+// ── Distributed lock for generateRecurringTasks ────────────────
+
+const GENERATION_LOCK_KEY = "task_generation";
+const GENERATION_LOCK_TTL_MS = 10 * 60 * 1000;
+
+const acquireGenerationLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + GENERATION_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: GENERATION_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          {
+            lockedAt: {
+              $lt: new Date(now.getTime() - GENERATION_LOCK_TTL_MS),
+            },
+          },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: GENERATION_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (
+      doc &&
+      doc.lockedAt &&
+      doc.lockedAt.getTime() === now.getTime()
+    ) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) {
+      return false;
+    }
+    console.error("[CronJobs] Failed to acquire generation lock:", error);
+    return false;
+  }
+};
+
+const releaseGenerationLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: GENERATION_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release generation lock:", error);
+  }
+};
+
+// ── Distributed lock for sendDeadlineAlerts ────────────────────
+
+const DEADLINE_ALERT_LOCK_KEY = "deadline_alerts";
+const DEADLINE_ALERT_LOCK_TTL_MS = 2 * 60 * 1000;
+
+const acquireDeadlineAlertLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + DEADLINE_ALERT_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: DEADLINE_ALERT_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          {
+            lockedAt: {
+              $lt: new Date(now.getTime() - DEADLINE_ALERT_LOCK_TTL_MS),
+            },
+          },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: DEADLINE_ALERT_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (
+      doc &&
+      doc.lockedAt &&
+      doc.lockedAt.getTime() === now.getTime()
+    ) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) {
+      return false;
+    }
+    console.error("[CronJobs] Failed to acquire deadline alert lock:", error);
+    return false;
+  }
+};
+
+const releaseDeadlineAlertLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: DEADLINE_ALERT_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release deadline alert lock:", error);
+  }
+};
+
 const processScheduledEmails = async () => {
   const lockAcquired = await acquireReminderLock();
   if (!lockAcquired) {
@@ -451,6 +587,10 @@ const processScheduledEmails = async () => {
 
     const tasksNeedingEmails = await Task.find({
       status: { $nin: ["Completed", "Cancelled"] },
+      $or: [
+        { isRecurring: { $ne: true } },
+        { isGeneratedOccurrence: true },
+      ],
     }).populate("assignedTo assignedBy");
 
     let processedCount = 0;
@@ -515,12 +655,10 @@ const processScheduledEmails = async () => {
             now,
             mode,
           );
-          const index = task.reminderState.findIndex(
-            (entry) => entry.user?.toString() === assignee._id.toString(),
+          await Task.updateOne(
+            { _id: task._id, "reminderState.user": assignee._id },
+            { $set: { "reminderState.$": updatedState } },
           );
-          if (index >= 0) {
-            task.reminderState[index] = updatedState;
-          }
           processedCount++;
         } catch (emailError) {
           console.error(
@@ -530,9 +668,6 @@ const processScheduledEmails = async () => {
         }
       }
 
-      if (task.reminderState && task.reminderState.length > 0) {
-        await task.save();
-      }
     }
 
     console.log(`[CronJobs] Processed ${processedCount} reminder emails`);
@@ -543,25 +678,40 @@ const processScheduledEmails = async () => {
     // Run recurring task generation on the same 1-minute cadence
     await generateDueTasks();
 
-    // Check for recurring tasks whose occurrence window has expired
-    // This runs every minute so minute-level Custom intervals get near-real-time overdue marking
-    const recurringOverdueTasks = await Task.find({
+    // Unified overdue check: tasks whose deadline has passed
+    // Plus fallback for pre-migration tasks without a deadline (occurrenceDate-based)
+    const overdueCandidates = await Task.find({
       status: { $nin: ["Completed", "Cancelled", "Overdue"] },
-      isGeneratedOccurrence: true,
-      deadline: null,
-      occurrenceDate: { $exists: true, $ne: null },
-    }).select("_id occurrenceDate taskType recurrencePattern isGeneratedOccurrence status deadline").lean();
+      $and: [
+        {
+          $or: [
+            { deadline: { $lt: now } },
+            {
+              isGeneratedOccurrence: true,
+              deadline: null,
+              occurrenceDate: { $exists: true, $ne: null },
+            },
+          ],
+        },
+        {
+          $or: [
+            { isRecurring: { $ne: true } },
+            { isGeneratedOccurrence: true },
+          ],
+        },
+      ],
+    }).select("_id deadline occurrenceDate taskType recurrencePattern isGeneratedOccurrence status").lean();
 
-    const recurringOverdueIds = recurringOverdueTasks
+    const overdueIds = overdueCandidates
       .filter((t) => isRecurringTaskOverdue(t, now))
       .map((t) => t._id);
 
-    if (recurringOverdueIds.length > 0) {
+    if (overdueIds.length > 0) {
       await Task.updateMany(
-        { _id: { $in: recurringOverdueIds } },
+        { _id: { $in: overdueIds } },
         { status: "Overdue", isOverdue: true },
       );
-      console.log(`[CronJobs] Marked ${recurringOverdueIds.length} recurring tasks as Overdue`);
+      console.log(`[CronJobs] Marked ${overdueIds.length} tasks as Overdue`);
     }
   } catch (error) {
     console.error("[CronJobs] processScheduledEmails failed:", error.message);
@@ -574,25 +724,32 @@ const processOverdueTasks = async () => {
   try {
     const now = new Date();
 
-    // 1. Deadline-based overdue tasks
-    const deadlineOverdueTasks = await Task.find({
+    // Unified overdue query: deadline-based + occurrenceDate-based fallback
+    const overdueCandidates = await Task.find({
       status: { $nin: ["Completed", "Cancelled", "Overdue"] },
-      deadline: { $lt: now },
+      $and: [
+        {
+          $or: [
+            { deadline: { $lt: now } },
+            {
+              isGeneratedOccurrence: true,
+              deadline: null,
+              occurrenceDate: { $exists: true, $ne: null },
+            },
+          ],
+        },
+        {
+          $or: [
+            { isRecurring: { $ne: true } },
+            { isGeneratedOccurrence: true },
+          ],
+        },
+      ],
     }).populate("assignedTo");
 
-    // 2. Recurring schedule-based overdue tasks (no deadline)
-    const recurringTasks = await Task.find({
-      status: { $nin: ["Completed", "Cancelled", "Overdue"] },
-      isGeneratedOccurrence: true,
-      deadline: null,
-      occurrenceDate: { $exists: true, $ne: null },
-    }).populate("assignedTo");
-
-    const recurringOverdueTasks = recurringTasks.filter((t) =>
+    const allOverdueTasks = overdueCandidates.filter((t) =>
       isRecurringTaskOverdue(t, now),
     );
-
-    const allOverdueTasks = [...deadlineOverdueTasks, ...recurringOverdueTasks];
     const allTaskIds = allOverdueTasks.map((task) => task._id);
 
     if (allTaskIds.length > 0) {

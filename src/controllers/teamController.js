@@ -16,7 +16,15 @@ export const getTeamMembers = async (req, res) => {
 
     const userIds = users.map((u) => u._id);
     const taskStats = await Task.aggregate([
-      { $match: { assignedTo: { $in: userIds } } },
+      {
+        $match: {
+          assignedTo: { $in: userIds },
+          $or: [
+            { isRecurring: { $ne: true } },
+            { isGeneratedOccurrence: true },
+          ],
+        },
+      },
       { $unwind: "$assignedTo" },
       { $match: { assignedTo: { $in: userIds } } },
       {
@@ -37,6 +45,12 @@ export const getTeamMembers = async (req, res) => {
                   $and: [
                     { $lt: ["$deadline", new Date()] },
                     { $not: { $in: ["$status", ["Completed", "Cancelled"]] } },
+                    {
+                      $or: [
+                        { $ne: ["$isRecurring", true] },
+                        { $eq: ["$isGeneratedOccurrence", true] },
+                      ],
+                    },
                   ],
                 },
                 1,
@@ -175,7 +189,15 @@ export const getTeamStats = async (req, res) => {
     const teamIds = teamMembers.map((m) => m._id);
 
     const taskStats = await Task.aggregate([
-      { $match: { assignedTo: { $in: teamIds } } },
+      {
+        $match: {
+          assignedTo: { $in: teamIds },
+          $or: [
+            { isRecurring: { $ne: true } },
+            { isGeneratedOccurrence: true },
+          ],
+        },
+      },
       {
         $group: {
           _id: null,
@@ -194,6 +216,12 @@ export const getTeamStats = async (req, res) => {
                   $and: [
                     { $lt: ["$deadline", new Date()] },
                     { $not: { $in: ["$status", ["Completed", "Cancelled"]] } },
+                    {
+                      $or: [
+                        { $ne: ["$isRecurring", true] },
+                        { $eq: ["$isGeneratedOccurrence", true] },
+                      ],
+                    },
                   ],
                 },
                 1,
@@ -281,7 +309,16 @@ export const getEmployeePerformance = async (req, res) => {
     }
 
     const [taskCounts] = await Task.aggregate([
-      { $match: { assignedTo: { $in: [userId] }, createdAt: { $gte: startDate } } },
+      {
+        $match: {
+          assignedTo: { $in: [userId] },
+          createdAt: { $gte: startDate },
+          $or: [
+            { isRecurring: { $ne: true } },
+            { isGeneratedOccurrence: true },
+          ],
+        },
+      },
       {
         $group: {
           _id: null,

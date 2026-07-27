@@ -31,11 +31,19 @@ export async function GET(request, { params }) {
     const tasksCompleted = await Task.countDocuments({
       assignedTo: userId,
       status: "Completed",
+      $or: [
+        { isRecurring: { $ne: true } },
+        { isGeneratedOccurrence: true },
+      ],
     });
     const tasksPending = 0;
     const tasksInProgress = await Task.countDocuments({
       assignedTo: userId,
       status: "In Progress",
+      $or: [
+        { isRecurring: { $ne: true } },
+        { isGeneratedOccurrence: true },
+      ],
     });
 
     const foundUser = await User.findById(userId).select(

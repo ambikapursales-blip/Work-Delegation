@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 const DASHBOARD_ROUTES = [
   "/dashboard",
   "/tasks",
+  "/master-tasks",
   "/dwr",
   "/events",
   "/users",

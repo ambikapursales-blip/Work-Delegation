@@ -1,25 +1,17 @@
-import { advanceByMonths } from "./taskGenerationEngine.js";
-import { getKolkataDateParts } from "./istTime.js";
-
 /**
- * Overdue Engine
+ * Overdue Engine — Unified
  *
- * Determines when a recurring generated task should be marked as Overdue
- * based on its occurrence schedule, not a traditional deadline.
+ * Determines when any task is overdue using a single rule:
  *
- * Supports two overdue models:
- *   1. deadline-based — existing behaviour for tasks with a deadline
- *   2. recurring schedule-based — new behaviour for tasks without a deadline
- *      where the window expires when the next occurrence would be generated.
+ *   Current Time >= Deadline
+ *
+ * Backward-compatible fallback for tasks still stored without a deadline
+ * (pre-migration) uses occurrenceDate + recurrence interval.
  */
 
 /**
- * Calculate when a recurring task's valid occurrence window expires.
- *
- * For a task generated at occurrenceDate with interval X, the window expires
- * at occurrenceDate + interval. After that point the task is considered overdue.
- *
- * Returns null for non-recurring, one-time, or deadline-only tasks.
+ * Calculate when a task's valid occurrence window expires.
+ * Used as backward-compatible fallback for tasks without a deadline.
  */
 export function calculateRecurringExpiry(task) {
   if (!task.isGeneratedOccurrence || !task.occurrenceDate || task.taskType === "One Time") {
@@ -28,7 +20,6 @@ export function calculateRecurringExpiry(task) {
 
   const base = new Date(task.occurrenceDate);
 
-  // Custom — interval-based expiry matching the generation schedule
   if (task.taskType === "Custom") {
     const intervalValue = Number(
       task.recurrencePattern?.intervalValue ?? task.recurrencePattern?.interval ?? 1,
@@ -54,7 +45,6 @@ export function calculateRecurringExpiry(task) {
     }
   }
 
-  // Calendar-based types — expiry aligns with the next scheduled occurrence
   switch (task.taskType) {
     case "Daily":
       return new Date(base.getTime() + 86400000);
@@ -63,29 +53,30 @@ export function calculateRecurringExpiry(task) {
     case "Monthly":
     case "Quarterly":
     case "Half Yearly":
-    case "Yearly": {
-      const { year, month, day, hour, minute } = getKolkataDateParts(base);
-      return advanceByMonths(task.taskType, day, year, month, day, hour, minute);
-    }
+    case "Yearly":
     default:
       return null;
   }
 }
 
 /**
- * Check whether a recurring generated task is overdue based on its schedule.
+ * Unified overdue check.
  *
- * Only applies to generated recurring tasks WITHOUT a deadline.
- * Tasks with a deadline continue using deadline-based overdue logic.
+ * Primary: checks if deadline exists and now >= deadline.
+ * Fallback: checks occurrenceDate + interval (for pre-migration tasks).
  */
 export function isRecurringTaskOverdue(task, now = new Date()) {
   if (task.status === "Completed" || task.status === "Cancelled" || task.status === "Overdue") {
     return false;
   }
-  if (!task.isGeneratedOccurrence || !task.occurrenceDate) {
-    return false;
-  }
+
+  // Primary path: use deadline field
   if (task.deadline) {
+    return now >= new Date(task.deadline);
+  }
+
+  // Fallback path: occurrenceDate-based (backward compat for pre-migration tasks)
+  if (!task.isGeneratedOccurrence || !task.occurrenceDate) {
     return false;
   }
 

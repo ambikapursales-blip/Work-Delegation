@@ -21,6 +21,11 @@ export const getTaskReport = async (req, res) => {
     const taskScope = await getTaskScopeFilter(req.user);
     Object.assign(matchQuery, taskScope);
 
+    matchQuery.$or = [
+      { isRecurring: { $ne: true } },
+      { isGeneratedOccurrence: true },
+    ];
+
     const tasks = await Task.find(matchQuery).lean().select("status priority department deadline createdAt");
 
     const byStatus = tasks.reduce((acc, task) => {
@@ -222,7 +227,16 @@ export const getPerformanceReport = async (req, res) => {
 
     const [taskAgg, dwrAgg] = await Promise.all([
       Task.aggregate([
-        { $match: { assignedTo: { $in: userIds }, createdAt: { $gte: startDate } } },
+        {
+          $match: {
+            assignedTo: { $in: userIds },
+            createdAt: { $gte: startDate },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
+          },
+        },
         { $unwind: "$assignedTo" },
         { $match: { assignedTo: { $in: userIds } } },
         {
@@ -424,6 +438,10 @@ export const getDashboardAnalytics = async (req, res) => {
 
     let taskMatch = {
       createdAt: { $gte: startDate },
+      $or: [
+        { isRecurring: { $ne: true } },
+        { isGeneratedOccurrence: true },
+      ],
     };
 
     if (userId && canQueryOtherUsers) {
@@ -442,10 +460,12 @@ export const getDashboardAnalytics = async (req, res) => {
       } else if (status === "inprogress") {
         taskMatch.status = "In Progress";
       } else if (status === "overdue") {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        taskMatch.deadline = { $lt: today };
+        taskMatch.deadline = { $lt: new Date() };
         taskMatch.status = { $ne: "Completed" };
+        taskMatch.$or = [
+          { isRecurring: { $ne: true } },
+          { isGeneratedOccurrence: true },
+        ];
       }
     }
 
@@ -538,7 +558,16 @@ export const getDashboardAnalytics = async (req, res) => {
 
     const [createdTrend, completedTrend] = await Promise.all([
       Task.aggregate([
-        { $match: { assignedTo: { $in: userIds }, createdAt: { $gte: startDate } } },
+        {
+          $match: {
+            assignedTo: { $in: userIds },
+            createdAt: { $gte: startDate },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
+          },
+        },
         {
           $group: {
             _id: {
@@ -554,6 +583,10 @@ export const getDashboardAnalytics = async (req, res) => {
             assignedTo: { $in: userIds },
             status: "Completed",
             completedAt: { $gte: startDate },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
           },
         },
         {

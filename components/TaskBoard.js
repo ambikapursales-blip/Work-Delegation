@@ -131,6 +131,7 @@ const TaskBoard = ({
       month: "short",
       day: "numeric",
       year: "numeric",
+      timeZone: "Asia/Kolkata",
     });
   };
 

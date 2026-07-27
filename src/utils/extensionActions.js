@@ -29,7 +29,19 @@ export async function processExtensionResponse(taskId, requestId, action) {
   extRequest.respondedAt = new Date();
 
   if (action === "approved") {
+    const deadlineChanged = !task.deadline ||
+      task.deadline.getTime() !== new Date(extRequest.revisedTargetDate).getTime();
     task.deadline = extRequest.revisedTargetDate;
+    // Reset milestone flags so deadline alerts recalculate for the new deadline
+    if (deadlineChanged && Array.isArray(task.reminderState)) {
+      task.reminderState = task.reminderState.map((entry) => ({
+        ...entry,
+        milestoneFlags: {
+          fourDays: false, threeDays: false, twoDays: false, oneDay: false, dueToday: false,
+        },
+        lastReminderType: "normal",
+      }));
+    }
     task.history.push({
       status: task.status,
       changedBy: task.assignedBy,

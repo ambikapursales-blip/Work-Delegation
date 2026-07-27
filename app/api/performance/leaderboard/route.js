@@ -47,7 +47,16 @@ export async function GET(request) {
 
     const [taskAgg, dwrAgg] = await Promise.all([
       Task.aggregate([
-        { $match: { assignedTo: { $in: userIds }, createdAt: { $gte: startDate } } },
+        {
+          $match: {
+            assignedTo: { $in: userIds },
+            createdAt: { $gte: startDate },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
+          },
+        },
         { $unwind: "$assignedTo" },
         { $match: { assignedTo: { $in: userIds } } },
         {

@@ -105,9 +105,28 @@ const recurringTemplateSchema = new mongoose.Schema(
       },
       customDays: [Number],
     },
+    status: {
+      type: String,
+      enum: ["Active", "Paused", "Deleted"],
+      default: "Active",
+    },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    pausedAt: {
+      type: Date,
+    },
+    pausedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    deletedAt: {
+      type: Date,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
     startDate: {
       type: Date,
@@ -162,6 +181,8 @@ recurringTemplateSchema.index({ nextGenerationDate: 1, isActive: 1 });
 recurringTemplateSchema.index({ assignedTo: 1, isActive: 1 });
 recurringTemplateSchema.index({ taskType: 1, isActive: 1 });
 recurringTemplateSchema.index({ createdAt: -1 });
+recurringTemplateSchema.index({ status: 1, createdAt: -1 });
+recurringTemplateSchema.index({ status: 1, taskType: 1, createdAt: -1 });
 
 // Virtual for checking if template should generate
 recurringTemplateSchema.virtual("shouldGenerate").get(function () {
@@ -175,6 +196,12 @@ recurringTemplateSchema.virtual("shouldGenerate").get(function () {
 recurringTemplateSchema.pre("save", function (next) {
   if (this.taskType !== "One Time" && !this.recurrencePattern) {
     return next(new Error("Recurrence pattern is required for recurring task types"));
+  }
+  // Sync isActive with status field
+  if (this.status === "Active") {
+    this.isActive = true;
+  } else if (this.status === "Paused" || this.status === "Deleted") {
+    this.isActive = false;
   }
   next();
 });

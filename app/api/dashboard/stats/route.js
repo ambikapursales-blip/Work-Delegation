@@ -72,6 +72,11 @@ export async function GET(request) {
       }
     }
 
+    taskQuery.$or = [
+      { isRecurring: { $ne: true } },
+      { isGeneratedOccurrence: true },
+    ];
+
     const [taskResult, userResult] = await Promise.all([
       Task.aggregate([
         { $match: taskQuery },

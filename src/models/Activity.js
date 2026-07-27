@@ -31,7 +31,7 @@ const activitySchema = new mongoose.Schema(
     entityId: { type: mongoose.Schema.Types.ObjectId },
     entityType: {
       type: String,
-      enum: ["Task", "DWR", "Event", "User", "Attendance", "Performance"],
+      enum: ["Task", "DWR", "Event", "User", "Attendance", "Performance", "RecurringTemplate"],
     },
     ipAddress: String,
     userAgent: String,

@@ -40,3 +40,12 @@ export function toKolkataDate(date) {
   const { year, month, day, hour, minute, second } = getKolkataDateParts(d);
   return createKolkataDate(year, month, day, hour, minute, second);
 }
+
+export function getKolkataDayOfWeek(date) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    weekday: "numeric",
+  });
+  const day = Number(formatter.format(date));
+  return day === 7 ? 0 : day;
+}

@@ -220,10 +220,6 @@ const taskSchema = new mongoose.Schema(
       frequency: {
         type: Number, // in days
       },
-      isRecurring: {
-        type: Boolean,
-        default: false,
-      },
     },
     reminderState: [
       {
@@ -504,5 +500,8 @@ taskSchema.index({ templateId: 1, occurrenceDate: -1 });
 taskSchema.index({ isGeneratedOccurrence: 1, occurrenceDate: -1 });
 taskSchema.index({ generatedByCron: 1, generatedAt: -1 });
 taskSchema.index({ assignmentEmailStatus: 1, assignmentEmailRetryCount: 1 });
+// Indexes for master task operational queries
+taskSchema.index({ templateId: 1, isGeneratedOccurrence: 1, status: 1 });
+taskSchema.index({ templateId: 1, isGeneratedOccurrence: 1, occurrenceDate: -1 });
 
 export default mongoose.models?.Task || mongoose.model("Task", taskSchema);

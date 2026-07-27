@@ -54,6 +54,10 @@ export async function GET(request, { params }) {
             assignedTo: { $in: [userId] },
             status: "Completed",
             createdAt: { $gte: startDate, $lte: now },
+            $or: [
+              { isRecurring: { $ne: true } },
+              { isGeneratedOccurrence: true },
+            ],
           },
         },
         {

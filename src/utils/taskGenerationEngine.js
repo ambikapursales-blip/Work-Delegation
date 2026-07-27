@@ -19,7 +19,7 @@ import Activity from "../models/Activity.js";
 import Notification from "../models/Notification.js";
 import Conversation from "../models/Conversation.js";
 import { buildActionUrl } from "./conversationAuth.js";
-import { getKolkataDateParts, createKolkataDate } from "./istTime.js";
+import { getKolkataDateParts, createKolkataDate, getKolkataDayOfWeek } from "./istTime.js";
 import { sendTaskAssignmentEmail } from "./emailService.js";
 import { generateCompleteToken } from "./completeToken.js";
 import { generateCommentToken } from "./commentToken.js";
@@ -89,7 +89,8 @@ export function calculateNextGenerationDate(template, baseDate = new Date()) {
 
     case "Weekly": {
       const dow = getWeeklyTargetDay(recurrencePattern, anchorDate, base);
-      const daysUntil = (dow - base.getDay() + 7) % 7;
+      const baseDow = getKolkataDayOfWeek(base);
+      const daysUntil = (dow - baseDow + 7) % 7;
       if (daysUntil === 0) {
         return createKolkataDate(year, month, day + 7, sh, sm, 0);
       }
@@ -100,7 +101,7 @@ export function calculateNextGenerationDate(template, baseDate = new Date()) {
     case "Quarterly":
     case "Half Yearly":
     case "Yearly": {
-      const anchorDom = anchorDate.getDate();
+      const anchorDom = getKolkataDateParts(anchorDate).day;
       return advanceByMonths(taskType, anchorDom, year, month, day, sh, sm);
     }
 
@@ -119,20 +120,20 @@ function getWeeklyTargetDay(recurrencePattern, anchorDate, baseDate) {
   const configured = recurrencePattern?.daysOfWeek;
   if (configured && Array.isArray(configured) && configured.length > 0) {
     const sorted = [...configured].sort((a, b) => a - b);
-    const baseDow = baseDate.getDay();
+    const baseDow = getKolkataDayOfWeek(baseDate);
     const future = sorted.find((d) => d > baseDow);
     return future !== undefined ? future : sorted[0];
   }
-  return anchorDate.getDay();
+  return getKolkataDayOfWeek(anchorDate);
 }
 
 /**
  * Advance by the appropriate number of months based on taskType.
  * Clamps the day-of-month to the last valid day of the target month.
  */
-export function advanceByMonths(taskType, anchorDom, year, month, day, sh, sm) {
+export function advanceByMonths(taskType, anchorDom, year, month, day, sh, sm, customInterval) {
   const monthsMap = { Monthly: 1, Quarterly: 3, "Half Yearly": 6, Yearly: 12 };
-  const addMonths = monthsMap[taskType] || 1;
+  const addMonths = customInterval ?? monthsMap[taskType] ?? 1;
 
   // Last day of the current month in IST month numbering (1-based)
   const lastDayThisMonth = new Date(year, month, 0).getDate();
@@ -158,10 +159,11 @@ export function advanceByMonths(taskType, anchorDom, year, month, day, sh, sm) {
  */
 export async function recalculateAllTemplateDates() {
   try {
-    const templates = await RecurringTemplate.find({ isActive: true });
+    const templates = await RecurringTemplate.find({ status: "Active", isActive: true });
     let updated = 0;
     for (const template of templates) {
-      const corrected = calculateNextGenerationDate(template, new Date());
+      const baseDate = template.lastGeneratedDate || template.startDate || new Date();
+      const corrected = calculateNextGenerationDate(template, baseDate);
       if (!template.nextGenerationDate ||
           template.nextGenerationDate.getTime() !== corrected.getTime()) {
         template.nextGenerationDate = corrected;
@@ -303,9 +305,63 @@ export function calculateOccurrenceDate(template, generationTime = new Date()) {
 }
 
 /**
+ * Calculate the deadline for a recurring task occurrence.
+ * The deadline equals occurrenceDate + recurrence interval.
+ * For calendar-based types, this matches the next scheduled occurrence time.
+ */
+export function calculateDeadline(occurrenceDate, taskType, recurrencePattern, anchorDom) {
+  if (!occurrenceDate) return null;
+  if (taskType === "One Time") return null;
+
+  const base = new Date(occurrenceDate);
+
+  if (taskType === "Custom") {
+    const intervalValue = Number(
+      recurrencePattern?.intervalValue ?? recurrencePattern?.interval ?? 1,
+    );
+    const intervalUnit = recurrencePattern?.intervalUnit || "Days";
+
+    switch (intervalUnit) {
+      case "Minutes":
+        return new Date(base.getTime() + intervalValue * 60000);
+      case "Hours":
+        return new Date(base.getTime() + intervalValue * 3600000);
+      case "Days":
+        return new Date(base.getTime() + intervalValue * 86400000);
+      case "Weeks":
+        return new Date(base.getTime() + intervalValue * 604800000);
+      case "Months": {
+        const { year, month, day, hour, minute } = getKolkataDateParts(base);
+        return advanceByMonths("Custom", day, year, month, day, hour, minute, intervalValue);
+      }
+      default:
+        return new Date(base.getTime() + 86400000);
+    }
+  }
+
+  switch (taskType) {
+    case "Daily":
+      return new Date(base.getTime() + 86400000);
+    case "Weekly":
+      return new Date(base.getTime() + 604800000);
+    case "Monthly":
+    case "Quarterly":
+    case "Half Yearly":
+    case "Yearly": {
+      const { year, month, day, hour, minute } = getKolkataDateParts(base);
+      const effectiveAnchor = anchorDom ?? day;
+      return advanceByMonths(taskType, effectiveAnchor, year, month, day, hour, minute);
+    }
+    default:
+      return null;
+  }
+}
+
+/**
  * Check if a template should generate a task now
  */
 export function shouldGenerateTemplate(template, now = new Date()) {
+  if (template.status === "Paused" || template.status === "Deleted") return false;
   if (!template.isActive) return false;
   if (!template.repeatForever && template.endDate && new Date(template.endDate) < now) return false;
   if (!template.nextGenerationDate) return false;
@@ -329,14 +385,17 @@ export async function generateTaskFromTemplate(template, occurrenceDate, occurre
       taskType,
       recurrencePattern,
       defaultDeadlineHours,
+      startDate: templateStartDate,
     } = template;
 
-    // Deadline is optional for recurring generated tasks — null is valid
-    let deadline = null;
-    if (defaultDeadlineHours) {
-      deadline = new Date(occurrenceDate);
-      deadline.setHours(deadline.getHours() + defaultDeadlineHours);
-    }
+    // Deadline = occurrenceDate + recurrence interval
+    // This ensures every generated task has a real due date
+    const anchorDom = templateStartDate
+      ? getKolkataDateParts(templateStartDate).day
+      : undefined;
+    const deadline = defaultDeadlineHours
+      ? new Date(occurrenceDate.getTime() + defaultDeadlineHours * 3600000)
+      : calculateDeadline(occurrenceDate, taskType, recurrencePattern, anchorDom);
 
     // Generate occurrence name
     const taskTitle = generateOccurrenceName(title, taskType, occurrenceDate, recurrencePattern);
@@ -378,6 +437,7 @@ export async function generateTaskFromTemplate(template, occurrenceDate, occurre
       generatedAt: new Date(),
       generatedByCron: true,
       isGeneratedOccurrence: true,
+      isRecurring: false,
       assigneeProgress,
       reminderState,
       emailSchedule: createEmailSchedule(taskType, new Date()),
@@ -487,14 +547,18 @@ export async function updateTemplateAfterGeneration(template) {
 /**
  * Generate all due tasks from active templates
  * This is the main function called by cron
+ *
+ * Uses atomic findOneAndUpdate to claim each template before generating,
+ * preventing duplicate generation from concurrent cron invocations.
  */
 export async function generateDueTasks() {
   try {
     const now = new Date();
-    
+
     // Find all active templates that are due for generation
     // repeatForever=true templates always generate; others only if endDate hasn't passed
     const dueTemplates = await RecurringTemplate.find({
+      status: "Active",
       isActive: true,
       nextGenerationDate: { $lte: now },
       $or: [
@@ -532,6 +596,26 @@ export async function generateDueTasks() {
           continue;
         }
 
+        // ATOMIC GUARD: Atomically claim this template by advancing nextGenerationDate
+        // to a far-future sentinel. Only one cron cycle can claim it.
+        // If another process already claimed it, findOneAndUpdate returns null.
+        const sentinelDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        const claimed = await RecurringTemplate.findOneAndUpdate(
+          {
+            _id: template._id,
+            nextGenerationDate: template.nextGenerationDate,
+            status: "Active",
+          },
+          { $set: { nextGenerationDate: sentinelDate } },
+          { new: true },
+        );
+
+        if (!claimed) {
+          // Another process already claimed this template
+          console.log(`[TaskGenerationEngine] Template ${template._id} already claimed by another process, skipping`);
+          continue;
+        }
+
         // Calculate occurrence details
         const occurrenceDate = calculateOccurrenceDate(template, now);
         const occurrenceNumber = (template.generatedCount || 0) + 1;
@@ -539,8 +623,22 @@ export async function generateDueTasks() {
         // Generate the task
         await generateTaskFromTemplate(template, occurrenceDate, occurrenceNumber);
 
-        // Update template
-        await updateTemplateAfterGeneration(template);
+        // Update template with actual next generation date
+        const realNextDate = calculateNextGenerationDate(template, now);
+        template.lastGeneratedDate = now;
+        template.generatedCount = (template.generatedCount || 0) + 1;
+        template.nextGenerationDate = realNextDate;
+
+        await RecurringTemplate.updateOne(
+          { _id: template._id },
+          {
+            $set: {
+              lastGeneratedDate: now,
+              nextGenerationDate: realNextDate,
+              generatedCount: (template.generatedCount || 0) + 1,
+            },
+          },
+        );
 
         generatedCount++;
       } catch (error) {
@@ -549,6 +647,17 @@ export async function generateDueTasks() {
           templateId: template._id,
           error: error.message,
         });
+
+        // Restore nextGenerationDate if it was claimed but generation failed
+        try {
+          const fallbackNext = calculateNextGenerationDate(template, now);
+          await RecurringTemplate.updateOne(
+            { _id: template._id },
+            { $set: { nextGenerationDate: fallbackNext } },
+          );
+        } catch (restoreError) {
+          console.error(`[TaskGenerationEngine] Failed to restore nextGenerationDate for template ${template._id}:`, restoreError);
+        }
       }
     }
 

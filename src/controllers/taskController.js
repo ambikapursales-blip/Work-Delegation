@@ -15,7 +15,7 @@ import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { generateCompleteToken } from "../utils/completeToken.js";
 import { generateCommentToken } from "../utils/commentToken.js";
 import { generateExtensionToken } from "../utils/extensionToken.js";
-import { calculateNextGenerationDate } from "../utils/taskGenerationEngine.js";
+import { calculateNextGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate } from "../utils/taskGenerationEngine.js";
 import {
   normalizeTaskStatus,
   toArray,
@@ -57,7 +57,12 @@ export const getTasks = async (req, res) => {
       userId,
     } = req.query;
 
-    let query = {};
+    let query = {
+      $or: [
+        { isRecurring: { $ne: true } },
+        { isGeneratedOccurrence: true },
+      ],
+    };
 
     const taskScope = await getTaskScopeFilter(req.user);
     Object.assign(query, taskScope);
@@ -80,6 +85,12 @@ export const getTasks = async (req, res) => {
           $or: [
             { deadline: { $lt: now }, status: { $nin: ["Completed", "Cancelled"] } },
             { status: "Overdue" },
+          ],
+        },
+        {
+          $or: [
+            { isRecurring: { $ne: true } },
+            { isGeneratedOccurrence: true },
           ],
         },
       ];
@@ -240,7 +251,7 @@ export const createTask = async (req, res) => {
       title,
       description,
       priority,
-      deadline,
+      deadline: isRecurring ? undefined : deadline,
       assignedTo: assignees,
       assignedBy: req.user._id,
       department,
@@ -307,6 +318,8 @@ export const createTask = async (req, res) => {
     const task = await Task.create(taskData);
 
     if (isRecurring) {
+      // Template endDate is controlled by recurrenceEndDate, NOT task deadline
+      // repeatForever defaults to true unless user explicitly sets an end date
       const template = await RecurringTemplate.create({
         title: taskData.title,
         description: taskData.description,
@@ -318,10 +331,11 @@ export const createTask = async (req, res) => {
         category: taskData.category,
         taskType: taskData.taskType,
         recurrencePattern: taskData.recurrencePattern,
+        status: "Active",
         isActive: true,
         startDate: new Date(),
-        endDate: deadline ? new Date(deadline) : null,
-        repeatForever: !deadline,
+        endDate: recurrenceEndDate ? new Date(recurrenceEndDate) : null,
+        repeatForever: !recurrenceEndDate,
         scheduledHour: 9,
         scheduledMinute: 0,
         timezone: "Asia/Kolkata",
@@ -339,6 +353,16 @@ export const createTask = async (req, res) => {
       });
       task.templateId = template._id;
       await task.save();
+
+      // Immediately generate the first occurrence so users see it right away
+      try {
+        const now = new Date();
+        const occurrenceDate = calculateOccurrenceDate(template, now);
+        await generateTaskFromTemplate(template, occurrenceDate, 1);
+        await updateTemplateAfterGeneration(template);
+      } catch (genError) {
+        console.error("[TaskController] Failed to generate first occurrence:", genError);
+      }
     }
 
     const recurringText = isRecurring ? ` (${taskType})` : "";
@@ -870,28 +894,49 @@ export const deleteTask = async (req, res) => {
 
     // CASE 1: Generated child task — delete only, never touch the template
     if (task.isGeneratedOccurrence) {
+      const taskId = task._id;
       await task.deleteOne();
+
+      // Clean up associated data for this occurrence
+      await Notification.deleteMany({ entityId: taskId, entityType: "Task" });
+      await Activity.deleteMany({ entityId: taskId, entityType: "Task" });
+
       return res
         .status(200)
-        .json({ success: true, message: "Generated task deleted successfully" });
+        .json({ success: true, message: "Generated task deleted successfully. Recurring series continues." });
     }
 
-    // CASE 2: Master recurring task — delete task AND its template
+    // CASE 2: Master recurring task — hard delete task AND its template
     if (task.templateId) {
       const template = await RecurringTemplate.findById(task.templateId);
       if (template) {
+        // Soft delete the template to stop generation
+        template.status = "Deleted";
         template.isActive = false;
+        template.deletedAt = new Date();
+        template.deletedBy = req.user._id;
         await template.save();
-        await template.deleteOne();
       }
+
+      const taskId = task._id;
       await task.deleteOne();
+
+      // Clean up associated data
+      await Notification.deleteMany({ entityId: taskId, entityType: "Task" });
+      await Activity.deleteMany({ entityId: taskId, entityType: "Task" });
+
       return res
         .status(200)
         .json({ success: true, message: "Recurring task and template deleted successfully" });
     }
 
     // CASE 3: Regular one-time task — just delete
+    const taskId = task._id;
     await task.deleteOne();
+
+    // Clean up associated data
+    await Notification.deleteMany({ entityId: taskId, entityType: "Task" });
+    await Activity.deleteMany({ entityId: taskId, entityType: "Task" });
 
     res
       .status(200)
@@ -907,6 +952,11 @@ export const getTaskStats = async (req, res) => {
 
     const taskScope = await getTaskScopeFilter(req.user);
     Object.assign(matchQuery, taskScope);
+
+    matchQuery.$or = [
+      { isRecurring: { $ne: true } },
+      { isGeneratedOccurrence: true },
+    ];
 
     const stats = await Task.aggregate([
       { $match: matchQuery },
