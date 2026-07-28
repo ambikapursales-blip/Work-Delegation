@@ -42,10 +42,6 @@ export function toKolkataDate(date) {
 }
 
 export function getKolkataDayOfWeek(date) {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Kolkata",
-    weekday: "numeric",
-  });
-  const day = Number(formatter.format(date));
-  return day === 7 ? 0 : day;
+  const { year, month, day } = getKolkataDateParts(date);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }

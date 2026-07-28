@@ -5,6 +5,8 @@ import {
   sendDeadlineAlerts,
   processOverdueTasks,
   generateRecurringTasks,
+  sendDailyRecurringSummary,
+  sendWeeklyRecurringSummary,
 } from "../../../../src/utils/cronJobs.js";
 
 export const runtime = "nodejs";
@@ -114,6 +116,8 @@ export async function POST(request) {
       sendDeadlineAlerts(),
       processOverdueTasks(),
       generateRecurringTasks(),
+      sendDailyRecurringSummary(),
+      sendWeeklyRecurringSummary(),
     ]);
     
     return NextResponse.json({

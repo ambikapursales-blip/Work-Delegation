@@ -1053,3 +1053,242 @@ export const sendOverdueTasksSummaryEmail = async (
     html,
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  Recurring Summary Email (shared by daily and weekly)               */
+/* ------------------------------------------------------------------ */
+
+const summaryStatBox = (label, value, color, widthPct = 50) => `
+  <td style="padding: 8px; width: ${widthPct}%; vertical-align: top;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${CARD}; border: 1px solid ${BORDER}; border-radius: 10px;">
+      <tr>
+        <td style="padding: 18px 16px; text-align: center;">
+          <div style="font-family: ${FONT_STACK}; font-size: 28px; font-weight: 700; color: ${color}; line-height: 1.1;">${value}</div>
+          <div style="font-family: ${FONT_STACK}; font-size: 11px; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 6px; font-weight: 600;">${label}</div>
+        </td>
+      </tr>
+    </table>
+  </td>`;
+
+const statSection = (title, color, statsHtml) => `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 28px 0 0 0;">
+    <tr>
+      <td style="background-color: ${color}; border-radius: 8px 8px 0 0; padding: 10px 18px;">
+        <span style="font-family: ${FONT_STACK}; font-size: 12px; font-weight: 700; color: #FFFFFF; text-transform: uppercase; letter-spacing: 1px;">${title}</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: ${CARD}; border: 1px solid ${BORDER}; border-top: none; border-radius: 0 0 8px 8px; padding: 8px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            ${statsHtml}
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`;
+
+const renderSummaryTaskCard = (task) => {
+  const rt = remainingTime(task.deadline);
+  const pColor = priorityColor(task.priority);
+  const isOverdue = rt && rt.includes("Overdue");
+  const accent = isOverdue ? DANGER : ACCENT.reminder;
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 16px 0; background-color: ${CARD}; border: 1px solid ${isOverdue ? DANGER : BORDER}; border-radius: 12px; overflow: hidden;">
+      <tr>
+        <td style="padding: 20px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="4" style="background-color: ${accent}; border-radius: 3px; padding: 0;">&nbsp;</td>
+              <td style="padding: 0 0 0 16px;">
+                <h2 style="margin: 0; font-family: ${FONT_STACK}; font-size: 18px; font-weight: 700; color: ${PRIMARY_TEXT}; line-height: 1.4;">
+                  ${task.title}
+                </h2>
+              </td>
+            </tr>
+          </table>
+          ${deadlineSection(task.deadline, rt)}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 12px;">
+            <tr>
+              ${badge(task.priority || "N/A", pColor)}
+              ${isOverdue ? badge("Overdue", DANGER) : badge(task.status || "Active", ACCENT.reminder)}
+              ${task.taskType ? `<td style="padding: 0 6px 6px 0;">
+                <span style="display: inline-block; padding: 6px 14px; border-radius: 20px; font-family: ${FONT_STACK}; font-size: 12px; font-weight: 600; letter-spacing: 0.3px; color: ${MUTED}; background-color: ${BACKGROUND}; border: 1px solid ${BORDER};">
+                  ${task.taskType}
+                </span>
+              </td>` : ""}
+            </tr>
+          </table>
+          ${task.assignedBy ? `<p style="margin: 12px 0 0 0; font-family: ${FONT_STACK}; font-size: 13px; color: ${MUTED};">Assigned by: <strong style="color: ${DANGER};">${task.assignedBy}</strong></p>` : ""}
+          ${actionButtons(task, isOverdue ? DANGER : ACCENT.reminder)}
+        </td>
+      </tr>
+    </table>`;
+};
+
+/**
+ * Time-of-day greeting.
+ */
+const timeGreeting = (name) => {
+  const hour = new Date().getHours();
+  let period = "Morning";
+  if (hour >= 12 && hour < 17) period = "Afternoon";
+  else if (hour >= 17) period = "Evening";
+  return `
+    <p style="margin: 0 0 4px 0; font-family: ${FONT_STACK}; font-size: 12px; color: ${MUTED}; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;">
+      Good ${period}
+    </p>
+    <p style="margin: 0 0 20px 0; font-family: ${FONT_STACK}; font-size: 20px; font-weight: 700; color: ${PRIMARY_TEXT}; line-height: 1.3;">
+      ${name}
+    </p>`;
+};
+
+/**
+ * Section header for task card lists — renders only when count > 0.
+ */
+const taskSectionHeader = (label, count, color) => count > 0 ? `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 28px 0 8px 0;">
+    <tr>
+      <td style="border-bottom: 2px solid ${color}; padding-bottom: 8px;">
+        <span style="font-family: ${FONT_STACK}; font-size: 15px; font-weight: 700; color: ${color}; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${label}
+        </span>
+        <span style="font-family: ${FONT_STACK}; font-size: 13px; color: ${MUTED}; margin-left: 8px;">(${count})</span>
+      </td>
+    </tr>
+  </table>` : "";
+
+/**
+ * Send recurring summary email — used by both daily and weekly summary crons.
+ *
+ * @param {Object} options
+ * @param {string} options.userEmail
+ * @param {string} options.userName
+ * @param {"daily"|"weekly"} options.type
+ * @param {Object} options.stats  - { totalActive, overdue, assignedInPeriod, completedInPeriod, pendingYesterday, completionRate }
+ * @param {Array}  options.taskCards - Array of task detail objects (max 20)
+ * @param {boolean} options.taskCardsTruncated - Whether more tasks exist beyond the card limit
+ * @param {number}  options.totalTasks - Total active tasks (for "+X more" message)
+ * @param {Array}  [options.overdueCards] - Categorized overdue tasks
+ * @param {Array}  [options.todayCards] - Categorized tasks due today
+ * @param {Array}  [options.pendingCards] - Categorized pending tasks
+ */
+export const sendRecurringSummaryEmail = async ({
+  userEmail,
+  userName,
+  type,
+  stats,
+  taskCards,
+  taskCardsTruncated,
+  totalTasks,
+  overdueCards,
+  todayCards,
+  pendingCards,
+}) => {
+  const isDaily = type === "daily";
+
+  // ── Labels ─────────────────────────────────────────────────────────────
+  const periodLabel = isDaily ? "Yesterday" : "Last 7 Days";
+  const todayLabel = isDaily ? "Today" : "This Week";
+
+  // ── Subject line ───────────────────────────────────────────────────────
+  const totalCardCount = (overdueCards?.length || 0) + (todayCards?.length || 0) + (pendingCards?.length || 0);
+  const subject = isDaily
+    ? `Daily Task Summary — ${totalCardCount} task${totalCardCount !== 1 ? "s" : ""}`
+    : `Weekly Task Summary — ${stats.completionRate}% complete`;
+
+  // ── Header lead ────────────────────────────────────────────────────────
+  const headerLead = isDaily
+    ? `Here is your daily overview of recurring tasks.`
+    : `Here is your weekly overview of recurring tasks.`;
+
+  // ── Stat sections ──────────────────────────────────────────────────────
+  const yesterdaySection = statSection(
+    `${periodLabel} Summary`,
+    ACCENT.assignment,
+    `${summaryStatBox("Completed", stats.completedInPeriod, SUCCESS, 50)}
+     ${summaryStatBox("Pending", stats.pendingYesterday, ACCENT.reminder, 50)}`,
+  );
+
+  const todaySection = statSection(
+    `${todayLabel} Summary`,
+    ACCENT.reminder,
+    summaryStatBox("New Tasks", stats.assignedInPeriod, ACCENT.assignment, 100),
+  );
+
+  const currentSection = statSection(
+    "Current Status",
+    "#555555",
+    `${summaryStatBox("Active", stats.totalActive, SUCCESS, 50)}
+     ${summaryStatBox("Overdue", stats.overdue, DANGER, 50)}`,
+  );
+
+  // ── Task card sections ─────────────────────────────────────────────────
+  const overdueSection = overdueCards?.length > 0
+    ? taskSectionHeader("Overdue Tasks", overdueCards.length, DANGER) +
+      overdueCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const todayTasksSection = todayCards?.length > 0
+    ? taskSectionHeader("Today's Tasks", todayCards.length, ACCENT.reminder) +
+      todayCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const pendingTasksSection = pendingCards?.length > 0
+    ? taskSectionHeader("Pending Tasks", pendingCards.length, ACCENT.assignment) +
+      pendingCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const categorizedCardsHtml = overdueSection + todayTasksSection + pendingTasksSection;
+
+  // ── Fallback: if no categorized data, render all cards as a single list ─
+  const cardsHtml = categorizedCardsHtml || taskCards.map(renderSummaryTaskCard).join("\n");
+
+  // ── Dashboard button ───────────────────────────────────────────────────
+  const dashboardButton = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0 16px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td bgcolor="${PRIMARY_BLUE}" style="border-radius: 10px;">
+                <a href="${FRONTEND_URL}/tasks" target="_blank" style="display: inline-block; width: 240px; height: 48px; line-height: 48px; text-align: center; font-family: ${FONT_STACK}; font-size: 15px; font-weight: 700; color: #FFFFFF; text-decoration: none; letter-spacing: 0.5px;">
+                  Go to Dashboard →
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>`;
+
+  // ── Truncation note ────────────────────────────────────────────────────
+  const truncationHtml = taskCardsTruncated
+    ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 16px 0;">
+      <tr>
+        <td style="padding: 16px 24px; background-color: ${CARD}; border: 1px solid ${BORDER}; border-radius: 8px; text-align: center; font-family: ${FONT_STACK}; font-size: 14px; color: ${MUTED};">
+          <strong>+${totalTasks - totalCardCount} more task${totalTasks - totalCardCount !== 1 ? "s" : ""}</strong>
+          &nbsp;—&nbsp;
+          <a href="${FRONTEND_URL}/tasks" style="color: ${PRIMARY_BLUE}; text-decoration: underline;">View all tasks on Dashboard</a>
+        </td>
+      </tr>
+    </table>`
+    : "";
+
+  // ── Build body ─────────────────────────────────────────────────────────
+  const body = `
+    ${timeGreeting(userName)}
+    <p style="margin: 0 0 24px 0; font-family: ${FONT_STACK}; font-size: 16px; line-height: 1.7; color: ${SECONDARY_TEXT};">${headerLead}</p>
+    ${yesterdaySection}
+    ${todaySection}
+    ${currentSection}
+    ${cardsHtml}
+    ${truncationHtml}
+    ${dashboardButton}
+  `;
+
+  const html = renderEmail("reminder", subject, "Your task summary", body);
+  return sendEmail(userEmail, subject, html);
+};

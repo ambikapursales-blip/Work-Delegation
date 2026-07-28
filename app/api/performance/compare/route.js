@@ -23,7 +23,7 @@ export async function GET(request) {
   req.user = user;
   const res = createRes();
   try {
-    const { userIds, period = "month" } = req.query;
+    const { userIds, period = "month", startDate: queryStartDate, endDate: queryEndDate } = req.query;
 
     if (!userIds) {
       res.status(400).json({
@@ -35,20 +35,56 @@ export async function GET(request) {
 
     const ids = Array.isArray(userIds) ? userIds : userIds.split(",");
 
-    const now = new Date();
-    let startDate;
-    if (period === "week") {
-      startDate = new Date(now.setDate(now.getDate() - 7));
-    } else if (period === "month") {
-      startDate = new Date(now.setMonth(now.getMonth() - 1));
+    let startDate, endDate;
+    if (queryStartDate && queryEndDate) {
+      startDate = new Date(queryStartDate);
+      endDate = new Date(queryEndDate);
     } else {
-      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      const now = new Date();
+      switch (period) {
+        case "today":
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          break;
+        case "yesterday":
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          startDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+          endDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+          break;
+        case "week":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "last7days":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "last30days":
+          startDate = new Date(now.setDate(now.getDate() - 30));
+          break;
+        case "thismonth":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "month":
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
+        case "thisyear":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        case "year":
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+          break;
+        default:
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+      }
     }
 
     const objectIds = ids.filter(Boolean);
     if (objectIds.length === 0) {
       return res.status(200).json({ success: true, comparisons: [], period });
     }
+
+    const taskDateFilter = { $gte: startDate };
+    if (endDate) taskDateFilter.$lte = endDate;
 
     const [users, taskAgg, dwrAgg, timeAgg] = await Promise.all([
       User.find({ _id: { $in: objectIds } })
@@ -58,7 +94,7 @@ export async function GET(request) {
         {
           $match: {
             assignedTo: { $in: objectIds },
-            createdAt: { $gte: startDate },
+            createdAt: taskDateFilter,
             $or: [
               { isRecurring: { $ne: true } },
               { isGeneratedOccurrence: true },
@@ -77,7 +113,7 @@ export async function GET(request) {
         },
       ]),
       DWR.aggregate([
-        { $match: { employee: { $in: objectIds }, date: { $gte: startDate } } },
+        { $match: { employee: { $in: objectIds }, date: taskDateFilter } },
         {
           $group: {
             _id: "$employee",
@@ -92,7 +128,7 @@ export async function GET(request) {
             assignedTo: { $in: objectIds },
             status: "Completed",
             completedAt: { $exists: true },
-            createdAt: { $gte: startDate },
+            createdAt: taskDateFilter,
             $or: [
               { isRecurring: { $ne: true } },
               { isGeneratedOccurrence: true },

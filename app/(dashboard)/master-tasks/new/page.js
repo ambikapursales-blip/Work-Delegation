@@ -122,6 +122,10 @@ export default function NewMasterTaskPage() {
       setError("Please assign at least one user");
       return;
     }
+    if (form.taskType === "Weekly" && recurrencePattern.daysOfWeek.length === 0) {
+      setError("Please select at least one day of the week");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);

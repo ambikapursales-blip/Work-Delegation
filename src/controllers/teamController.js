@@ -287,7 +287,7 @@ export const getEmployeePerformance = async (req, res) => {
   try {
     const { userId: userIdStr } = req.params;
     const userId = new mongoose.Types.ObjectId(userIdStr);
-    const { period = "month" } = req.query;
+    const { period = "month", startDate: queryStartDate, endDate: queryEndDate } = req.query;
 
     const user = await User.findById(userId).lean().select(
       "name email role department performanceScore grade employeeId",
@@ -298,21 +298,57 @@ export const getEmployeePerformance = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    const now = new Date();
-    let startDate;
-    if (period === "week") {
-      startDate = new Date(now.setDate(now.getDate() - 7));
-    } else if (period === "month") {
-      startDate = new Date(now.setMonth(now.getMonth() - 1));
+    let startDate, endDate;
+    if (queryStartDate && queryEndDate) {
+      startDate = new Date(queryStartDate);
+      endDate = new Date(queryEndDate);
     } else {
-      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      const now = new Date();
+      switch (period) {
+        case "today":
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          break;
+        case "yesterday":
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          startDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+          endDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+          break;
+        case "week":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "last7days":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "last30days":
+          startDate = new Date(now.setDate(now.getDate() - 30));
+          break;
+        case "thismonth":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "month":
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
+        case "thisyear":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        case "year":
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+          break;
+        default:
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+      }
     }
+
+    const taskDateFilter = { $gte: startDate };
+    if (endDate) taskDateFilter.$lte = endDate;
 
     const [taskCounts] = await Task.aggregate([
       {
         $match: {
           assignedTo: { $in: [userId] },
-          createdAt: { $gte: startDate },
+          createdAt: taskDateFilter,
           $or: [
             { isRecurring: { $ne: true } },
             { isGeneratedOccurrence: true },
@@ -347,7 +383,7 @@ export const getEmployeePerformance = async (req, res) => {
     ]);
 
     const [dwrCounts] = await DWR.aggregate([
-      { $match: { employee: userId, date: { $gte: startDate } } },
+      { $match: { employee: userId, date: taskDateFilter } },
       {
         $group: {
           _id: null,

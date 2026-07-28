@@ -245,6 +245,13 @@ export const createTask = async (req, res) => {
       });
     }
 
+    // Normalize recurrencePattern frequency before use in calculations
+    if (recurrencePattern && recurrencePattern.frequency) {
+      recurrencePattern.frequency = recurrencePattern.frequency
+        .toLowerCase()
+        .replace(/[\s-]/g, "");
+    }
+
     const assigneeProgress = buildAssigneeProgress(assignees);
 
     const taskData = {
@@ -319,7 +326,6 @@ export const createTask = async (req, res) => {
 
     if (isRecurring) {
       // Template endDate is controlled by recurrenceEndDate, NOT task deadline
-      // repeatForever defaults to true unless user explicitly sets an end date
       const template = await RecurringTemplate.create({
         title: taskData.title,
         description: taskData.description,
@@ -359,7 +365,7 @@ export const createTask = async (req, res) => {
         const now = new Date();
         const occurrenceDate = calculateOccurrenceDate(template, now);
         await generateTaskFromTemplate(template, occurrenceDate, 1);
-        await updateTemplateAfterGeneration(template);
+        await updateTemplateAfterGeneration(template, occurrenceDate);
       } catch (genError) {
         console.error("[TaskController] Failed to generate first occurrence:", genError);
       }

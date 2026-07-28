@@ -6,7 +6,6 @@ import {
   sendTaskReminderEmail,
   sendTaskAssignmentEmail,
   sendTaskDueTodayEmail,
-  sendOverdueTasksSummaryEmail,
   sendTaskOverdueAlertEmail,
 } from "./emailService.js";
 import {
@@ -32,6 +31,17 @@ import {
   sendPendingAssignmentEmails,
 } from "./taskGenerationEngine.js";
 import { isRecurringTaskOverdue } from "./overdueEngine.js";
+import { buildRecurringSummary } from "./recurringSummaryBuilder.js";
+import {
+  sendRecurringSummaryEmail,
+  sendOverdueTasksSummaryEmail,
+} from "./emailService.js";
+import { getKolkataDateParts, createKolkataDate, getKolkataDayOfWeek } from "./istTime.js";
+
+// The 6 recurring task types that are batched into summary emails
+const RECURRING_TASK_TYPES = [
+  "Daily", "Weekly", "Monthly", "Quarterly", "Half Yearly", "Yearly",
+];
 
 // Legacy function kept for backward compatibility during migration
 // Will be removed after migration is complete
@@ -202,10 +212,63 @@ const generateRecurringTasks = async () => {
   }
 };
 
+// ── Distributed lock for sendAssignmentEmailsForNewTasks ──
+
+const ASSIGNMENT_FALLBACK_LOCK_KEY = "assignment_fallback";
+const ASSIGNMENT_FALLBACK_LOCK_TTL_MS = 10 * 60 * 1000;
+
+const acquireAssignmentFallbackLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + ASSIGNMENT_FALLBACK_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: ASSIGNMENT_FALLBACK_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          { lockedAt: { $lt: new Date(now.getTime() - ASSIGNMENT_FALLBACK_LOCK_TTL_MS) } },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: ASSIGNMENT_FALLBACK_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (doc && doc.lockedAt && doc.lockedAt.getTime() === now.getTime()) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) return false;
+    console.error("[CronJobs] Failed to acquire assignment fallback lock:", error);
+    return false;
+  }
+};
+
+const releaseAssignmentFallbackLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: ASSIGNMENT_FALLBACK_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release assignment fallback lock:", error);
+  }
+};
+
 // Send assignment emails for tasks that still need them (fallback for retries).
 // Most tasks get their assignment email immediately during generation;
 // this cron catches any where the email is still pending or failed.
 const sendAssignmentEmailsForNewTasks = async () => {
+  const lockAcquired = await acquireAssignmentFallbackLock();
+  if (!lockAcquired) return;
+
   try {
     const tasks = await Task.find({
       generatedByCron: true,
@@ -216,6 +279,14 @@ const sendAssignmentEmailsForNewTasks = async () => {
     let emailsSent = 0;
 
     for (const task of tasks) {
+      // Recurring task types get consolidated summary emails instead
+      if (RECURRING_TASK_TYPES.includes(task.taskType)) {
+        task.assignmentEmailSent = true;
+        task.assignmentEmailStatus = "skipped";
+        await task.save().catch(() => {});
+        continue;
+      }
+
       const assignees = Array.isArray(task.assignedTo)
         ? task.assignedTo
         : [task.assignedTo];
@@ -270,6 +341,8 @@ const sendAssignmentEmailsForNewTasks = async () => {
     }
   } catch (error) {
     console.error("[CronJobs] sendAssignmentEmailsForNewTasks failed:", error.message);
+  } finally {
+    await releaseAssignmentFallbackLock();
   }
 };
 
@@ -295,6 +368,12 @@ const sendDeadlineAlerts = async () => {
     let alertsSent = 0;
 
     for (const task of activeTasks) {
+      // Suppress milestone deadline alerts for the 6 recurring task types.
+      // They are delivered via the daily/weekly summary emails instead.
+      if (RECURRING_TASK_TYPES.includes(task.taskType)) {
+        continue;
+      }
+
       const assignees = Array.isArray(task.assignedTo)
         ? task.assignedTo
         : [task.assignedTo];
@@ -596,6 +675,12 @@ const processScheduledEmails = async () => {
     let processedCount = 0;
 
     for (const task of tasksNeedingEmails) {
+      // Suppress individual reminder/overdue emails for the 6 recurring task types.
+      // They are delivered via the daily/weekly summary emails instead.
+      if (RECURRING_TASK_TYPES.includes(task.taskType)) {
+        continue;
+      }
+
       const assignees = Array.isArray(task.assignedTo)
         ? task.assignedTo
         : [task.assignedTo];
@@ -720,7 +805,60 @@ const processScheduledEmails = async () => {
   }
 };
 
+// ── Distributed lock for processOverdueTasks ─────────────
+
+const OVERDUE_LOCK_KEY = "overdue_tasks";
+const OVERDUE_LOCK_TTL_MS = 10 * 60 * 1000;
+
+const acquireOverdueLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + OVERDUE_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: OVERDUE_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          { lockedAt: { $lt: new Date(now.getTime() - OVERDUE_LOCK_TTL_MS) } },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: OVERDUE_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (doc && doc.lockedAt && doc.lockedAt.getTime() === now.getTime()) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) return false;
+    console.error("[CronJobs] Failed to acquire overdue lock:", error);
+    return false;
+  }
+};
+
+const releaseOverdueLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: OVERDUE_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release overdue lock:", error);
+  }
+};
+
 const processOverdueTasks = async () => {
+  const lockAcquired = await acquireOverdueLock();
+  if (!lockAcquired) return;
+
   try {
     const now = new Date();
 
@@ -760,10 +898,16 @@ const processOverdueTasks = async () => {
       console.log(`[CronJobs] Marked ${allTaskIds.length} tasks as Overdue`);
     }
 
-    // Group overdue tasks by user for summary emails
+    // Group overdue tasks by user — only for non-recurring (One-Time/Custom)
     const userOverdueMap = new Map();
 
     for (const task of allOverdueTasks) {
+      // Skip recurring task types; their communication is handled by the
+      // daily/weekly summary crons.
+      if (RECURRING_TASK_TYPES.includes(task.taskType)) {
+        continue;
+      }
+
       const assignees = Array.isArray(task.assignedTo)
         ? task.assignedTo
         : [task.assignedTo];
@@ -782,7 +926,7 @@ const processOverdueTasks = async () => {
       }
     }
 
-    // Send one summary email per user
+    // Send one summary email per user (only for non-recurring overdue tasks)
     let emailsSent = 0;
     for (const [userId, { user, count }] of userOverdueMap) {
       if (user && user.email && count > 0) {
@@ -798,9 +942,258 @@ const processOverdueTasks = async () => {
       }
     }
 
-    console.log(`[CronJobs] Sent ${emailsSent} overdue summary emails`);
+    if (emailsSent > 0) {
+      console.log(`[CronJobs] Sent ${emailsSent} overdue summary emails (non-recurring only)`);
+    }
   } catch (error) {
     console.error("[CronJobs] processOverdueTasks failed:", error.message);
+  } finally {
+    await releaseOverdueLock();
+  }
+};
+
+// ── Distributed lock for sendDailyRecurringSummary ────────────
+
+const DAILY_SUMMARY_LOCK_KEY = "daily_recurring_summary";
+const DAILY_SUMMARY_LOCK_TTL_MS = 10 * 60 * 1000;
+
+const acquireDailySummaryLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + DAILY_SUMMARY_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: DAILY_SUMMARY_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          { lockedAt: { $lt: new Date(now.getTime() - DAILY_SUMMARY_LOCK_TTL_MS) } },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: DAILY_SUMMARY_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (doc && doc.lockedAt && doc.lockedAt.getTime() === now.getTime()) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) return false;
+    console.error("[CronJobs] Failed to acquire daily summary lock:", error);
+    return false;
+  }
+};
+
+const releaseDailySummaryLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: DAILY_SUMMARY_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release daily summary lock:", error);
+  }
+};
+
+// ── Distributed lock for sendWeeklyRecurringSummary ───────────
+
+const WEEKLY_SUMMARY_LOCK_KEY = "weekly_recurring_summary";
+const WEEKLY_SUMMARY_LOCK_TTL_MS = 10 * 60 * 1000;
+
+const acquireWeeklySummaryLock = async () => {
+  try {
+    await ensureMongoConnection();
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    const now = new Date();
+    const lockExpiry = new Date(now.getTime() + WEEKLY_SUMMARY_LOCK_TTL_MS);
+
+    const result = await locks.findOneAndUpdate(
+      {
+        _id: WEEKLY_SUMMARY_LOCK_KEY,
+        $or: [
+          { lockedAt: { $exists: false } },
+          { lockedAt: { $lt: new Date(now.getTime() - WEEKLY_SUMMARY_LOCK_TTL_MS) } },
+        ],
+      },
+      {
+        $set: { lockedAt: now, expiresAt: lockExpiry },
+        $setOnInsert: { _id: WEEKLY_SUMMARY_LOCK_KEY },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+
+    const doc = result && result.value ? result.value : result;
+    if (doc && doc.lockedAt && doc.lockedAt.getTime() === now.getTime()) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    if (error.code === 11000) return false;
+    console.error("[CronJobs] Failed to acquire weekly summary lock:", error);
+    return false;
+  }
+};
+
+const releaseWeeklySummaryLock = async () => {
+  try {
+    const db = mongoose.connection.db;
+    const locks = db.collection("cron_locks");
+    await locks.deleteOne({ _id: WEEKLY_SUMMARY_LOCK_KEY });
+  } catch (error) {
+    console.error("[CronJobs] Failed to release weekly summary lock:", error);
+  }
+};
+
+// ── IST Date helpers ───────────────────────────────────────────
+// All boundary functions use the istTime helpers so that "today"
+// means the IST day (midnight-to-midnight in Asia/Kolkata), not
+// the server's local timezone. This ensures tasks created or
+// completed at IST boundaries are correctly attributed.
+
+const startOfDayIST = (date) => {
+  const { year, month, day } = getKolkataDateParts(date);
+  return createKolkataDate(year, month, day, 0, 0, 0);
+};
+
+const endOfDayIST = (date) => {
+  const { year, month, day } = getKolkataDateParts(date);
+  return createKolkataDate(year, month, day, 23, 59, 59, 999);
+};
+
+const startOfWeekIST = (date) => {
+  const { year, month, day } = getKolkataDateParts(date);
+  // Use the IST weekday (0=Sun, 6=Sat) to avoid getDay() which would
+  // use the runtime's local timezone.
+  const dow = getKolkataDayOfWeek(date);
+  const diff = day - dow + (dow === 0 ? -6 : 1); // to Monday
+  return createKolkataDate(year, month, diff, 0, 0, 0);
+};
+
+/**
+ * SendDailyRecurringSummary — runs daily at 9:00 AM IST.
+ *
+ * Sends one email per user with:
+ *   • Today's New Tasks
+ *   • Yesterday Completed
+ *   • Overdue Tasks
+ *   • Total Active Tasks
+ * followed by task cards (max 20, with "+X more" link if truncated).
+ */
+const sendDailyRecurringSummary = async () => {
+  const lockAcquired = await acquireDailySummaryLock();
+  if (!lockAcquired) return;
+
+  try {
+    await ensureMongoConnection();
+
+    const now = new Date();
+    const { year: y, month: m, day: d } = getKolkataDateParts(now);
+    const todayStart = startOfDayIST(now);
+    const todayEnd = endOfDayIST(now);
+    // Yesterday = 1ms before IST midnight today gives IST 23:59:59.999 of yesterday
+    const todayMidnightIST = createKolkataDate(y, m, d, 0, 0, 0);
+    const yesterdayEnd = new Date(todayMidnightIST.getTime() - 1);
+    const yesterdayStart = startOfDayIST(yesterdayEnd);
+
+    const perUser = await buildRecurringSummary({
+      activeAsOf: now,
+      assignedSince: todayStart,
+      assignedUntil: todayEnd,
+      completedSince: yesterdayStart,
+      completedUntil: yesterdayEnd,
+      maxCards: 20,
+    });
+
+    let emailsSent = 0;
+    for (const [, { user, stats, taskCards, taskCardsTruncated, overdueCards, todayCards, pendingCards }] of perUser) {
+      if (!user || !user.email) continue;
+
+      await sendRecurringSummaryEmail({
+        userEmail: user.email,
+        userName: user.name,
+        type: "daily",
+        stats,
+        taskCards,
+        taskCardsTruncated: taskCardsTruncated || false,
+        totalTasks: stats.totalActive,
+        overdueCards,
+        todayCards,
+        pendingCards,
+      });
+      emailsSent++;
+    }
+
+    console.log(`[CronJobs] Sent ${emailsSent} daily recurring summary emails`);
+  } catch (error) {
+    console.error("[CronJobs] sendDailyRecurringSummary failed:", error.message);
+  } finally {
+    await releaseDailySummaryLock();
+  }
+};
+
+/**
+ * SendWeeklyRecurringSummary — runs Saturday at 11:00 AM IST.
+ *
+ * Sends one email per user with:
+ *   • Weekly Assigned
+ *   • Weekly Completed
+ *   • Weekly Overdue
+ *   • Completion %
+ *   • Current Active
+ * followed by task cards (max 20, with "+X more" link if truncated).
+ */
+const sendWeeklyRecurringSummary = async () => {
+  const lockAcquired = await acquireWeeklySummaryLock();
+  if (!lockAcquired) return;
+
+  try {
+    await ensureMongoConnection();
+
+    const now = new Date();
+    const weekStart = startOfWeekIST(now);
+    const weekEnd = endOfDayIST(now);
+
+    const perUser = await buildRecurringSummary({
+      activeAsOf: now,
+      assignedSince: weekStart,
+      assignedUntil: weekEnd,
+      completedSince: weekStart,
+      completedUntil: weekEnd,
+      maxCards: 20,
+    });
+
+    let emailsSent = 0;
+    for (const [, { user, stats, taskCards, taskCardsTruncated, overdueCards, todayCards, pendingCards }] of perUser) {
+      if (!user || !user.email) continue;
+
+      await sendRecurringSummaryEmail({
+        userEmail: user.email,
+        userName: user.name,
+        type: "weekly",
+        stats,
+        taskCards,
+        taskCardsTruncated: taskCardsTruncated || false,
+        totalTasks: stats.totalActive,
+        overdueCards,
+        todayCards,
+        pendingCards,
+      });
+      emailsSent++;
+    }
+
+    console.log(`[CronJobs] Sent ${emailsSent} weekly recurring summary emails`);
+  } catch (error) {
+    console.error("[CronJobs] sendWeeklyRecurringSummary failed:", error.message);
+  } finally {
+    await releaseWeeklySummaryLock();
   }
 };
 
@@ -871,6 +1264,30 @@ const initCronJobs = async () => {
       },
     );
 
+    // Send daily recurring task summary at 9:00 AM IST
+    // Replaces individual reminder/overdue/milestone emails for the 6 recurring types
+    cron.schedule(
+      "0 9 * * *",
+      async () => {
+        await sendDailyRecurringSummary();
+      },
+      {
+        timezone: "Asia/Kolkata",
+      },
+    );
+
+    // Send weekly recurring task summary on Saturday at 11:00 AM IST
+    // Users also receive the daily summary at 9 AM on Saturday
+    cron.schedule(
+      "0 11 * * 6",
+      async () => {
+        await sendWeeklyRecurringSummary();
+      },
+      {
+        timezone: "Asia/Kolkata",
+      },
+    );
+
     // Mark cron as initialized immediately (all schedulers registered)
     // This prevents duplicate registrations in Next.js Fast Refresh / Hot Reload
     globalThis.__cronJobsInitDone = true;
@@ -909,4 +1326,6 @@ export {
   processScheduledEmails,
   processOverdueTasks,
   sendAssignmentEmailsForNewTasks,
+  sendDailyRecurringSummary,
+  sendWeeklyRecurringSummary,
 };

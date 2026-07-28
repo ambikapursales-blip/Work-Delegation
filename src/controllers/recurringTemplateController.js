@@ -118,6 +118,18 @@ export const createTemplate = async (req, res) => {
       });
     }
 
+    // Prevent duplicate: check for existing non-deleted template with same title
+    const existingTemplate = await RecurringTemplate.findOne({
+      title: title.trim(),
+      status: { $ne: "Deleted" },
+    }).select("_id createdAt").lean();
+    if (existingTemplate) {
+      return res.status(409).json({
+        success: false,
+        message: `A template with title "${title}" already exists (created ${new Date(existingTemplate.createdAt).toLocaleDateString("en-IN")})`,
+      });
+    }
+
     const scheduledHour = 9;
     const scheduledMinute = 0;
     const timezone = "Asia/Kolkata";

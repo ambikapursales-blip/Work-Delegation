@@ -62,6 +62,11 @@ export default function PerformancePage() {
   const [individualLoading, setIndividualLoading] = useState(true);
   const [individualError, setIndividualError] = useState("");
 
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [appliedStartDate, setAppliedStartDate] = useState(null);
+  const [appliedEndDate, setAppliedEndDate] = useState(null);
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
     check();
@@ -75,21 +80,35 @@ export default function PerformancePage() {
     try {
       setLoading(true);
       setError("");
-      const response = await performanceAPI.getLeaderboard({ period });
+      const params = {};
+      if (appliedStartDate && appliedEndDate) {
+        params.startDate = appliedStartDate;
+        params.endDate = appliedEndDate;
+      } else {
+        params.period = period;
+      }
+      const response = await performanceAPI.getLeaderboard(params);
       setLeaderboard(response.data?.leaderboard || []);
     } catch (error) {
       setError("Failed to fetch performance data");
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, appliedStartDate, appliedEndDate]);
 
   const fetchIndividualPerformance = useCallback(async () => {
     if (!user?._id) return;
     try {
       setIndividualLoading(true);
       setIndividualError("");
-      const response = await teamAPI.getEmployeePerformance(user._id, { period });
+      const params = {};
+      if (appliedStartDate && appliedEndDate) {
+        params.startDate = appliedStartDate;
+        params.endDate = appliedEndDate;
+      } else {
+        params.period = period;
+      }
+      const response = await teamAPI.getEmployeePerformance(user._id, params);
       setIndividualData(response.data?.performance || null);
     } catch (error) {
       setIndividualError("Failed to fetch performance data");
@@ -97,7 +116,7 @@ export default function PerformancePage() {
     } finally {
       setIndividualLoading(false);
     }
-  }, [period, user?._id]);
+  }, [period, appliedStartDate, appliedEndDate, user?._id]);
 
   useEffect(() => {
     if (canViewAll) {
@@ -202,16 +221,76 @@ export default function PerformancePage() {
               Your performance metrics
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <select
               value={period}
-              onChange={(e) => setPeriod(e.target.value)}
+              onChange={(e) => {
+                setPeriod(e.target.value);
+                if (e.target.value !== "custom") {
+                  setAppliedStartDate(null);
+                  setAppliedEndDate(null);
+                }
+              }}
               className="input-field text-sm"
             >
-              <option value="week">Last Week</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="last30days">Last 30 Days</option>
+              <option value="thismonth">This Month</option>
               <option value="month">Last Month</option>
+              <option value="thisyear">This Year</option>
               <option value="year">Last Year</option>
+              <option value="custom">Custom Range</option>
             </select>
+            {period === "custom" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="input-field text-sm"
+                  style={{ maxWidth: 150 }}
+                />
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="input-field text-sm"
+                  style={{ maxWidth: 150 }}
+                />
+                <button
+                  onClick={() => {
+                    if (!customStartDate || !customEndDate) return;
+                    if (new Date(customStartDate) > new Date(customEndDate)) {
+                      alert("From Date cannot be greater than To Date.");
+                      return;
+                    }
+                    setAppliedStartDate(customStartDate);
+                    setAppliedEndDate(customEndDate);
+                  }}
+                  disabled={!customStartDate || !customEndDate || new Date(customStartDate) > new Date(customEndDate)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
+                >
+                  Apply
+                </button>
+                <button
+                  onClick={() => {
+                    setPeriod("month");
+                    setCustomStartDate("");
+                    setCustomEndDate("");
+                    setAppliedStartDate(null);
+                    setAppliedEndDate(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+                >
+                  Reset
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -392,16 +471,76 @@ export default function PerformancePage() {
             Employee performance metrics and analytics
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => {
+              setPeriod(e.target.value);
+              if (e.target.value !== "custom") {
+                setAppliedStartDate(null);
+                setAppliedEndDate(null);
+              }
+            }}
             className="input-field text-sm"
           >
-            <option value="week">Last Week</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="last7days">Last 7 Days</option>
+            <option value="last30days">Last 30 Days</option>
+            <option value="thismonth">This Month</option>
             <option value="month">Last Month</option>
+            <option value="thisyear">This Year</option>
             <option value="year">Last Year</option>
+            <option value="custom">Custom Range</option>
           </select>
+          {period === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="input-field text-sm"
+                style={{ maxWidth: 150 }}
+              />
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>to</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="input-field text-sm"
+                style={{ maxWidth: 150 }}
+              />
+              <button
+                onClick={() => {
+                  if (!customStartDate || !customEndDate) return;
+                  if (new Date(customStartDate) > new Date(customEndDate)) {
+                    alert("From Date cannot be greater than To Date.");
+                    return;
+                  }
+                  setAppliedStartDate(customStartDate);
+                  setAppliedEndDate(customEndDate);
+                }}
+                disabled={!customStartDate || !customEndDate || new Date(customStartDate) > new Date(customEndDate)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
+              >
+                Apply
+              </button>
+              <button
+                onClick={() => {
+                  setPeriod("month");
+                  setCustomStartDate("");
+                  setCustomEndDate("");
+                  setAppliedStartDate(null);
+                  setAppliedEndDate(null);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+              >
+                Reset
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

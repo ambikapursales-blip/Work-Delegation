@@ -50,7 +50,7 @@ export default function MasterTasksPage() {
   // Filters
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState("Active");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [taskTypeFilter, setTaskTypeFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -245,7 +245,7 @@ export default function MasterTasksPage() {
             </div>
             <div className="flex items-end">
               <button
-                onClick={() => { setSearchInput(""); setSearch(""); setStatusFilter("Active"); setTaskTypeFilter(""); setPage(1); }}
+                onClick={() => { setSearchInput(""); setSearch(""); setStatusFilter("All"); setTaskTypeFilter(""); setPage(1); }}
                 className="px-4 py-2 rounded-lg border text-sm text-[var(--text-secondary)] border-[var(--border)] hover:bg-[var(--bg-muted)] transition-colors"
               >
                 <RotateCcw className="h-4 w-4 inline mr-1" />
@@ -279,11 +279,11 @@ export default function MasterTasksPage() {
           <GitBranch className="h-16 w-16 mb-4 opacity-30" />
           <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">No Master Tasks Found</h3>
           <p className="text-sm mb-6">
-            {search || statusFilter !== "Active" || taskTypeFilter
+            {search || statusFilter !== "All" || taskTypeFilter
               ? "Try adjusting your filters"
               : "Create your first recurring schedule"}
           </p>
-          {!search && statusFilter === "Active" && !taskTypeFilter && (
+          {!search && statusFilter === "All" && !taskTypeFilter && (
             <button
               onClick={() => router.push("/master-tasks/new")}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"

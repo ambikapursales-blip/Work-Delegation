@@ -23,19 +23,52 @@ export async function GET(request) {
   req.user = user;
   const res = createRes();
   try {
-    const { period = "month", department, limit = 20 } = req.query;
+    const { period = "month", department, limit = 20, startDate: queryStartDate, endDate: queryEndDate } = req.query;
 
     let query = { isActive: true };
     if (department) query.department = department;
 
-    const now = new Date();
-    let startDate;
-    if (period === "week") {
-      startDate = new Date(now.setDate(now.getDate() - 7));
-    } else if (period === "month") {
-      startDate = new Date(now.setMonth(now.getMonth() - 1));
+    let startDate, endDate;
+    if (queryStartDate && queryEndDate) {
+      startDate = new Date(queryStartDate);
+      endDate = new Date(queryEndDate);
     } else {
-      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      const now = new Date();
+      switch (period) {
+        case "today":
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          break;
+        case "yesterday":
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          startDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+          endDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+          break;
+        case "week":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "last7days":
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case "last30days":
+          startDate = new Date(now.setDate(now.getDate() - 30));
+          break;
+        case "thismonth":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "month":
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
+        case "thisyear":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        case "year":
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+          break;
+        default:
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+      }
     }
 
     const users = await User.find(query)
@@ -45,12 +78,15 @@ export async function GET(request) {
 
     const userIds = users.map((u) => u._id);
 
+    const taskDateFilter = { $gte: startDate };
+    if (endDate) taskDateFilter.$lte = endDate;
+
     const [taskAgg, dwrAgg] = await Promise.all([
       Task.aggregate([
         {
           $match: {
             assignedTo: { $in: userIds },
-            createdAt: { $gte: startDate },
+            createdAt: taskDateFilter,
             $or: [
               { isRecurring: { $ne: true } },
               { isGeneratedOccurrence: true },
@@ -84,7 +120,7 @@ export async function GET(request) {
         },
       ]),
       DWR.aggregate([
-        { $match: { employee: { $in: userIds }, date: { $gte: startDate } } },
+        { $match: { employee: { $in: userIds }, date: taskDateFilter } },
         {
           $group: {
             _id: "$employee",
