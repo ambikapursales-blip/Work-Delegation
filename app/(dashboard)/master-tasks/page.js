@@ -307,6 +307,7 @@ export default function MasterTasksPage() {
               <tr className="border-b border-[var(--border)] bg-[var(--bg-muted)]">
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">Task Name</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden md:table-cell">Type</th>
+                <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden lg:table-cell">Start Date</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden lg:table-cell">Assigned To</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden xl:table-cell">Last Generated</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden xl:table-cell">Next Generation</th>
@@ -338,6 +339,9 @@ export default function MasterTasksPage() {
                     <span className="px-2 py-1 rounded-md text-xs font-medium bg-[var(--bg-muted)] border border-[var(--border)]">
                       {mt.taskType}
                     </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-[var(--text-secondary)] text-xs hidden lg:table-cell">
+                    {formatDate(mt.startDate)}
                   </td>
                   <td className="px-4 py-3.5 hidden lg:table-cell">
                     <div className="flex -space-x-2">

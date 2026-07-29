@@ -1,7 +1,7 @@
 import RecurringTemplate from "../models/RecurringTemplate.js";
 import Task from "../models/Task.js";
 import Activity from "../models/Activity.js";
-import { calculateNextGenerationDate } from "../utils/taskGenerationEngine.js";
+import { calculateFirstGenerationDate, calculateNextGenerationDate } from "../utils/taskGenerationEngine.js";
 
 export const getTemplates = async (req, res) => {
   try {
@@ -134,6 +134,8 @@ export const createTemplate = async (req, res) => {
     const scheduledMinute = 0;
     const timezone = "Asia/Kolkata";
 
+    const effectiveStart = new Date(startDate);
+
     const templateData = {
       title,
       description,
@@ -145,21 +147,18 @@ export const createTemplate = async (req, res) => {
       taskType,
       category,
       recurrencePattern,
-      startDate: new Date(startDate),
+      startDate: effectiveStart,
       isActive: true,
       scheduledHour,
       scheduledMinute,
       timezone,
-      nextGenerationDate: calculateNextGenerationDate(
-        {
-          taskType,
-          recurrencePattern,
-          startDate: new Date(startDate),
-          scheduledHour,
-          scheduledMinute,
-        },
-        new Date(),
-      ),
+      nextGenerationDate: calculateFirstGenerationDate({
+        taskType,
+        recurrencePattern,
+        startDate: effectiveStart,
+        scheduledHour,
+        scheduledMinute,
+      }),
       generatedCount: 0,
     };
 

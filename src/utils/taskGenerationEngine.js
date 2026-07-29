@@ -26,6 +26,33 @@ import { generateCommentToken } from "./commentToken.js";
 import { generateExtensionToken } from "./extensionToken.js";
 
 /**
+ * Calculate the first nextGenerationDate for a template.
+ *
+ * If startDate is in the future:
+ *   Sets nextGenerationDate to startDate at scheduledHour:scheduledMinute IST.
+ *   This ensures the cron waits until startDate before generating the first task.
+ *
+ * If startDate is today or in the past:
+ *   Falls through to the existing calculateNextGenerationDate (from now).
+ *   This preserves backward compatibility for all existing templates.
+ *
+ * After the first generation, calculateNextGenerationDate handles all
+ * subsequent occurrences using the current time as base.
+ */
+export function calculateFirstGenerationDate(template) {
+  const { startDate, scheduledHour = 9, scheduledMinute = 0 } = template;
+  const now = new Date();
+  const effectiveStart = new Date(startDate);
+
+  if (effectiveStart > now) {
+    const { year, month, day } = getKolkataDateParts(effectiveStart);
+    return createKolkataDate(year, month, day, scheduledHour, scheduledMinute, 0);
+  }
+
+  return calculateNextGenerationDate(template, now);
+}
+
+/**
  * Calculate the next calendar-based occurrence date at scheduled time for non-Custom task types.
  * For Custom task types, uses the existing interval-based calculation.
  *

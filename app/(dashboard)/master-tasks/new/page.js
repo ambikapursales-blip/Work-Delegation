@@ -38,6 +38,8 @@ export default function NewMasterTaskPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -47,6 +49,7 @@ export default function NewMasterTaskPage() {
     assignedTo: [],
     tags: "",
     department: "",
+    startDate: todayStr,
     scheduledHour: 9,
     scheduledMinute: 0,
     repeatForever: true,
@@ -126,6 +129,10 @@ export default function NewMasterTaskPage() {
       setError("Please select at least one day of the week");
       return;
     }
+    if (!form.startDate) {
+      setError("Start date is required");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -140,6 +147,7 @@ export default function NewMasterTaskPage() {
         assignedTo: form.assignedTo,
         tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         department: form.department,
+        startDate: form.startDate,
         scheduledHour: parseInt(form.scheduledHour),
         scheduledMinute: parseInt(form.scheduledMinute),
         repeatForever: form.repeatForever,
@@ -272,6 +280,16 @@ export default function NewMasterTaskPage() {
         {/* Schedule */}
         <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] space-y-4">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Schedule</h2>
+
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Start Date *</label>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => updateForm("startDate", e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

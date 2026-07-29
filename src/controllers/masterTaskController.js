@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
 import Conversation from "../models/Conversation.js";
-import { calculateNextGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate } from "../utils/taskGenerationEngine.js";
+import { calculateFirstGenerationDate, calculateNextGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate } from "../utils/taskGenerationEngine.js";
 import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { buildAssigneeProgress } from "../utils/taskHelpers.js";
 import { createReminderStateEntry } from "../utils/reminderEngine.js";
@@ -62,7 +62,7 @@ export const getMasterTasks = async (req, res) => {
     const sortObj = {};
     sortObj[sortBy] = parseInt(sortOrder);
 
-    const projection = "title description taskType status assignedTo assignedBy lastGeneratedDate nextGenerationDate generatedCount createdAt";
+    const projection = "title description taskType status assignedTo assignedBy startDate lastGeneratedDate nextGenerationDate generatedCount createdAt";
 
     const [total, templates] = await Promise.all([
       RecurringTemplate.countDocuments(query),
@@ -155,6 +155,7 @@ export const createMasterTask = async (req, res) => {
       category,
       recurrencePattern,
       recurrenceEndDate,
+      startDate,
       scheduledHour = 9,
       scheduledMinute = 0,
       timezone = "Asia/Kolkata",
@@ -192,16 +193,16 @@ export const createMasterTask = async (req, res) => {
     }
 
     const now = new Date();
-    const nextGenDate = calculateNextGenerationDate(
-      {
-        taskType,
-        recurrencePattern,
-        startDate: now,
-        scheduledHour,
-        scheduledMinute,
-      },
-      now,
-    );
+    const effectiveStart = startDate ? new Date(startDate) : now;
+    const isFutureStart = effectiveStart > now;
+
+    const nextGenDate = calculateFirstGenerationDate({
+      taskType,
+      recurrencePattern,
+      startDate: effectiveStart,
+      scheduledHour,
+      scheduledMinute,
+    });
 
     const templateData = {
       title,
@@ -216,7 +217,7 @@ export const createMasterTask = async (req, res) => {
       recurrencePattern,
       status: "Active",
       isActive: true,
-      startDate: now,
+      startDate: effectiveStart,
       endDate: recurrenceEndDate ? new Date(recurrenceEndDate) : null,
       repeatForever: repeatForever !== undefined ? repeatForever : !recurrenceEndDate,
       scheduledHour,
@@ -230,16 +231,17 @@ export const createMasterTask = async (req, res) => {
 
     const template = await RecurringTemplate.create(templateData);
 
-    // Immediately generate the first occurrence
-    // Atomic guard: after generation, nextGenerationDate is advanced,
-    // so cron's generateDueTasks will NOT pick up this template
+    // Only generate first occurrence immediately if startDate is today or in the past.
+    // For future start dates, the cron handles generation when startDate arrives.
     let firstOccurrence = null;
-    try {
-      const occurrenceDate = calculateOccurrenceDate(template, now);
-      firstOccurrence = await generateTaskFromTemplate(template, occurrenceDate, 1);
-      await updateTemplateAfterGeneration(template);
-    } catch (genError) {
-      console.error("[MasterTask] Failed to generate first occurrence:", genError);
+    if (!isFutureStart) {
+      try {
+        const occurrenceDate = calculateOccurrenceDate(template, now);
+        firstOccurrence = await generateTaskFromTemplate(template, occurrenceDate, 1);
+        await updateTemplateAfterGeneration(template);
+      } catch (genError) {
+        console.error("[MasterTask] Failed to generate first occurrence:", genError);
+      }
     }
 
     await Activity.create({
@@ -259,7 +261,7 @@ export const createMasterTask = async (req, res) => {
     res.status(201).json({
       success: true,
       masterTask: template.toObject(),
-      firstOccurrence: firstOccurrence || null,
+      ...(firstOccurrence ? { firstOccurrence } : {}),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -312,9 +314,13 @@ export const updateMasterTask = async (req, res) => {
     // Only recalculate future schedule — never regenerate past occurrences
     const schedulingChanged = recurrencePattern || scheduledHour !== undefined || scheduledMinute !== undefined || startDate !== undefined;
     if (schedulingChanged) {
-      // Use lastGeneratedDate as the anchor so already-generated dates are untouched
-      const anchor = template.lastGeneratedDate || template.startDate || new Date();
-      template.nextGenerationDate = calculateNextGenerationDate(template, anchor);
+      if (template.lastGeneratedDate) {
+        // Recalculate from the last generated date so already-generated dates are untouched
+        template.nextGenerationDate = calculateNextGenerationDate(template, template.lastGeneratedDate);
+      } else {
+        // No occurrences yet — use first-generation logic (handles future start dates)
+        template.nextGenerationDate = calculateFirstGenerationDate(template);
+      }
     }
 
     await template.save();
@@ -545,16 +551,13 @@ export const cloneMasterTask = async (req, res) => {
       // Hard-reset all runtime fields — MUST NOT copy any state
       generatedCount: 0,
       lastGeneratedDate: null,
-      nextGenerationDate: calculateNextGenerationDate(
-        {
-          taskType: source.taskType,
-          recurrencePattern: source.recurrencePattern,
-          startDate: now,
-          scheduledHour: source.scheduledHour,
-          scheduledMinute: source.scheduledMinute,
-        },
-        now,
-      ),
+      nextGenerationDate: calculateFirstGenerationDate({
+        taskType: source.taskType,
+        recurrencePattern: source.recurrencePattern,
+        startDate: now,
+        scheduledHour: source.scheduledHour,
+        scheduledMinute: source.scheduledMinute,
+      }),
       pausedAt: null,
       pausedBy: null,
       deletedAt: null,

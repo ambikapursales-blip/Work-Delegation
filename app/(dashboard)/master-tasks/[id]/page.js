@@ -63,6 +63,7 @@ export default function MasterTaskDetailPage() {
         tags: (task.tags || []).join(", "),
         scheduledHour: task.scheduledHour || 9,
         scheduledMinute: task.scheduledMinute || 0,
+        startDate: task.startDate ? task.startDate.split("T")[0] : "",
         repeatForever: task.repeatForever ?? true,
         recurrenceEndDate: task.endDate ? task.endDate.split("T")[0] : "",
         defaultDeadlineHours: task.defaultDeadlineHours || "",
@@ -143,6 +144,7 @@ export default function MasterTaskDetailPage() {
         category: form.category,
         department: form.department,
         tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        startDate: form.startDate,
         scheduledHour: parseInt(form.scheduledHour),
         scheduledMinute: parseInt(form.scheduledMinute),
         repeatForever: form.repeatForever,
@@ -268,8 +270,8 @@ export default function MasterTaskDetailPage() {
           <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">{masterTask.generatedCount || 0}</p>
         </div>
         <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)]">
-          <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Created</p>
-          <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">{formatDate(masterTask.createdAt)}</p>
+          <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Start Date</p>
+          <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">{formatDate(masterTask.startDate)}</p>
         </div>
       </div>
 
@@ -302,6 +304,11 @@ export default function MasterTaskDetailPage() {
                 {["Sales", "HR", "Operations", "Customer Support", "Admin", "General", "Marketing", "Strategic"].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Start Date</label>
+            <input type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -360,6 +367,10 @@ export default function MasterTaskDetailPage() {
             <div>
               <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Department</p>
               <p className="text-sm font-medium text-[var(--text-primary)]">{masterTask.department || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Start Date</p>
+              <p className="text-sm font-medium text-[var(--text-primary)]">{formatDate(masterTask.startDate)}</p>
             </div>
             <div>
               <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Schedule Time</p>
@@ -428,7 +439,7 @@ export default function MasterTaskDetailPage() {
           <p className="text-xs text-[var(--text-muted)]">{occurrencesTotal} total</p>
         </div>
         {occurrences.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)] text-center py-8">No occurrences generated yet. The first one will be created immediately.</p>
+          <p className="text-sm text-[var(--text-muted)] text-center py-8">No occurrences generated yet. Generated occurrences will appear here once they start. Scheduled to begin {formatDate(masterTask.startDate)}.</p>
         ) : (
           <div className="space-y-2">
             {occurrences.map((occ) => (

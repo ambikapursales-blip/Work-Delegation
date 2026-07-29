@@ -15,7 +15,7 @@ import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { generateCompleteToken } from "../utils/completeToken.js";
 import { generateCommentToken } from "../utils/commentToken.js";
 import { generateExtensionToken } from "../utils/extensionToken.js";
-import { calculateNextGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate } from "../utils/taskGenerationEngine.js";
+import { calculateFirstGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate } from "../utils/taskGenerationEngine.js";
 import {
   normalizeTaskStatus,
   toArray,
@@ -345,16 +345,13 @@ export const createTask = async (req, res) => {
         scheduledHour: 9,
         scheduledMinute: 0,
         timezone: "Asia/Kolkata",
-        nextGenerationDate: calculateNextGenerationDate(
-          {
-            taskType: taskData.taskType,
-            recurrencePattern: taskData.recurrencePattern,
-            startDate: new Date(),
-            scheduledHour: 9,
-            scheduledMinute: 0,
-          },
-          new Date(),
-        ),
+        nextGenerationDate: calculateFirstGenerationDate({
+          taskType: taskData.taskType,
+          recurrencePattern: taskData.recurrencePattern,
+          startDate: new Date(),
+          scheduledHour: 9,
+          scheduledMinute: 0,
+        }),
         generatedCount: 0,
       });
       task.templateId = template._id;
