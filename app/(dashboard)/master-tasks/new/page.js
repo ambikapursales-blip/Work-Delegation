@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { masterTaskAPI, usersAPI } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const TASK_TYPES = [
+  { value: "One Time", label: "One Time" },
   { value: "Daily", label: "Daily" },
   { value: "Weekly", label: "Weekly" },
   { value: "Monthly", label: "Monthly" },
@@ -29,6 +32,16 @@ const WEEKDAYS = [
 ];
 const INTERVAL_UNITS = ["Minutes", "Hours", "Days", "Weeks", "Months"];
 
+const toDate = (dateStr) => {
+  if (!dateStr) return null;
+  const parts = dateStr.split("T")[0].split("-");
+  return new Date(+parts[0], +parts[1] - 1, +parts[2]);
+};
+const toDateStr = (date) => {
+  if (!date) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
 export default function NewMasterTaskPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -44,7 +57,7 @@ export default function NewMasterTaskPage() {
     title: "",
     description: "",
     priority: "Medium",
-    taskType: "Daily",
+    taskType: "One Time",
     category: "General",
     assignedTo: [],
     tags: "",
@@ -55,6 +68,8 @@ export default function NewMasterTaskPage() {
     repeatForever: true,
     recurrenceEndDate: "",
     defaultDeadlineHours: "",
+    deadline: "",
+    attachmentUrl: "",
   });
 
   const [recurrencePattern, setRecurrencePattern] = useState({
@@ -134,6 +149,12 @@ export default function NewMasterTaskPage() {
       return;
     }
 
+    const isOneTime = form.taskType === "One Time";
+    if (isOneTime && !form.deadline) {
+      setError("Deadline is required for one-time master tasks");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -150,18 +171,23 @@ export default function NewMasterTaskPage() {
         startDate: form.startDate,
         scheduledHour: parseInt(form.scheduledHour),
         scheduledMinute: parseInt(form.scheduledMinute),
-        repeatForever: form.repeatForever,
-        recurrenceEndDate: form.repeatForever ? null : form.recurrenceEndDate || null,
-        defaultDeadlineHours: form.defaultDeadlineHours ? parseInt(form.defaultDeadlineHours) : null,
-        recurrencePattern: {
+        repeatForever: isOneTime ? false : form.repeatForever,
+        recurrenceEndDate: isOneTime ? null : (form.repeatForever ? null : form.recurrenceEndDate || null),
+        defaultDeadlineHours: isOneTime ? null : (form.defaultDeadlineHours ? parseInt(form.defaultDeadlineHours) : null),
+        deadline: isOneTime ? form.deadline : undefined,
+        attachmentUrl: form.attachmentUrl ? form.attachmentUrl.trim() : null,
+      };
+
+      if (!isOneTime) {
+        payload.recurrencePattern = {
           frequency: recurrencePattern.frequency,
           interval: recurrencePattern.interval,
           daysOfWeek: recurrencePattern.daysOfWeek,
           dayOfMonth: recurrencePattern.dayOfMonth,
           intervalValue: recurrencePattern.intervalValue,
           intervalUnit: recurrencePattern.intervalUnit,
-        },
-      };
+        };
+      }
 
       await masterTaskAPI.createMasterTask(payload);
       router.push("/master-tasks");
@@ -228,6 +254,18 @@ export default function NewMasterTaskPage() {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Attachment URL (Optional)</label>
+            <input
+              type="url"
+              value={form.attachmentUrl}
+              onChange={(e) => updateForm("attachmentUrl", e.target.value)}
+              placeholder="https://example.com/document.pdf"
+              className="w-full px-4 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30"
+            />
+            <p className="text-xs text-[var(--text-muted)] mt-1">Enter a valid HTTP/HTTPS URL for attachment</p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Priority</label>
@@ -283,17 +321,22 @@ export default function NewMasterTaskPage() {
 
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Start Date *</label>
-            <input
-              type="date"
-              value={form.startDate}
-              onChange={(e) => updateForm("startDate", e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+            <DatePicker
+              selected={toDate(form.startDate)}
+              onChange={(date) => updateForm("startDate", toDateStr(date))}
+              dateFormat="dd MMM yyyy"
+              placeholderText="Select start date"
+              className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] cursor-pointer"
+              wrapperClassName="w-full"
+              popperClassName="react-datepicker-dark"
+              calendarClassName="react-datepicker-dark-calendar"
+              showPopperArrow={false}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Repeat Type *</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Task Type *</label>
               <select
                 value={form.taskType}
                 onChange={(e) => updateForm("taskType", e.target.value)}
@@ -305,19 +348,37 @@ export default function NewMasterTaskPage() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Interval</label>
-              <input
-                type="number"
-                min="1"
-                value={recurrencePattern.interval}
-                onChange={(e) => setRecurrencePattern((prev) => ({ ...prev, interval: parseInt(e.target.value) || 1 }))}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
-              />
-            </div>
+            {/* Deadline for One Time */}
+            {form.taskType === "One Time" ? (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Deadline *</label>
+                <DatePicker
+                  selected={toDate(form.deadline)}
+                  onChange={(date) => updateForm("deadline", toDateStr(date))}
+                  dateFormat="dd MMM yyyy"
+                  placeholderText="Select deadline"
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] cursor-pointer"
+                  wrapperClassName="w-full"
+                  popperClassName="react-datepicker-dark"
+                  calendarClassName="react-datepicker-dark-calendar"
+                  showPopperArrow={false}
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Interval</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={recurrencePattern.interval}
+                  onChange={(e) => setRecurrencePattern((prev) => ({ ...prev, interval: parseInt(e.target.value) || 1 }))}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Weekly Days */}
+          {/* Weekly Days (recurring only) */}
           {form.taskType === "Weekly" && (
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">Days of Week</label>
@@ -340,7 +401,7 @@ export default function NewMasterTaskPage() {
             </div>
           )}
 
-          {/* Monthly Date */}
+          {/* Monthly Date (recurring only) */}
           {form.taskType === "Monthly" && (
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Day of Month</label>
@@ -355,7 +416,7 @@ export default function NewMasterTaskPage() {
             </div>
           )}
 
-          {/* Custom Interval */}
+          {/* Custom Interval (recurring only) */}
           {form.taskType === "Custom" && (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -383,66 +444,76 @@ export default function NewMasterTaskPage() {
             </div>
           )}
 
-          {/* Scheduled Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Hour (0-23)</label>
-              <input
-                type="number"
-                min="0"
-                max="23"
-                value={form.scheduledHour}
-                onChange={(e) => updateForm("scheduledHour", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Minute (0-59)</label>
-              <input
-                type="number"
-                min="0"
-                max="59"
-                value={form.scheduledMinute}
-                onChange={(e) => updateForm("scheduledMinute", e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Deadline Hours</label>
-              <input
-                type="number"
-                min="0"
-                value={form.defaultDeadlineHours}
-                onChange={(e) => updateForm("defaultDeadlineHours", e.target.value)}
-                placeholder="Auto-calculated"
-                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
-              />
-            </div>
-          </div>
-
-          {/* Repeat Forever / End Date */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.repeatForever}
-                onChange={(e) => updateForm("repeatForever", e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--border)] text-[#2563EB] focus:ring-[#2563EB]"
-              />
-              <span className="text-sm text-[var(--text-primary)]">Repeat Forever</span>
-            </label>
-            {!form.repeatForever && (
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={form.recurrenceEndDate}
-                  onChange={(e) => updateForm("recurrenceEndDate", e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
-                />
+          {/* Scheduled Time + Deadline Hours (recurring only) */}
+          {form.taskType !== "One Time" && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Hour (0-23)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={form.scheduledHour}
+                    onChange={(e) => updateForm("scheduledHour", e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Minute (0-59)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    value={form.scheduledMinute}
+                    onChange={(e) => updateForm("scheduledMinute", e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Deadline Hours</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.defaultDeadlineHours}
+                    onChange={(e) => updateForm("defaultDeadlineHours", e.target.value)}
+                    placeholder="Auto-calculated"
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+                  />
+                </div>
               </div>
-            )}
+
+              {/* Repeat Forever / End Date */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.repeatForever}
+                    onChange={(e) => updateForm("repeatForever", e.target.checked)}
+                    className="h-4 w-4 rounded border-[var(--border)] text-[#2563EB] focus:ring-[#2563EB]"
+                  />
+                  <span className="text-sm text-[var(--text-primary)]">Repeat Forever</span>
+                </label>
+                {!form.repeatForever && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">End Date</label>
+                    <DatePicker
+                      selected={toDate(form.recurrenceEndDate)}
+                      onChange={(date) => updateForm("recurrenceEndDate", toDateStr(date))}
+                      dateFormat="dd MMM yyyy"
+                      placeholderText="No end date"
+                      className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] cursor-pointer"
+                      wrapperClassName="w-full"
+                      popperClassName="react-datepicker-dark"
+                      calendarClassName="react-datepicker-dark-calendar"
+                      isClearable
+                      showPopperArrow={false}
+                    />
+                  </div>
+                )}
           </div>
+              </>
+          )}
         </div>
 
         {/* Assign Users */}

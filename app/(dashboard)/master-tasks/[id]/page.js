@@ -17,12 +17,27 @@ import {
   Tag,
   Calendar,
   Activity,
+  Zap,
 } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const statusColors = {
   Active: "bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800 dark:text-emerald-400",
   Paused: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800 dark:text-amber-400",
   Deleted: "bg-red-500/10 text-red-600 border-red-200 dark:border-red-800 dark:text-red-400",
+  Scheduled: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800 dark:text-blue-400",
+  Completed: "bg-slate-500/10 text-slate-600 border-slate-200 dark:border-slate-800 dark:text-slate-400",
+};
+
+const toDate = (dateStr) => {
+  if (!dateStr) return null;
+  const parts = dateStr.split("T")[0].split("-");
+  return new Date(+parts[0], +parts[1] - 1, +parts[2]);
+};
+const toDateStr = (date) => {
+  if (!date) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
 export default function MasterTaskDetailPage() {
@@ -33,6 +48,9 @@ export default function MasterTaskDetailPage() {
   const [masterTask, setMasterTask] = useState(null);
   const [occurrences, setOccurrences] = useState([]);
   const [occurrencesTotal, setOccurrencesTotal] = useState(0);
+  const [occurrenceFilter, setOccurrenceFilter] = useState("all");
+  const [occurrencePage, setOccurrencePage] = useState(1);
+  const occurrenceLimit = 10;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -49,7 +67,11 @@ export default function MasterTaskDetailPage() {
       // Parallel API calls — eliminates waterfall
       const [res, histRes] = await Promise.all([
         masterTaskAPI.getMasterTask(params.id),
-        masterTaskAPI.getMasterTaskHistory(params.id, { page: 1, limit: 10 }),
+        masterTaskAPI.getMasterTaskHistory(params.id, {
+          page: occurrencePage,
+          limit: occurrenceLimit,
+          status: occurrenceFilter === "all" ? undefined : occurrenceFilter,
+        }),
       ]);
 
       const task = res.data.masterTask;
@@ -67,6 +89,8 @@ export default function MasterTaskDetailPage() {
         repeatForever: task.repeatForever ?? true,
         recurrenceEndDate: task.endDate ? task.endDate.split("T")[0] : "",
         defaultDeadlineHours: task.defaultDeadlineHours || "",
+        deadline: task.deadline ? task.deadline.split("T")[0] : "",
+        attachmentUrl: task.attachmentUrl || "",
       });
 
       setOccurrences(histRes.data.occurrences || []);
@@ -76,7 +100,7 @@ export default function MasterTaskDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+  }, [params.id, occurrencePage, occurrenceFilter]);
 
   useEffect(() => {
     fetchMasterTask();
@@ -112,6 +136,15 @@ export default function MasterTaskDetailPage() {
     }
   };
 
+  const handleGenerateNow = async () => {
+    try {
+      await masterTaskAPI.generateNow(params.id);
+      fetchMasterTask();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to generate task");
+    }
+  };
+
   const handleClone = async () => {
     try {
       await masterTaskAPI.cloneMasterTask(params.id);
@@ -137,7 +170,8 @@ export default function MasterTaskDetailPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await masterTaskAPI.updateMasterTask(params.id, {
+      const isOneTime = masterTask.taskType === "One Time";
+      const payload = {
         title: form.title,
         description: form.description,
         priority: form.priority,
@@ -145,12 +179,18 @@ export default function MasterTaskDetailPage() {
         department: form.department,
         tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         startDate: form.startDate,
-        scheduledHour: parseInt(form.scheduledHour),
-        scheduledMinute: parseInt(form.scheduledMinute),
-        repeatForever: form.repeatForever,
-        endDate: form.repeatForever ? null : form.recurrenceEndDate || null,
-        defaultDeadlineHours: form.defaultDeadlineHours ? parseInt(form.defaultDeadlineHours) : null,
-      });
+        attachmentUrl: form.attachmentUrl ? form.attachmentUrl.trim() : null,
+      };
+      if (isOneTime) {
+        payload.deadline = form.deadline || null;
+      } else {
+        payload.scheduledHour = parseInt(form.scheduledHour);
+        payload.scheduledMinute = parseInt(form.scheduledMinute);
+        payload.repeatForever = form.repeatForever;
+        payload.endDate = form.repeatForever ? null : form.recurrenceEndDate || null;
+        payload.defaultDeadlineHours = form.defaultDeadlineHours ? parseInt(form.defaultDeadlineHours) : null;
+      }
+      await masterTaskAPI.updateMasterTask(params.id, payload);
       setEditing(false);
       fetchMasterTask();
     } catch (err) {
@@ -227,7 +267,7 @@ export default function MasterTaskDetailPage() {
               </span>
             </div>
             <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-              {masterTask.taskType} recurring schedule
+              {masterTask.taskType === "One Time" ? "One-time task template" : `${masterTask.taskType} recurring schedule`}
             </p>
           </div>
         </div>
@@ -241,6 +281,14 @@ export default function MasterTaskDetailPage() {
             <button onClick={handleResume} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-600 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
               <Play className="h-4 w-4" /> Resume
             </button>
+          ) : masterTask.status === "Scheduled" ? (
+            <button onClick={handleGenerateNow} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-600 text-sm font-medium hover:bg-blue-500/10 transition-colors">
+              <Zap className="h-4 w-4" /> Generate Now
+            </button>
+          ) : masterTask.status === "Generated" ? (
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] text-sm">
+              <Zap className="h-4 w-4" /> Generated
+            </span>
           ) : null}
           <button onClick={handleClone} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--bg-muted)] transition-colors">
             <Copy className="h-4 w-4" /> Clone
@@ -258,8 +306,10 @@ export default function MasterTaskDetailPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)]">
-          <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Next Generation</p>
-          <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">{formatDateTime(masterTask.nextGenerationDate)}</p>
+          <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">{masterTask.taskType === "One Time" ? "Deadline" : "Next Generation"}</p>
+          <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">
+            {masterTask.taskType === "One Time" ? formatDate(masterTask.deadline) : formatDateTime(masterTask.nextGenerationDate)}
+          </p>
         </div>
         <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)]">
           <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider">Last Generated</p>
@@ -289,6 +339,13 @@ export default function MasterTaskDetailPage() {
             <textarea rows={3} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               className="w-full px-4 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] resize-none" />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Attachment URL (Optional)</label>
+            <input type="url" value={form.attachmentUrl} onChange={(e) => setForm((p) => ({ ...p, attachmentUrl: e.target.value }))}
+              placeholder="https://example.com/document.pdf"
+              className="w-full px-4 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
+            <p className="text-xs text-[var(--text-muted)] mt-1">Enter a valid HTTP/HTTPS URL for attachment</p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Priority</label>
@@ -307,8 +364,17 @@ export default function MasterTaskDetailPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Start Date</label>
-            <input type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
-              className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
+            <DatePicker
+              selected={toDate(form.startDate)}
+              onChange={(date) => setForm((p) => ({ ...p, startDate: toDateStr(date) }))}
+              dateFormat="dd MMM yyyy"
+              placeholderText="Select start date"
+              className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] cursor-pointer"
+              wrapperClassName="w-full"
+              popperClassName="react-datepicker-dark"
+              calendarClassName="react-datepicker-dark-calendar"
+              showPopperArrow={false}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -332,8 +398,18 @@ export default function MasterTaskDetailPage() {
           {!form.repeatForever && (
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">End Date</label>
-              <input type="date" value={form.recurrenceEndDate} onChange={(e) => setForm((p) => ({ ...p, recurrenceEndDate: e.target.value }))}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
+              <DatePicker
+                selected={toDate(form.recurrenceEndDate)}
+                onChange={(date) => setForm((p) => ({ ...p, recurrenceEndDate: toDateStr(date) }))}
+                dateFormat="dd MMM yyyy"
+                placeholderText="No end date"
+                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)] cursor-pointer"
+                wrapperClassName="w-full"
+                popperClassName="react-datepicker-dark"
+                calendarClassName="react-datepicker-dark-calendar"
+                isClearable
+                showPopperArrow={false}
+              />
             </div>
           )}
           <div className="flex justify-end gap-3 pt-2">
@@ -436,14 +512,35 @@ export default function MasterTaskDetailPage() {
       <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)]">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">Generated Occurrences</h2>
-          <p className="text-xs text-[var(--text-muted)]">{occurrencesTotal} total</p>
+          <div className="flex items-center gap-3">
+            <select
+              value={occurrenceFilter}
+              onChange={(e) => { setOccurrenceFilter(e.target.value); setOccurrencePage(1); }}
+              className="input-field text-xs py-1.5 px-2 rounded-lg"
+            >
+              <option value="all">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+            <p className="text-xs text-[var(--text-muted)]">{occurrencesTotal} total</p>
+          </div>
         </div>
         {occurrences.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)] text-center py-8">No occurrences generated yet. Generated occurrences will appear here once they start. Scheduled to begin {formatDate(masterTask.startDate)}.</p>
+          <p className="text-sm text-[var(--text-muted)] text-center py-8">
+            {masterTask.taskType === "One Time"
+              ? masterTask.status === "Scheduled"
+                ? 'This one-time task is ready to generate. Click "Generate Now" to create the task.'
+                : "No generated tasks found for this one-time master task."
+              : `No occurrences generated yet. Generated occurrences will appear here once they start. Scheduled to begin ${formatDate(masterTask.startDate)}.`}
+          </p>
         ) : (
           <div className="space-y-2">
             {occurrences.map((occ) => (
-              <div key={occ._id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-base)] border border-[var(--border)]">
+              <div key={occ._id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-base)] border border-[var(--border)] hover:bg-[var(--bg-muted)]/50 transition-colors cursor-pointer"
+                onClick={() => router.push(`/tasks/${occ._id}`)}
+              >
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-full bg-[var(--bg-muted)] flex items-center justify-center">
                     <Calendar className="h-4 w-4 text-[var(--text-secondary)]" />
@@ -462,6 +559,31 @@ export default function MasterTaskDetailPage() {
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {occurrencesTotal > occurrenceLimit && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-muted)]">
+              Showing {(occurrencePage - 1) * occurrenceLimit + 1}&ndash;{Math.min(occurrencePage * occurrenceLimit, occurrencesTotal)} of {occurrencesTotal}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setOccurrencePage((p) => Math.max(1, p - 1))}
+                disabled={occurrencePage === 1}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] bg-[var(--bg-base)] hover:bg-[var(--bg-muted)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setOccurrencePage((p) => p + 1)}
+                disabled={occurrencePage * occurrenceLimit >= occurrencesTotal}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] bg-[var(--bg-base)] hover:bg-[var(--bg-muted)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -21,18 +21,14 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import Toast from "@/components/Toast";
 import {
-  Plus,
   Trash2,
   CheckCircle2,
   X,
   Calendar,
   ChevronDown,
   Clock,
-  Repeat,
-  ListTodo,
-  Sparkles,
-  Check,
   MessageSquare,
+  Link as LinkIcon,
 } from "lucide-react";
 import { taskAPI, usersAPI, teamAPI } from "@/lib/api";
 import Link from "next/link";
@@ -127,27 +123,7 @@ export default function TasksPage() {
   const pathname = usePathname();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("view"); // "create" or "view"
   const [selectedTasks, setSelectedTasks] = useState([]);
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    assignedTo: [],
-    priority: "Medium",
-    deadline: "",
-    taskType: "One Time",
-    category: "General",
-    isRecurring: false,
-    recurrencePattern: {
-      frequency: "daily",
-      interval: 1,
-      intervalValue: 1,
-      intervalUnit: "Days",
-      daysOfWeek: [],
-      dayOfMonth: 1,
-    },
-    recurrenceEndDate: "",
-  });
   const [showComments, setShowComments] = useState(null);
   const [showReassign, setShowReassign] = useState(null);
   const [showEscalate, setShowEscalate] = useState(null);
@@ -179,7 +155,6 @@ export default function TasksPage() {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState(null);
   const [commentingTaskId, setCommentingTaskId] = useState(null);
   const [reassigningTaskId, setReassigningTaskId] = useState(null);
@@ -364,60 +339,6 @@ export default function TasksPage() {
     }
   }, [pathname]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setIsSubmitting(true);
-
-    try {
-      const taskData = {
-        ...formData,
-        assignedTo:
-          formData.assignedTo.length > 0
-            ? formData.assignedTo
-            : users.length > 0
-              ? [users[0]._id]
-              : [],
-        deadline:
-          formData.deadline ||
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-      };
-      const response = await taskAPI.createTask(taskData);
-      const createdTask = response.data?.task;
-      if (createdTask) {
-        setTasks((prev) => [createdTask, ...prev]);
-        setTotalTasks((prev) => prev + 1);
-      }
-      setSuccess("Task created successfully!");
-      setFormData({
-        title: "",
-        description: "",
-        assignedTo: [],
-        priority: "Medium",
-        deadline: "",
-        taskType: "One Time",
-        category: "General",
-        isRecurring: false,
-        recurrencePattern: {
-          frequency: "daily",
-          interval: 1,
-          intervalValue: 1,
-          intervalUnit: "Days",
-          daysOfWeek: [],
-          dayOfMonth: 1,
-        },
-        recurrenceEndDate: "",
-      });
-      setActiveTab("view");
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to create task");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleAddComment = async (taskId) => {
     if (!commentText.trim()) return;
@@ -626,13 +547,9 @@ export default function TasksPage() {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   };
 
-  const handleTaskCreate = () => {
-    setActiveTab("create");
-  };
-
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)" }}>
-      {/* Header with Create Task */}
+      {/* Header */}
       <div
         className="sticky top-0 z-30 backdrop-blur-xl"
         style={{
@@ -656,19 +573,6 @@ export default function TasksPage() {
               {canAssignTasks ? "Manage all tasks" : "Your assigned tasks"}
             </p>
           </div>
-          {canAssignTasks && (
-            <Button
-              onClick={handleTaskCreate}
-              className="btn-create-task font-bold text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl w-full sm:w-auto justify-center"
-              style={{ color: "var(--active-text)" }}
-            >
-              <Plus
-                className="h-4 sm:h-5 w-4 sm:w-5 mr-2"
-                style={{ color: "var(--active-text)" }}
-              />
-              Create Task
-            </Button>
-          )}
         </div>
       </div>
 
@@ -685,512 +589,7 @@ export default function TasksPage() {
         />
       )}
 
-      {/* Create Task Modal */}
-      {canAssignTasks && activeTab === "create" && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm animate-fade-in"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
-        >
-          <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
-            <Card className="w-full max-w-3xl relative overflow-hidden">
-              {/* Ambient glow */}
-              <div
-                className="absolute -top-40 -right-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--color-success) 6%, transparent)",
-                }}
-              />
-              <div
-                className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full blur-3xl pointer-events-none"
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--color-info) 6%, transparent)",
-                }}
-              />
 
-              <CardHeader
-                className="px-4 sm:px-8 py-4 sm:py-6 relative z-10"
-                style={{ borderBottom: "1px solid var(--border)" }}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl p-[2px] flex-shrink-0"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
-                      }}
-                    >
-                      <div
-                        className="w-full h-full rounded-2xl flex items-center justify-center"
-                        style={{ backgroundColor: "var(--bg-card)" }}
-                      >
-                        <Plus
-                          className="w-5 h-5 sm:w-6 sm:h-6"
-                          style={{ color: "var(--active-start)" }}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">
-                        Create New Task
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-sm sm:text-base">
-                        Assign tasks to team members
-                      </CardDescription>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab("view")}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 group"
-                    style={{
-                      backgroundColor: "var(--bg-muted)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <X
-                      className="w-5 h-5 transition-colors"
-                      style={{ color: "var(--text-muted)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "var(--text-primary)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "var(--text-muted)")
-                      }
-                    />
-                  </button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="px-4 sm:px-8 py-4 sm:py-6 relative z-10">
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* Title - Full width */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="title"
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      Task Title{" "}
-                      <span style={{ color: "var(--color-danger)" }}>*</span>
-                    </Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) =>
-                        setFormData({ ...formData, title: e.target.value })
-                      }
-                      placeholder="e.g., Design new landing page"
-                      required
-                      className="input-field h-[52px] text-base"
-                    />
-                  </div>
-
-                  {/* Row: Assign To | Priority */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="space-y-2">
-                      <Label
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        Assign To{" "}
-                        <span style={{ color: "var(--color-danger)" }}>*</span>
-                      </Label>
-                      <div
-                        className="max-h-48 overflow-y-auto space-y-1 rounded-2xl p-2"
-                        style={{
-                          backgroundColor: "var(--bg-surface)",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        {users.length === 0 ? (
-                          <p
-                            className="text-sm p-3 text-center"
-                            style={{ color: "var(--text-muted)" }}
-                          >
-                            Loading users...
-                          </p>
-                        ) : (
-                          users.map((u) => {
-                            const isSelected = formData.assignedTo.includes(
-                              u._id,
-                            );
-                            return (
-                              <label
-                                key={u._id}
-                                className="flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all duration-200"
-                                style={{
-                                  backgroundColor: isSelected
-                                    ? "color-mix(in srgb, var(--color-success) 8%, transparent)"
-                                    : "transparent",
-                                  border: isSelected
-                                    ? "1px solid color-mix(in srgb, var(--color-success) 0.2)"
-                                    : "1px solid transparent",
-                                }}
-                              >
-                                <div
-                                  className="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0"
-                                  style={{
-                                    backgroundColor: isSelected
-                                      ? "var(--color-success)"
-                                      : "var(--bg-muted)",
-                                    borderColor: isSelected
-                                      ? "var(--color-success)"
-                                      : "var(--border)",
-                                  }}
-                                >
-                                  {isSelected && (
-                                    <CheckCircle2
-                                      className="w-3.5 h-3.5"
-                                      style={{ color: "var(--text-inverse)" }}
-                                    />
-                                  )}
-                                </div>
-                                <div className="flex-1 flex items-center justify-between min-w-0">
-                                  <span
-                                    className="text-sm font-medium truncate"
-                                    style={{
-                                      color: isSelected
-                                        ? "var(--text-primary)"
-                                        : "var(--text-secondary)",
-                                    }}
-                                  >
-                                    {u.name}
-                                  </span>
-                                  <span
-                                    className="text-xs px-2 py-0.5 rounded-md flex-shrink-0 ml-2"
-                                    style={{
-                                      color: "var(--text-muted)",
-                                      backgroundColor: "var(--bg-muted)",
-                                    }}
-                                  >
-                                    {u.role}
-                                  </span>
-                                </div>
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setFormData({
-                                        ...formData,
-                                        assignedTo: [
-                                          ...formData.assignedTo,
-                                          u._id,
-                                        ],
-                                      });
-                                    } else {
-                                      setFormData({
-                                        ...formData,
-                                        assignedTo: formData.assignedTo.filter(
-                                          (id) => id !== u._id,
-                                        ),
-                                      });
-                                    }
-                                  }}
-                                  className="hidden"
-                                />
-                              </label>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="priority"
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        Priority
-                      </Label>
-                      <select
-                        id="priority"
-                        value={formData.priority}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            priority: e.target.value,
-                          })
-                        }
-                        className="input-field h-[52px] text-base"
-                      >
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
-                        <option value="High">High</option>
-                        <option value="Critical">Critical</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Row: Deadline | Task Type */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="deadline"
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        Task Deadline
-                      </Label>
-                      <DatePicker
-                        selected={toDate(formData.deadline)}
-                        onChange={(date) =>
-                          setFormData({
-                            ...formData,
-                            deadline: toDateStr(date),
-                          })
-                        }
-                        dateFormat="dd MMM yyyy"
-                        placeholderText="Select deadline"
-                        className="input-field h-[52px] text-base cursor-pointer"
-                        wrapperClassName="w-full"
-                        popperClassName="react-datepicker-dark"
-                        calendarClassName="react-datepicker-dark-calendar"
-                        isClearable
-                        showPopperArrow={false}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        Task Type
-                      </Label>
-                      <select
-                        value={formData.taskType}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            taskType: e.target.value,
-                            isRecurring: e.target.value !== "One Time",
-                            recurrencePattern:
-                              e.target.value !== "One Time"
-                                ? {
-                                    frequency: e.target.value
-                                      .toLowerCase()
-                                      .replace(" ", ""),
-                                    interval: 1,
-                                    intervalValue: 1,
-                                    intervalUnit: "Days",
-                                    daysOfWeek: [],
-                                    dayOfMonth: 1,
-                                  }
-                                : formData.recurrencePattern,
-                          })
-                        }
-                        className="input-field h-[52px] text-base"
-                      >
-                        <option value="One Time">One Time</option>
-                        <option value="Daily">Daily</option>
-                        <option value="Weekly">Weekly</option>
-                        <option value="Monthly">Monthly</option>
-                        <option value="Quarterly">Quarterly</option>
-                        <option value="Half Yearly">Half Yearly</option>
-                        <option value="Yearly">Yearly</option>
-                        <option value="Custom">Custom</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        Category
-                      </Label>
-                      <select
-                        value={formData.category}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            category: e.target.value,
-                          })
-                        }
-                        className="input-field h-[52px] text-base"
-                      >
-                        <option value="Sales">Sales</option>
-                        <option value="HR">HR</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Customer Support">
-                          Customer Support
-                        </option>
-                        <option value="Admin">Admin</option>
-                        <option value="General">General</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Strategic">Strategic</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Recurring Pattern Options */}
-                  {formData.taskType === "Custom" && (
-                    <div
-                      className="space-y-3 rounded-2xl p-4 animate-fade-in"
-                      style={{
-                        backgroundColor: "var(--bg-muted)",
-                        border: "1px solid var(--border)",
-                      }}
-                    >
-                      <Label
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        Repeat Settings
-                      </Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label
-                            className="text-xs font-medium"
-                            style={{ color: "var(--text-muted)" }}
-                          >
-                            Repeat every
-                          </Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={
-                              formData.recurrencePattern.intervalValue ??
-                              formData.recurrencePattern.interval ??
-                              1
-                            }
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                recurrencePattern: {
-                                  ...formData.recurrencePattern,
-                                  intervalValue: parseInt(e.target.value) || 1,
-                                  interval: parseInt(e.target.value) || 1,
-                                },
-                              })
-                            }
-                            className="input-field h-11"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label
-                            className="text-xs font-medium"
-                            style={{ color: "var(--text-muted)" }}
-                          >
-                            Interval unit
-                          </Label>
-                          <select
-                            value={
-                              formData.recurrencePattern.intervalUnit ||
-                              "Days"
-                            }
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                recurrencePattern: {
-                                  ...formData.recurrencePattern,
-                                  intervalUnit: e.target.value,
-                                },
-                              })
-                            }
-                            className="input-field h-11 text-sm"
-                          >
-                            <option value="Minutes">Minutes</option>
-                            <option value="Hours">Hours</option>
-                            <option value="Days">Days</option>
-                            <option value="Weeks">Weeks</option>
-                            <option value="Months">Months</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label
-                          className="text-xs font-medium"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          Repeat Until
-                        </Label>
-                        <DatePicker
-                          selected={toDate(formData.recurrenceEndDate)}
-                          onChange={(date) =>
-                            setFormData({
-                              ...formData,
-                              recurrenceEndDate: toDateStr(date),
-                            })
-                          }
-                          dateFormat="dd MMM yyyy"
-                          placeholderText="No end date"
-                          className="input-field h-11 text-sm cursor-pointer"
-                          wrapperClassName="w-full"
-                          popperClassName="react-datepicker-dark"
-                          calendarClassName="react-datepicker-dark-calendar"
-                          isClearable
-                          showPopperArrow={false}
-                        />
-                      </div>
-
-                    </div>
-                  )}
-
-                  {/* Description */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="description"
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      Description
-                    </Label>
-                    <textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          description: e.target.value,
-                        })
-                      }
-                      placeholder="Describe the task, requirements, and any relevant details..."
-                      className="input-field min-h-[140px] resize-y text-base"
-                      rows="4"
-                    />
-                  </div>
-
-                  {/* Buttons */}
-                  <div
-                    className="grid grid-cols-2 gap-4 pt-4"
-                    style={{ borderTop: "1px solid var(--border)" }}
-                  >
-                    <Button
-                      type="submit"
-                      loading={isSubmitting}
-                      loadingText="Creating..."
-                      style={{
-                        background:
-                          "linear-gradient(135deg, var(--active-start) 0%, var(--active-end) 100%)",
-                        color: "var(--active-text)",
-                        boxShadow:
-                          "0 2px 12px color-mix(in srgb, var(--active-start) 30%, transparent)",
-                      }}
-                      className="h-[52px] font-bold text-base rounded-xl"
-                    >
-                      Create Task
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setActiveTab("view")}
-                      disabled={isSubmitting}
-                      className="h-[52px] font-medium text-base rounded-xl"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
 
       {/* Edit Task Modal */}
       {editingTask && (
@@ -1605,7 +1004,7 @@ export default function TasksPage() {
       )}
 
       {/* Task Board - Main View */}
-      {!canAssignTasks || activeTab === "view" ? (
+      {true ? (
         <>
           {loading ? (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
@@ -1871,6 +1270,7 @@ export default function TasksPage() {
                         <th className="px-4 py-3 text-left">Created Date</th>
                         <th className="px-4 py-3 text-left">Deadline</th>
                         <th className="px-4 py-3 text-left">Category</th>
+                        <th className="px-4 py-3 text-left">Attachment</th>
                         <th className="px-4 py-3 text-left">
                           Remaining / Overdue
                         </th>
@@ -1880,7 +1280,7 @@ export default function TasksPage() {
                     <tbody>
                       {tasksToDisplay.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="px-4 py-12 text-center">
+                          <td colSpan="10" className="px-4 py-12 text-center">
                             <div className="flex flex-col items-center gap-3">
                               <div
                                 className="w-16 h-16 rounded-2xl flex items-center justify-center"
@@ -2114,6 +1514,21 @@ export default function TasksPage() {
                                   >
                                     {task.category || "General"}
                                   </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  {task.attachmentUrl ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        window.open(task.attachmentUrl, "_blank", "noopener,noreferrer");
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#2563EB] hover:bg-[#2563EB]/10 transition-colors"
+                                      title="View Attachment"
+                                    >
+                                      <LinkIcon className="h-3.5 w-3.5" />
+                                      Attachment
+                                    </button>
+                                  ) : null}
                                 </td>
                                 <td className="px-4 py-3">
                                   <span
@@ -2605,6 +2020,21 @@ export default function TasksPage() {
                                     })
                                   : "No deadline"}
                               </div>
+                              {task.attachmentUrl && (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.open(task.attachmentUrl, "_blank", "noopener,noreferrer");
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#2563EB] hover:bg-[#2563EB]/10 transition-colors"
+                                    title="View Attachment"
+                                  >
+                                    <LinkIcon className="h-3.5 w-3.5" />
+                                    Attachment
+                                  </button>
+                                </div>
+                              )}
                               <div className="flex items-center gap-1">
                                 <span>Category:</span>
                                 <span

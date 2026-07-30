@@ -388,7 +388,7 @@ export function calculateDeadline(occurrenceDate, taskType, recurrencePattern, a
  * Check if a template should generate a task now
  */
 export function shouldGenerateTemplate(template, now = new Date()) {
-  if (template.status === "Paused" || template.status === "Deleted") return false;
+  if (template.status === "Paused" || template.status === "Deleted" || template.status === "Generated") return false;
   if (!template.isActive) return false;
   if (!template.repeatForever && template.endDate && new Date(template.endDate) < now) return false;
   if (!template.nextGenerationDate) return false;
@@ -413,16 +413,22 @@ export async function generateTaskFromTemplate(template, occurrenceDate, occurre
       recurrencePattern,
       defaultDeadlineHours,
       startDate: templateStartDate,
+      deadline: templateDeadline,
+      attachmentUrl,
     } = template;
 
-    // Deadline = occurrenceDate + recurrence interval
-    // This ensures every generated task has a real due date
-    const anchorDom = templateStartDate
-      ? getKolkataDateParts(templateStartDate).day
-      : undefined;
-    const deadline = defaultDeadlineHours
-      ? new Date(occurrenceDate.getTime() + defaultDeadlineHours * 3600000)
-      : calculateDeadline(occurrenceDate, taskType, recurrencePattern, anchorDom);
+    // Deadline priority: explicit template deadline (one-time) > defaultDeadlineHours > recurrence calculation
+    let deadline;
+    if (templateDeadline) {
+      deadline = new Date(templateDeadline);
+    } else if (defaultDeadlineHours) {
+      deadline = new Date(occurrenceDate.getTime() + defaultDeadlineHours * 3600000);
+    } else {
+      const anchorDom = templateStartDate
+        ? getKolkataDateParts(templateStartDate).day
+        : undefined;
+      deadline = calculateDeadline(occurrenceDate, taskType, recurrencePattern, anchorDom);
+    }
 
     // Generate occurrence name
     const taskTitle = generateOccurrenceName(title, taskType, occurrenceDate, recurrencePattern);
@@ -468,6 +474,7 @@ export async function generateTaskFromTemplate(template, occurrenceDate, occurre
       assigneeProgress,
       reminderState,
       emailSchedule: createEmailSchedule(taskType, new Date()),
+      attachmentUrl: attachmentUrl || null,
       history: [
         {
           status: "In Progress",
@@ -557,11 +564,19 @@ export async function generateTaskFromTemplate(template, occurrenceDate, occurre
 export async function updateTemplateAfterGeneration(template) {
   try {
     const now = new Date();
-    const nextDate = calculateNextGenerationDate(template, now);
     
     template.lastGeneratedDate = now;
     template.generatedCount = (template.generatedCount || 0) + 1;
-    template.nextGenerationDate = nextDate;
+
+    if (template.taskType === "One Time") {
+      // One-time templates self-deactivate after generating their single task
+      template.status = "Generated";
+      template.isActive = false;
+      template.nextGenerationDate = null;
+    } else {
+      const nextDate = calculateNextGenerationDate(template, now);
+      template.nextGenerationDate = nextDate;
+    }
     
     await template.save();
     return template;
@@ -585,7 +600,7 @@ export async function generateDueTasks() {
     // Find all active templates that are due for generation
     // repeatForever=true templates always generate; others only if endDate hasn't passed
     const dueTemplates = await RecurringTemplate.find({
-      status: "Active",
+      status: { $in: ["Active", "Scheduled"] },
       isActive: true,
       nextGenerationDate: { $lte: now },
       $or: [
@@ -594,24 +609,6 @@ export async function generateDueTasks() {
         { endDate: { $gte: now } },
       ],
     }).populate("assignedTo assignedBy");
-
-    // Self-heal: deactivate orphan templates whose master task no longer exists
-    if (dueTemplates.length > 0) {
-      const templateIds = dueTemplates.map(t => t._id);
-      const masterTasks = await Task.find({
-        templateId: { $in: templateIds },
-        isRecurring: true,
-      }).select("templateId").lean();
-      const validIds = new Set(masterTasks.map(t => t.templateId.toString()));
-
-      for (let i = dueTemplates.length - 1; i >= 0; i--) {
-        if (!validIds.has(dueTemplates[i]._id.toString())) {
-          console.log(`[TaskGenerationEngine] Orphan template ${dueTemplates[i]._id} (master task missing). Deactivating.`);
-          await RecurringTemplate.updateOne({ _id: dueTemplates[i]._id }, { isActive: false });
-          dueTemplates.splice(i, 1);
-        }
-      }
-    }
 
     let generatedCount = 0;
     const errors = [];
@@ -631,7 +628,7 @@ export async function generateDueTasks() {
           {
             _id: template._id,
             nextGenerationDate: template.nextGenerationDate,
-            status: "Active",
+            status: { $in: ["Active", "Scheduled"] },
           },
           { $set: { nextGenerationDate: sentinelDate } },
           { new: true },
@@ -650,22 +647,30 @@ export async function generateDueTasks() {
         // Generate the task
         await generateTaskFromTemplate(template, occurrenceDate, occurrenceNumber);
 
-        // Update template with actual next generation date
-        const realNextDate = calculateNextGenerationDate(template, now);
-        template.lastGeneratedDate = now;
-        template.generatedCount = (template.generatedCount || 0) + 1;
-        template.nextGenerationDate = realNextDate;
+        // Update template after generation
+        if (template.taskType === "One Time") {
+          // One Time: mark as generated — never schedule another generation
+          // updateTemplateAfterGeneration sets status=Generated, isActive=false,
+          // nextGenerationDate=null, increments generatedCount, and saves
+          await updateTemplateAfterGeneration(template);
+        } else {
+          // Recurring: update template with actual next generation date
+          const realNextDate = calculateNextGenerationDate(template, now);
+          template.lastGeneratedDate = now;
+          template.generatedCount = (template.generatedCount || 0) + 1;
+          template.nextGenerationDate = realNextDate;
 
-        await RecurringTemplate.updateOne(
-          { _id: template._id },
-          {
-            $set: {
-              lastGeneratedDate: now,
-              nextGenerationDate: realNextDate,
-              generatedCount: (template.generatedCount || 0) + 1,
+          await RecurringTemplate.updateOne(
+            { _id: template._id },
+            {
+              $set: {
+                lastGeneratedDate: now,
+                nextGenerationDate: realNextDate,
+                generatedCount: (template.generatedCount || 0) + 1,
+              },
             },
-          },
-        );
+          );
+        }
 
         generatedCount++;
       } catch (error) {
@@ -677,7 +682,11 @@ export async function generateDueTasks() {
 
         // Restore nextGenerationDate if it was claimed but generation failed
         try {
-          const fallbackNext = calculateNextGenerationDate(template, now);
+          // For One Time, restore to null — never calculate a new generation date
+          // For recurring, restore to the calculated next date for retry
+          const fallbackNext = template.taskType === "One Time"
+            ? null
+            : calculateNextGenerationDate(template, now);
           await RecurringTemplate.updateOne(
             { _id: template._id },
             { $set: { nextGenerationDate: fallbackNext } },
@@ -702,6 +711,27 @@ export async function generateDueTasks() {
     console.error("[TaskGenerationEngine] Failed to generate due tasks:", error);
     throw error;
   }
+}
+
+/**
+ * Generate a task immediately from a template (on-demand / generate-now).
+ * Unlike generateDueTasks, this generates regardless of schedule and works for
+ * One Time templates.
+ * Returns the generated task, or null if the template should not generate.
+ */
+export async function generateNow(template) {
+  if (!template) return null;
+  if (template.status === "Paused" || template.status === "Deleted" || template.status === "Generated") return null;
+  if (!template.isActive) return null;
+
+  const now = new Date();
+  const occurrenceDate = calculateOccurrenceDate(template, now);
+  const occurrenceNumber = (template.generatedCount || 0) + 1;
+
+  const task = await generateTaskFromTemplate(template, occurrenceDate, occurrenceNumber);
+  await updateTemplateAfterGeneration(template);
+
+  return task;
 }
 
 /**

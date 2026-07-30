@@ -17,15 +17,6 @@ import {
   GitBranch,
 } from "lucide-react";
 
-const ALL_MENU_ITEMS = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { title: "Tasks", icon: CheckSquare, href: "/tasks" },
-  { title: "DWR", icon: FileText, href: "/dwr" },
-  { title: "Events", icon: Calendar, href: "/events" },
-  { title: "Attendance", icon: Activity, href: "/attendance" },
-  { title: "Performance", icon: BarChart3, href: "/performance" },
-];
-
 const SUPER_ADMIN_ONLY_ITEMS = [
   { title: "Users", icon: Users, href: "/users" },
 ];
@@ -44,8 +35,13 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
   const canSeeMasterTasks = user?.role === "Super Admin" || user?.canAssignTasks === true;
   const menuItems = [
-    ...ALL_MENU_ITEMS,
+    { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+    { title: "Tasks", icon: CheckSquare, href: "/tasks" },
     ...(canSeeMasterTasks ? [MASTER_TASKS_ITEM] : []),
+    { title: "DWR", icon: FileText, href: "/dwr" },
+    { title: "Events", icon: Calendar, href: "/events" },
+    { title: "Attendance", icon: Activity, href: "/attendance" },
+    { title: "Performance", icon: BarChart3, href: "/performance" },
     ...(user?.role === "Super Admin" ? SUPER_ADMIN_ONLY_ITEMS : []),
   ];
 

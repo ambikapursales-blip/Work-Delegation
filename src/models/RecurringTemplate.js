@@ -107,7 +107,7 @@ const recurringTemplateSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Active", "Paused", "Deleted"],
+      enum: ["Active", "Paused", "Deleted", "Scheduled", "Generated"],
       default: "Active",
     },
     isActive: {
@@ -137,7 +137,10 @@ const recurringTemplateSchema = new mongoose.Schema(
     },
     nextGenerationDate: {
       type: Date,
-      required: [true, "Next generation date is required"],
+      required: [
+        function () { return this.taskType !== "One Time"; },
+        "Next generation date is required for recurring templates",
+      ],
     },
     lastGeneratedDate: {
       type: Date,
@@ -148,6 +151,17 @@ const recurringTemplateSchema = new mongoose.Schema(
     },
     defaultDeadlineHours: {
       type: Number,
+    },
+    deadline: {
+      type: Date,
+      validate: {
+        validator: function (v) {
+          // Required only for One Time templates
+          if (this.taskType === "One Time") return v != null;
+          return true;
+        },
+        message: "Deadline is required for one-time master tasks",
+      },
     },
     repeatForever: {
       type: Boolean,
@@ -168,6 +182,23 @@ const recurringTemplateSchema = new mongoose.Schema(
     timezone: {
       type: String,
       default: "Asia/Kolkata",
+    },
+    attachmentUrl: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true; // Allow null/empty
+          // Validate HTTP/HTTPS URL
+          try {
+            const url = new URL(v.trim());
+            return url.protocol === 'http:' || url.protocol === 'https:';
+          } catch (e) {
+            return false;
+          }
+        },
+        message: "Attachment URL must be a valid HTTP or HTTPS URL",
+      },
     },
   },
   {
@@ -198,9 +229,9 @@ recurringTemplateSchema.pre("save", function (next) {
     return next(new Error("Recurrence pattern is required for recurring task types"));
   }
   // Sync isActive with status field
-  if (this.status === "Active") {
+  if (this.status === "Active" || this.status === "Scheduled") {
     this.isActive = true;
-  } else if (this.status === "Paused" || this.status === "Deleted") {
+  } else if (this.status === "Paused" || this.status === "Deleted" || this.status === "Generated") {
     this.isActive = false;
   }
   next();

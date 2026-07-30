@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
 import Conversation from "../models/Conversation.js";
-import { calculateFirstGenerationDate, calculateNextGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate } from "../utils/taskGenerationEngine.js";
+import { calculateFirstGenerationDate, calculateNextGenerationDate, generateTaskFromTemplate, updateTemplateAfterGeneration, calculateOccurrenceDate, generateNow } from "../utils/taskGenerationEngine.js";
 import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { buildAssigneeProgress } from "../utils/taskHelpers.js";
 import { createReminderStateEntry } from "../utils/reminderEngine.js";
@@ -26,17 +26,21 @@ export const getMasterTasks = async (req, res) => {
       page = 1,
       limit = 20,
       search,
-      startDate,
-      endDate,
-      sortBy = "createdAt",
-      sortOrder = -1,
+      createdFrom,
+      createdTo,
+      nextGenerationFrom,
+      nextGenerationTo,
+      generatedCount,
+      sortBy = "newest",
     } = req.query;
 
     let query = { status: { $ne: "Deleted" } };
 
     if (status) {
       if (status === "All") {
-        query.status = { $in: ["Active", "Paused"] };
+        query.status = { $in: ["Active", "Paused", "Scheduled", "Completed"] };
+      } else if (status === "Generated") {
+        query.status = "Completed";
       } else {
         query.status = status;
       }
@@ -52,17 +56,45 @@ export const getMasterTasks = async (req, res) => {
       ];
     }
 
-    if (startDate || endDate) {
+    if (createdFrom || createdTo) {
       query.createdAt = {};
-      if (startDate) query.createdAt.$gte = new Date(startDate);
-      if (endDate) query.createdAt.$lte = new Date(endDate);
+      if (createdFrom) query.createdAt.$gte = new Date(createdFrom);
+      if (createdTo) query.createdAt.$lte = new Date(createdTo);
+    }
+
+    if (nextGenerationFrom || nextGenerationTo) {
+      query.nextGenerationDate = {};
+      if (nextGenerationFrom) query.nextGenerationDate.$gte = new Date(nextGenerationFrom);
+      if (nextGenerationTo) query.nextGenerationDate.$lte = new Date(nextGenerationTo);
+    }
+    if (req.query.nextGeneration === "none") {
+      query.nextGenerationDate = null;
+    }
+
+    if (generatedCount) {
+      if (generatedCount === "never") {
+        query.generatedCount = 0;
+      } else if (generatedCount === "once") {
+        query.generatedCount = 1;
+      } else if (generatedCount === "multiple") {
+        query.generatedCount = { $gte: 2 };
+      }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const sortObj = {};
-    sortObj[sortBy] = parseInt(sortOrder);
+    const sortMap = {
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      name_asc: { title: 1 },
+      name_desc: { title: -1 },
+      nextGen_asc: { nextGenerationDate: 1 },
+      nextGen_desc: { nextGenerationDate: -1 },
+      most_gen: { generatedCount: -1 },
+      least_gen: { generatedCount: 1 },
+    };
+    const sortObj = sortMap[sortBy] || { createdAt: -1 };
 
-    const projection = "title description taskType status assignedTo assignedBy startDate lastGeneratedDate nextGenerationDate generatedCount createdAt";
+    const projection = "title description taskType priority department status assignedTo assignedBy startDate lastGeneratedDate nextGenerationDate generatedCount deadline createdAt attachmentUrl";
 
     const [total, templates] = await Promise.all([
       RecurringTemplate.countDocuments(query),
@@ -78,15 +110,44 @@ export const getMasterTasks = async (req, res) => {
         .limit(parseInt(limit)),
     ]);
 
+    // Aggregate per-template activity (planning-layer audit trail)
+    const templateIds = templates.map((t) => t._id);
+    let activityMap = {};
+    if (templateIds.length > 0) {
+      const lastActivities = await Activity.aggregate([
+        { $match: { entityId: { $in: templateIds }, entityType: "RecurringTemplate" } },
+        { $sort: { createdAt: -1 } },
+        { $group: { _id: "$entityId", lastActivity: { $first: "$createdAt" }, lastActivityDesc: { $first: "$description" } } },
+      ]);
+      lastActivities.forEach((a) => {
+        activityMap[a._id.toString()] = { lastActivity: a.lastActivity, lastActivityDesc: a.lastActivityDesc };
+      });
+    }
+
+    // Enrich templates with planning-layer metadata only
+    const enriched = templates.map((t) => {
+      const id = t._id.toString();
+      const a = activityMap[id] || {};
+      return {
+        ...t,
+        operationalStats: {
+          totalGenerated: t.generatedCount || 0,
+          lastActivity: a.lastActivity || null,
+          lastActivityDesc: a.lastActivityDesc || null,
+        },
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: templates.length,
+      count: enriched.length,
       total,
       page: parseInt(page),
       limit: parseInt(limit),
-      masterTasks: templates,
+      masterTasks: enriched,
     });
   } catch (error) {
+    console.error("[MasterTask] getMasterTasks error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -106,31 +167,11 @@ export const getMasterTask = async (req, res) => {
       return res.status(404).json({ success: false, message: "Master task not found" });
     }
 
-    // Fetch operational stats in a single aggregate (replaces 3 countDocuments)
-    const statsResult = await Task.aggregate([
-      { $match: { templateId: template._id, isGeneratedOccurrence: true } },
-      {
-        $group: {
-          _id: null,
-          completed: { $sum: { $cond: [{ $eq: ["$status", "Completed"] }, 1, 0] } },
-          pending: { $sum: { $cond: [{ $in: ["$status", ["In Progress", "On Hold"]] }, 1, 0] } },
-          overdue: { $sum: { $cond: [{ $eq: ["$status", "Overdue"] }, 1, 0] } },
-        },
-      },
-    ]);
-    const stats = statsResult[0] || {};
-    const completedCount = stats.completed || 0;
-    const pendingCount = stats.pending || 0;
-    const failedCount = stats.overdue || 0;
-
     res.status(200).json({
       success: true,
       masterTask: {
         ...template,
         operationalStats: {
-          completedCount,
-          pendingCount,
-          failedCount,
           totalGenerated: template.generatedCount || 0,
         },
       },
@@ -163,6 +204,7 @@ export const createMasterTask = async (req, res) => {
       defaultDeadlineHours,
       checklist,
       attachments,
+      attachmentUrl,
     } = req.body;
 
     if (!assignedTo || assignedTo.length === 0) {
@@ -172,10 +214,12 @@ export const createMasterTask = async (req, res) => {
       });
     }
 
-    if (!recurrencePattern) {
+    const isOneTime = taskType === "One Time";
+
+    if (!isOneTime && !recurrencePattern) {
       return res.status(400).json({
         success: false,
-        message: "Recurrence pattern is required for master tasks",
+        message: "Recurrence pattern is required for recurring master tasks",
       });
     }
 
@@ -196,14 +240,6 @@ export const createMasterTask = async (req, res) => {
     const effectiveStart = startDate ? new Date(startDate) : now;
     const isFutureStart = effectiveStart > now;
 
-    const nextGenDate = calculateFirstGenerationDate({
-      taskType,
-      recurrencePattern,
-      startDate: effectiveStart,
-      scheduledHour,
-      scheduledMinute,
-    });
-
     const templateData = {
       title,
       description,
@@ -214,25 +250,33 @@ export const createMasterTask = async (req, res) => {
       assignedBy: req.user._id,
       category,
       taskType,
-      recurrencePattern,
-      status: "Active",
+      recurrencePattern: isOneTime ? undefined : recurrencePattern,
+      status: isOneTime ? "Scheduled" : "Active",
       isActive: true,
       startDate: effectiveStart,
-      endDate: recurrenceEndDate ? new Date(recurrenceEndDate) : null,
-      repeatForever: repeatForever !== undefined ? repeatForever : !recurrenceEndDate,
-      scheduledHour,
-      scheduledMinute,
+      endDate: isOneTime ? null : (recurrenceEndDate ? new Date(recurrenceEndDate) : null),
+      repeatForever: isOneTime ? false : (repeatForever !== undefined ? repeatForever : !recurrenceEndDate),
+      scheduledHour: scheduledHour || 9,
+      scheduledMinute: scheduledMinute || 0,
       timezone,
-      nextGenerationDate: nextGenDate,
+      nextGenerationDate: calculateFirstGenerationDate({
+        taskType,
+        recurrencePattern,
+        startDate: effectiveStart,
+        scheduledHour,
+        scheduledMinute,
+      }),
+      deadline: isOneTime ? (deadline ? new Date(deadline) : undefined) : undefined,
       generatedCount: 0,
       defaultDeadlineHours: defaultDeadlineHours || null,
       lastGeneratedDate: null,
+      attachmentUrl: attachmentUrl ? attachmentUrl.trim() : null,
     };
 
     const template = await RecurringTemplate.create(templateData);
 
-    // Only generate first occurrence immediately if startDate is today or in the past.
-    // For future start dates, the cron handles generation when startDate arrives.
+    // Generate first occurrence immediately if startDate is today or in the past.
+    // One-time tasks also auto-generate so they appear in /tasks right away.
     let firstOccurrence = null;
     if (!isFutureStart) {
       try {
@@ -290,7 +334,11 @@ export const updateMasterTask = async (req, res) => {
       scheduledMinute,
       startDate,
       repeatForever,
+      deadline,
+      attachmentUrl,
     } = req.body;
+
+    const isOneTime = template.taskType === "One Time";
 
     // Only update metadata — NEVER touch historical occurrences
     if (title) template.title = title;
@@ -306,20 +354,24 @@ export const updateMasterTask = async (req, res) => {
     if (scheduledMinute !== undefined) template.scheduledMinute = scheduledMinute;
     if (startDate !== undefined) template.startDate = new Date(startDate);
     if (repeatForever !== undefined) template.repeatForever = repeatForever;
+    if (deadline !== undefined) template.deadline = deadline ? new Date(deadline) : null;
+    if (attachmentUrl !== undefined) template.attachmentUrl = attachmentUrl ? attachmentUrl.trim() : null;
 
     if (recurrencePattern) {
       template.recurrencePattern = recurrencePattern;
     }
 
     // Only recalculate future schedule — never regenerate past occurrences
-    const schedulingChanged = recurrencePattern || scheduledHour !== undefined || scheduledMinute !== undefined || startDate !== undefined;
-    if (schedulingChanged) {
-      if (template.lastGeneratedDate) {
-        // Recalculate from the last generated date so already-generated dates are untouched
-        template.nextGenerationDate = calculateNextGenerationDate(template, template.lastGeneratedDate);
-      } else {
-        // No occurrences yet — use first-generation logic (handles future start dates)
-        template.nextGenerationDate = calculateFirstGenerationDate(template);
+    if (!isOneTime) {
+      const schedulingChanged = recurrencePattern || scheduledHour !== undefined || scheduledMinute !== undefined || startDate !== undefined;
+      if (schedulingChanged) {
+        if (template.lastGeneratedDate) {
+          // Recalculate from the last generated date so already-generated dates are untouched
+          template.nextGenerationDate = calculateNextGenerationDate(template, template.lastGeneratedDate);
+        } else {
+          // No occurrences yet — use first-generation logic (handles future start dates)
+          template.nextGenerationDate = calculateFirstGenerationDate(template);
+        }
       }
     }
 
@@ -490,18 +542,47 @@ export const resumeMasterTask = async (req, res) => {
       return res.status(404).json({ success: false, message: "Master task not found" });
     }
 
-    template.status = "Active";
+    const isOneTime = template.taskType === "One Time";
+    template.status = isOneTime ? "Scheduled" : "Active";
     template.isActive = true;
     template.pausedAt = null;
     template.pausedBy = null;
 
-    // Resume from the LAST GENERATED date — NOT from current time.
-    // This avoids backfilling missed occurrences during the pause period.
-    // The next generation will be the NEXT scheduled slot after lastGeneratedDate.
-    const resumeAnchor = template.lastGeneratedDate || template.startDate || new Date();
-    template.nextGenerationDate = calculateNextGenerationDate(template, resumeAnchor);
+    let autoGenerated = false;
 
-    await template.save();
+    if (isOneTime) {
+      const now = new Date();
+      const effectiveStart = template.startDate ? new Date(template.startDate) : now;
+
+      if (template.generatedCount === 0 && effectiveStart <= now) {
+        // Never generated and scheduled date has arrived → auto-generate now
+        template.nextGenerationDate = null;
+        try {
+          const occurrenceDate = calculateOccurrenceDate(template, now);
+          await generateTaskFromTemplate(template, occurrenceDate, 1);
+          await updateTemplateAfterGeneration(template);
+          autoGenerated = true;
+        } catch (genError) {
+          console.error("[MasterTask] Failed to auto-generate on resume:", genError);
+        }
+      } else if (effectiveStart > now) {
+        // Future start → restore nextGenerationDate for cron
+        template.nextGenerationDate = calculateFirstGenerationDate(template);
+      } else {
+        // Already generated or edge case — keep null
+        // The template was already generated once; never generate again
+        template.nextGenerationDate = null;
+      }
+    } else {
+      // Resume from the LAST GENERATED date — NOT from current time.
+      // This avoids backfilling missed occurrences during the pause period.
+      const resumeAnchor = template.lastGeneratedDate || template.startDate || new Date();
+      template.nextGenerationDate = calculateNextGenerationDate(template, resumeAnchor);
+    }
+
+    if (!autoGenerated) {
+      await template.save();
+    }
 
     await Activity.create({
       user: req.user._id,
@@ -525,6 +606,7 @@ export const cloneMasterTask = async (req, res) => {
     }
 
     const now = new Date();
+    const isOneTime = source.taskType === "One Time";
 
     // Clone only configuration fields — RESET all runtime/state fields
     const cloneData = {
@@ -538,11 +620,11 @@ export const cloneMasterTask = async (req, res) => {
       category: source.category,
       taskType: source.taskType,
       recurrencePattern: JSON.parse(JSON.stringify(source.recurrencePattern)),
-      status: "Active",
+      status: isOneTime ? "Scheduled" : "Active",
       isActive: true,
       startDate: now,
-      endDate: source.endDate ? new Date(source.endDate) : null,
-      repeatForever: source.repeatForever,
+      endDate: isOneTime ? null : (source.endDate ? new Date(source.endDate) : null),
+      repeatForever: isOneTime ? false : source.repeatForever,
       scheduledHour: source.scheduledHour,
       scheduledMinute: source.scheduledMinute,
       timezone: source.timezone || "Asia/Kolkata",
@@ -551,7 +633,7 @@ export const cloneMasterTask = async (req, res) => {
       // Hard-reset all runtime fields — MUST NOT copy any state
       generatedCount: 0,
       lastGeneratedDate: null,
-      nextGenerationDate: calculateFirstGenerationDate({
+      nextGenerationDate: isOneTime ? null : calculateFirstGenerationDate({
         taskType: source.taskType,
         recurrencePattern: source.recurrencePattern,
         startDate: now,
@@ -566,7 +648,7 @@ export const cloneMasterTask = async (req, res) => {
 
     const cloned = await RecurringTemplate.create(cloneData);
 
-    // Generate first occurrence for the clone — only once
+    // Generate first occurrence for the clone
     let firstOccurrence = null;
     try {
       const occurrenceDate = calculateOccurrenceDate(cloned, now);
@@ -640,7 +722,6 @@ export const getMasterTaskHistory = async (req, res) => {
 
 export const getMasterTaskStats = async (req, res) => {
   try {
-    // Single aggregate replaces 3 countDocuments + 1 aggregate
     const stats = await RecurringTemplate.aggregate([
       { $match: { status: { $ne: "Deleted" } } },
       {
@@ -648,30 +729,81 @@ export const getMasterTaskStats = async (req, res) => {
           _id: "$taskType",
           count: { $sum: 1 },
           active: { $sum: { $cond: [{ $eq: ["$status", "Active"] }, 1, 0] } },
+          scheduled: { $sum: { $cond: [{ $eq: ["$status", "Scheduled"] }, 1, 0] } },
           paused: { $sum: { $cond: [{ $eq: ["$status", "Paused"] }, 1, 0] } },
+          generated: { $sum: { $cond: [{ $eq: ["$status", "Generated"] }, 1, 0] } },
         },
       },
     ]);
 
-    // Compute totals from the aggregate results (avoids 3 separate countDocuments)
-    let totalAll = 0, totalActive = 0, totalPaused = 0;
+    let totalAll = 0, totalActive = 0, totalScheduled = 0, totalPaused = 0, totalGenerated = 0;
     for (const s of stats) {
       totalAll += s.count;
       totalActive += s.active;
+      totalScheduled += s.scheduled;
       totalPaused += s.paused;
+      totalGenerated += s.generated;
     }
+
+    const result = {
+      total: totalAll,
+      active: totalActive,
+      scheduled: totalScheduled,
+      paused: totalPaused,
+      generated: totalGenerated,
+      byType: stats,
+    };
 
     res.status(200).json({
       success: true,
-      stats: {
-        total: totalAll,
-        active: totalActive,
-        paused: totalPaused,
-        byType: stats,
-      },
+      stats: result,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const generateMasterTaskNow = async (req, res) => {
+  try {
+    const template = await RecurringTemplate.findById(req.params.id);
+    if (!template) {
+      return res.status(404).json({ success: false, message: "Master task not found" });
+    }
+
+    if (template.status === "Generated") {
+      return res.status(400).json({ success: false, message: "One-time master task has already been generated" });
+    }
+
+    if (template.status === "Paused" || template.status === "Deleted") {
+      return res.status(400).json({ success: false, message: "Master task is paused or deleted" });
+    }
+
+    const task = await generateNow(template);
+    if (!task) {
+      return res.status(400).json({ success: false, message: "Could not generate task from this template" });
+    }
+
+    await Activity.create({
+      user: req.user._id,
+      type: "task_created",
+      description: `${req.user.name} generated task "${task.title}" from master task "${template.title}"`,
+      entityId: template._id,
+      entityType: "RecurringTemplate",
+    });
+
+    // Populate template for response
+    await template.populate([
+      { path: "assignedTo", select: "name email role avatar employeeId" },
+      { path: "assignedBy", select: "name email role" },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      masterTask: template.toObject(),
+      generatedTask: task,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { DashboardSkeleton } from "@/components/skeleton";
-import { dashboardAPI, reportsAPI, taskAPI, usersAPI } from "@/lib/api";
+import { dashboardAPI, reportsAPI, taskAPI, usersAPI, masterTaskAPI } from "@/lib/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Toast from "@/components/Toast";
@@ -182,6 +182,7 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [recentActivities, setRecentActivities] = useState([]);
   const [dashboardTasks, setDashboardTasks] = useState([]);
+  const [masterTaskStats, setMasterTaskStats] = useState(null);
   const [viewMode, setViewMode] = useState("table");
 
   const [selectedUser, setSelectedUser] = useState("all");
@@ -203,6 +204,7 @@ export default function DashboardPage() {
 
   const canViewAll = useMemo(() => user?.role === "Super Admin" || user?.canViewAllTasks, [user?.role, user?.canViewAllTasks]);
   const hasFullAccess = useMemo(() => user?.role === "Super Admin" || user?.canViewAllTasks, [user?.role, user?.canViewAllTasks]);
+  const canSeeMasterTasks = useMemo(() => user?.role === "Super Admin" || user?.canAssignTasks, [user?.role, user?.canAssignTasks]);
   const completionRate = useMemo(
     () =>
       analytics?.tasks?.total > 0
@@ -242,7 +244,7 @@ export default function DashboardPage() {
           customEndDate.setHours(23, 59, 59, 999);
         }
 
-        const [analyticsRes, tasksRes, activitiesRes, usersRes] = await Promise.all([
+        const [analyticsRes, tasksRes, activitiesRes, usersRes, masterStatsRes] = await Promise.all([
           reportsAPI.getDashboardAnalytics({
             period,
             userId: selectedUser === "all" ? undefined : selectedUser,
@@ -259,6 +261,7 @@ export default function DashboardPage() {
           }),
           dashboardAPI.getRecentActivities().catch(() => ({ data: { activities: [] } })),
           canViewAll ? usersAPI.getAll().catch(() => ({ data: { users: [] } })) : Promise.resolve({ data: { users: [] } }),
+          masterTaskAPI.getStats(true).catch(() => ({ data: { stats: null } })),
         ]);
 
         if (signal.aborted) return;
@@ -267,6 +270,7 @@ export default function DashboardPage() {
         setDashboardTasks(tasksRes.data?.tasks || []);
         setRecentActivities(activitiesRes.data?.activities || []);
         setUsersList(usersRes.data?.users || []);
+        setMasterTaskStats(masterStatsRes.data?.stats || null);
       } catch (err) {
         if (signal.aborted) return;
         setError("Failed to load dashboard data");
@@ -751,6 +755,42 @@ export default function DashboardPage() {
             />
           </div>
         </div>
+
+        {/* ── Master Task Health (Super Admin / Assign Tasks) ── */}
+        {canSeeMasterTasks && masterTaskStats && (
+          <div className="mb-4 sm:mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[#2563EB]"></span>
+                Master Task Health
+              </h3>
+              <button
+                onClick={() => router.push("/master-tasks")}
+                className="text-xs font-medium text-[#2563EB] hover:underline transition-colors"
+              >
+                View All Series &rarr;
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-bold text-[var(--text-primary)]">{masterTaskStats.total || 0}</span>
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-semibold mt-1">Total Series</span>
+              </div>
+              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-bold text-emerald-600">{masterTaskStats.active || 0}</span>
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-semibold mt-1">Active</span>
+              </div>
+              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-bold text-blue-600">{masterTaskStats.scheduled || 0}</span>
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-semibold mt-1">Scheduled</span>
+              </div>
+              <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-bold text-amber-600">{masterTaskStats.paused || 0}</span>
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-semibold mt-1">Paused</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Main Grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_320px] gap-4 sm:gap-6 items-start">

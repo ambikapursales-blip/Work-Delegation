@@ -55,6 +55,23 @@ const taskSchema = new mongoose.Schema(
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
+    attachmentUrl: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true; // Allow null/empty
+          // Validate HTTP/HTTPS URL
+          try {
+            const url = new URL(v.trim());
+            return url.protocol === 'http:' || url.protocol === 'https:';
+          } catch (e) {
+            return false;
+          }
+        },
+        message: "Attachment URL must be a valid HTTP or HTTPS URL",
+      },
+    },
     completedAt: {
       type: Date,
     },

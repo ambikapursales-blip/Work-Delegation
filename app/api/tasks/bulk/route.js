@@ -1,27 +1,11 @@
 import { NextResponse } from "next/server";
-import {
-  createReq,
-  createRes,
-  finishRes,
-  parseBody,
-  ensureDbConnection,
-  requireAuth,
-} from "@/src/lib/route-adapter";
-import { bulkCreateTasks } from "@/src/controllers/taskController";
 
-export async function POST(request) {
-  await parseBody(request);
-  await ensureDbConnection();
-  const user = await requireAuth(request); if (user instanceof NextResponse) return user;
-  if (user.role !== "Super Admin" && !user.canAssignTasks) {
-    return NextResponse.json(
-      { success: false, message: "Not authorized" },
-      { status: 403 },
-    );
-  }
-  const req = createReq(request);
-  req.user = user;
-  const res = createRes();
-  await bulkCreateTasks(req, res);
-  return finishRes(res);
+export async function POST() {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "Direct task creation has been deprecated. Create tasks from Master Tasks.",
+    },
+    { status: 410 },
+  );
 }
