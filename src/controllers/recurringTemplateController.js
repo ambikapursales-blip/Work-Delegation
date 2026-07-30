@@ -222,7 +222,6 @@ export const updateTemplate = async (req, res) => {
       tags,
       category,
       recurrencePattern,
-      isActive,
       endDate,
       defaultDeadlineHours,
       scheduledHour,
@@ -237,7 +236,6 @@ export const updateTemplate = async (req, res) => {
     if (department) template.department = department;
     if (tags) template.tags = tags;
     if (category) template.category = category;
-    if (isActive !== undefined) template.isActive = isActive;
     if (endDate !== undefined) {
       template.endDate = endDate ? new Date(endDate) : null;
     }
@@ -399,6 +397,7 @@ export const pauseTemplate = async (req, res) => {
         .json({ success: false, message: "Not authorized to pause this template" });
     }
 
+    template.status = "Paused";
     template.isActive = false;
     await template.save();
 
@@ -436,9 +435,9 @@ export const resumeTemplate = async (req, res) => {
         .json({ success: false, message: "Not authorized to resume this template" });
     }
 
+    // Restore status — isActive will be synced by pre-save hook
+    template.status = template.taskType === "One Time" ? "Scheduled" : "Active";
     template.isActive = true;
-    // Recalculate next generation date from where we left off,
-    // so missed generations are caught up naturally by the cron cycle
     template.nextGenerationDate = calculateNextGenerationDate(
       template,
       template.lastGeneratedDate || template.startDate || new Date(),

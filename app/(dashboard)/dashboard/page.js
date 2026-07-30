@@ -552,7 +552,7 @@ export default function DashboardPage() {
           )}
 
           {canViewAll && (
-            <Link href="/tasks">
+            <Link href="/master-tasks/new">
               <button
                 className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all duration-200 whitespace-nowrap"
                 style={{
@@ -1158,63 +1158,6 @@ export default function DashboardPage() {
                 </Card>
               </div>
             )}
-
-            {/* HR Tools */}
-            {hasFullAccess && (
-              <Card>
-                <CardHeader
-                  title="HR Dashboard"
-                  subtitle="Quick access to HR tools"
-                />
-                <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    {
-                      label: "Attendance Records",
-                      href: "/attendance",
-                      icon: "\uD83D\uDCCB",
-                    },
-                    {
-                      label: "Performance Data",
-                      href: "/performance",
-                      icon: "\uD83D\uDCCA",
-                    },
-                  ].map(({ label, href, icon }) => (
-                    <Link key={href} href={href} className="no-underline">
-                      <div
-                        className="px-4 py-4 rounded-xl flex items-center justify-between transition-all group"
-                        style={{
-                          backgroundColor: "var(--bg-muted)",
-                          border: "1px solid var(--border)",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = "color-mix(in srgb, var(--color-success) 30%, transparent)";
-                          e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = "var(--border)";
-                          e.currentTarget.style.backgroundColor = "var(--bg-muted)";
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">{icon}</span>
-                          <span className="text-sm font-medium"
-                            style={{ color: "var(--text-primary)" }}>
-                            {label}
-                          </span>
-                        </div>
-                        <ArrowUpRight
-                          size={16}
-                          style={{ color: "var(--text-muted)" }}
-                          className="transition-colors"
-                          onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
-                          onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
-                        />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </Card>
-            )}
           </div>
 
           {/* ── Sidebar ── */}
@@ -1341,120 +1284,6 @@ Today&apos;s Snapshot
                     View Full Profile
                   </button>
                 </Link>
-              </div>
-            </Card>
-
-            {/* Quick Actions */}
-            {canViewAll && (
-              <Card>
-                <div className="px-4 sm:px-5 py-3 sm:py-4">
-                  <p className="text-[10px] font-semibold tracking-widest uppercase mb-3"
-                    style={{ color: "var(--text-muted)" }}>
-                    Shortcuts
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {[
-                      {
-                        label: "Manage Tasks",
-                        href: "/tasks",
-                        icon: <CheckSquare size={15} />,
-                        accent: "var(--color-success)",
-                      },
-                      ...(user?.role === "Super Admin"
-                        ? [
-                            {
-                              label: "Manage Users",
-                              href: "/users",
-                              icon: <Users size={15} />,
-                              accent: "var(--color-info)",
-                            },
-                          ]
-                        : []),
-                    ].map(({ label, href, icon, accent }) => (
-                      <Link key={href} href={href} className="no-underline">
-                        <div
-                          className="px-4 py-3 rounded-xl flex items-center gap-3 transition-all group cursor-pointer"
-                          style={{
-                            backgroundColor: "var(--bg-muted)",
-                            border: "1px solid var(--border)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = "color-mix(in srgb, var(--color-success) 25%, transparent)";
-                            e.currentTarget.style.backgroundColor = "var(--bg-card-hover)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = "var(--border)";
-                            e.currentTarget.style.backgroundColor = "var(--bg-muted)";
-                          }}
-                        >
-                          <span
-                            className="p-1.5 rounded-lg"
-                            style={{
-                              backgroundColor: `color-mix(in srgb, ${accent} 10%, transparent)`,
-                              color: accent,
-                            }}
-                          >
-                            {icon}
-                          </span>
-                          <span className="text-sm font-medium flex-1"
-                            style={{ color: "var(--text-primary)" }}>
-                            {label}
-                          </span>
-                          <ArrowUpRight
-                            size={14}
-                            style={{ color: "var(--text-muted)" }}
-                            className="transition-colors"
-                            onMouseEnter={(e) => e.currentTarget.style.color = "var(--color-success)"}
-                            onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
-                          />
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* Recent Activity */}
-            <Card>
-              <div className="px-4 sm:px-5 py-3 sm:py-4">
-                <p className="text-[10px] font-semibold tracking-widest uppercase mb-1"
-                  style={{ color: "var(--text-muted)" }}>
-                  Updates
-                </p>
-                <h3 className="text-sm font-semibold mb-3"
-                  style={{ color: "var(--text-primary)" }}>
-                  Recent Activity
-                </h3>
-                <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
-                  {recentActivities.slice(0, 5).map((activity, i) => (
-                    <div
-                      key={activity._id || i}
-                      className="px-3 py-2.5 rounded-xl"
-                      style={{
-                        backgroundColor: "var(--bg-muted)",
-                        border: "1px solid var(--border)",
-                        borderLeft: "3px solid var(--color-success)",
-                      }}
-                    >
-                      <p className="text-xs font-medium mb-0.5 leading-snug"
-                        style={{ color: "var(--text-primary)" }}>
-                        {activity.description}
-                      </p>
-                      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                        {activity.createdAt
-                          ? new Date(activity.createdAt).toLocaleString()
-                          : "Just now"}
-                      </p>
-                    </div>
-                  ))}
-                  {recentActivities.length === 0 && (
-                    <p className="text-xs text-center py-6"
-                      style={{ color: "var(--text-muted)" }}>
-                      No recent activity
-                    </p>
-                  )}
-                </div>
               </div>
             </Card>
           </div>

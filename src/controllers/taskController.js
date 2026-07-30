@@ -913,9 +913,7 @@ export const deleteTask = async (req, res) => {
     if (task.templateId) {
       const template = await RecurringTemplate.findById(task.templateId);
       if (template) {
-        // Soft delete the template to stop generation
         template.status = "Deleted";
-        template.isActive = false;
         template.deletedAt = new Date();
         template.deletedBy = req.user._id;
         await template.save();

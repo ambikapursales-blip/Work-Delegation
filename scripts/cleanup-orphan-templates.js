@@ -1,15 +1,21 @@
 /**
- * One-time migration script: find and deactivate RecurringTemplates
- * whose master recurring task no longer exists.
+ * Find and deactivate RecurringTemplates whose generated tasks no longer exist.
+ *
+ * Uses Mongoose models (not raw driver) so pre-save hooks fire.
+ * Detects orphans by checking if ANY generated occurrence exists for the template.
  *
  * Usage: node scripts/cleanup-orphan-templates.js
  */
 
-const mongoose = require("mongoose");
-const path = require("path");
-const fs = require("fs");
+import mongoose from "mongoose";
+import { config } from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 
-// Read MONGODB_URI from .env
+config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(__dirname, "..", ".env");
 let URI = process.env.MONGODB_URI;
 
@@ -26,43 +32,49 @@ if (!URI) {
 
 async function main() {
   await mongoose.connect(URI);
-  const db = mongoose.connection.db;
+
+  const RecurringTemplate = (await import("../src/models/RecurringTemplate.js")).default;
+  const Task = (await import("../src/models/Task.js")).default;
 
   console.log("Connected to MongoDB\n");
 
-  const allTemplates = await db.collection("recurringtemplates").find({}).toArray();
+  const allTemplates = await RecurringTemplate.find({}).lean();
   console.log(`Templates scanned: ${allTemplates.length}`);
 
   let orphansFound = 0;
-  let orphansDeleted = 0;
+  let orphansDeactivated = 0;
   let validTemplates = 0;
 
   for (const template of allTemplates) {
-    const masterTask = await db.collection("tasks").findOne({
+    // A template has no generated task if no Task exists with its templateId
+    const hasGeneratedTasks = await Task.exists({
       templateId: template._id,
-      isRecurring: true,
+      isGeneratedOccurrence: true,
     });
 
-    if (!masterTask) {
+    if (!hasGeneratedTasks && template.status !== "Deleted") {
       orphansFound++;
       console.log(`  Orphan: ${template._id} — "${template.title}" (taskType: ${template.taskType})`);
 
-      await db.collection("recurringtemplates").updateOne(
-        { _id: template._id },
-        { $set: { isActive: false } },
-      );
-      console.log(`    → Deactivated`);
-      orphansDeleted++;
+      // Use Mongoose model so pre-save hook fires and keeps isActive in sync
+      const doc = await RecurringTemplate.findById(template._id);
+      if (doc) {
+        doc.status = "Deleted";
+        doc.deletedAt = new Date();
+        await doc.save();
+        console.log(`    → Deactivated`);
+        orphansDeactivated++;
+      }
     } else {
       validTemplates++;
     }
   }
 
   console.log(`\nSummary:`);
-  console.log(`  Templates scanned:  ${allTemplates.length}`);
-  console.log(`  Orphans found:      ${orphansFound}`);
-  console.log(`  Orphans deactivated: ${orphansDeleted}`);
-  console.log(`  Valid templates:    ${validTemplates}`);
+  console.log(`  Templates scanned:       ${allTemplates.length}`);
+  console.log(`  Orphans found:           ${orphansFound}`);
+  console.log(`  Orphans deactivated:     ${orphansDeactivated}`);
+  console.log(`  Valid/active templates:  ${validTemplates}`);
 
   await mongoose.disconnect();
   console.log("\nDone.");

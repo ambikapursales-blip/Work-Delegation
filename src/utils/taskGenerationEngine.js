@@ -570,8 +570,8 @@ export async function updateTemplateAfterGeneration(template) {
 
     if (template.taskType === "One Time") {
       // One-time templates self-deactivate after generating their single task
+      // isActive is synced by pre-save hook when status="Generated"
       template.status = "Generated";
-      template.isActive = false;
       template.nextGenerationDate = null;
     } else {
       const nextDate = calculateNextGenerationDate(template, now);
@@ -606,6 +606,7 @@ export async function generateDueTasks() {
       $or: [
         { repeatForever: true },
         { endDate: { $exists: false } },
+        { endDate: null },
         { endDate: { $gte: now } },
       ],
     }).populate("assignedTo assignedBy");
@@ -655,21 +656,12 @@ export async function generateDueTasks() {
           await updateTemplateAfterGeneration(template);
         } else {
           // Recurring: update template with actual next generation date
+          // Use save() — NOT updateOne() — so the pre-save hook keeps isActive in sync
           const realNextDate = calculateNextGenerationDate(template, now);
           template.lastGeneratedDate = now;
           template.generatedCount = (template.generatedCount || 0) + 1;
           template.nextGenerationDate = realNextDate;
-
-          await RecurringTemplate.updateOne(
-            { _id: template._id },
-            {
-              $set: {
-                lastGeneratedDate: now,
-                nextGenerationDate: realNextDate,
-                generatedCount: (template.generatedCount || 0) + 1,
-              },
-            },
-          );
+          await template.save();
         }
 
         generatedCount++;
@@ -681,16 +673,13 @@ export async function generateDueTasks() {
         });
 
         // Restore nextGenerationDate if it was claimed but generation failed
+        // Uses save() — NOT updateOne() — so the pre-save hook keeps isActive in sync
         try {
-          // For One Time, restore to null — never calculate a new generation date
-          // For recurring, restore to the calculated next date for retry
           const fallbackNext = template.taskType === "One Time"
             ? null
             : calculateNextGenerationDate(template, now);
-          await RecurringTemplate.updateOne(
-            { _id: template._id },
-            { $set: { nextGenerationDate: fallbackNext } },
-          );
+          template.nextGenerationDate = fallbackNext;
+          await template.save();
         } catch (restoreError) {
           console.error(`[TaskGenerationEngine] Failed to restore nextGenerationDate for template ${template._id}:`, restoreError);
         }

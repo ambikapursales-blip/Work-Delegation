@@ -252,7 +252,6 @@ export const createMasterTask = async (req, res) => {
       taskType,
       recurrencePattern: isOneTime ? undefined : recurrencePattern,
       status: isOneTime ? "Scheduled" : "Active",
-      isActive: true,
       startDate: effectiveStart,
       endDate: isOneTime ? null : (recurrenceEndDate ? new Date(recurrenceEndDate) : null),
       repeatForever: isOneTime ? false : (repeatForever !== undefined ? repeatForever : !recurrenceEndDate),
@@ -403,9 +402,8 @@ export const deleteMasterTask = async (req, res) => {
       return res.status(404).json({ success: false, message: "Master task not found" });
     }
 
-    // Soft delete: mark status as Deleted
+    // Soft delete: mark status as Deleted (isActive synced by pre-save hook)
     template.status = "Deleted";
-    template.isActive = false;
     template.deletedAt = new Date();
     template.deletedBy = req.user._id;
     await template.save();
@@ -475,8 +473,6 @@ export const hardDeleteMasterTask = async (req, res) => {
       return res.status(404).json({ success: false, message: "Master task not found" });
     }
 
-    // Deactivate template
-    template.isActive = false;
     template.status = "Deleted";
     template.deletedAt = new Date();
     template.deletedBy = req.user._id;
@@ -516,7 +512,6 @@ export const pauseMasterTask = async (req, res) => {
     }
 
     template.status = "Paused";
-    template.isActive = false;
     template.pausedAt = new Date();
     template.pausedBy = req.user._id;
     await template.save();
@@ -544,7 +539,6 @@ export const resumeMasterTask = async (req, res) => {
 
     const isOneTime = template.taskType === "One Time";
     template.status = isOneTime ? "Scheduled" : "Active";
-    template.isActive = true;
     template.pausedAt = null;
     template.pausedBy = null;
 
@@ -621,7 +615,6 @@ export const cloneMasterTask = async (req, res) => {
       taskType: source.taskType,
       recurrencePattern: JSON.parse(JSON.stringify(source.recurrencePattern)),
       status: isOneTime ? "Scheduled" : "Active",
-      isActive: true,
       startDate: now,
       endDate: isOneTime ? null : (source.endDate ? new Date(source.endDate) : null),
       repeatForever: isOneTime ? false : source.repeatForever,

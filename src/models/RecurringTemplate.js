@@ -223,18 +223,26 @@ recurringTemplateSchema.virtual("shouldGenerate").get(function () {
   return new Date() >= this.nextGenerationDate;
 });
 
-// Pre-save hook to validate recurrence pattern for recurring types
+// Pre-save hook: isActive is ALWAYS derived from status — controllers MUST NOT write isActive directly
 recurringTemplateSchema.pre("save", function (next) {
   if (this.taskType !== "One Time" && !this.recurrencePattern) {
     return next(new Error("Recurrence pattern is required for recurring task types"));
   }
-  // Sync isActive with status field
   if (this.status === "Active" || this.status === "Scheduled") {
     this.isActive = true;
   } else if (this.status === "Paused" || this.status === "Deleted" || this.status === "Generated") {
     this.isActive = false;
   }
   next();
+});
+
+// Post-init hook: auto-fix inconsistent documents loaded from DB (defense in depth)
+recurringTemplateSchema.post("init", function () {
+  if (this.status === "Active" || this.status === "Scheduled") {
+    if (!this.isActive) this.isActive = true;
+  } else if (this.status === "Paused" || this.status === "Deleted" || this.status === "Generated") {
+    if (this.isActive) this.isActive = false;
+  }
 });
 
 export default mongoose.models?.RecurringTemplate || mongoose.model("RecurringTemplate", recurringTemplateSchema);
