@@ -77,6 +77,7 @@ const statusColors = {
 export default function MasterTasksPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const isPrivileged = user?.role === "Super Admin" || user?.canAssignTasks;
 
   const [masterTasks, setMasterTasks] = useState([]);
   const [total, setTotal] = useState(0);
@@ -407,16 +408,6 @@ export default function MasterTasksPage() {
     });
   };
 
-  if (user?.role !== "Super Admin" && !user?.canAssignTasks) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
-        <GitBranch className="h-16 w-16 mb-4 opacity-30" />
-        <h2 className="text-xl font-semibold mb-2 text-[var(--text-primary)]">Access Denied</h2>
-        <p>You do not have permission to view Master Tasks.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -427,17 +418,19 @@ export default function MasterTasksPage() {
             Recurring schedule definitions — {total} total{activeChips.length > 0 ? " (filtered)" : ""}
           </p>
         </div>
-        <button
-          onClick={() => router.push("/master-tasks/new")}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-300"
-          style={{
-            background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)",
-            boxShadow: "0 4px 16px rgba(37, 99, 235, 0.35)",
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          New Master Task
-        </button>
+        {isPrivileged && (
+          <button
+            onClick={() => router.push("/master-tasks/new")}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-300"
+            style={{
+              background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)",
+              boxShadow: "0 4px 16px rgba(37, 99, 235, 0.35)",
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New Master Task
+          </button>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -503,20 +496,22 @@ export default function MasterTasksPage() {
               </select>
             </div>
 
-            {/* Assigned User */}
-            <div>
-              <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Assigned User</label>
-              <select
-                value={draftFilters.assignedTo}
-                onChange={(e) => setDraftFilters((p) => ({ ...p, assignedTo: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
-              >
-                <option value="">All Users</option>
-                {users.map((u) => (
-                  <option key={u._id} value={u._id}>{u.name}</option>
-                ))}
-              </select>
-            </div>
+            {/* Assigned User — management-only filter (exposes other users) */}
+            {isPrivileged && (
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Assigned User</label>
+                <select
+                  value={draftFilters.assignedTo}
+                  onChange={(e) => setDraftFilters((p) => ({ ...p, assignedTo: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+                >
+                  <option value="">All Users</option>
+                  {users.map((u) => (
+                    <option key={u._id} value={u._id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Sort */}
             <div>
@@ -669,7 +664,7 @@ export default function MasterTasksPage() {
               ? "Try adjusting your filters"
               : "Create your first recurring schedule"}
           </p>
-          {!search && activeChips.length === 0 && (
+          {isPrivileged && !search && activeChips.length === 0 && (
             <button
               onClick={() => router.push("/master-tasks/new")}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
@@ -777,7 +772,7 @@ export default function MasterTasksPage() {
                   </td>
                   <td className="px-4 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                      {mt.status === "Active" ? (
+                      {isPrivileged && (mt.status === "Active" ? (
                         <button
                           onClick={() => handlePause(mt._id)}
                           className="p-2 rounded-lg hover:bg-amber-500/10 text-amber-600 transition-colors"
@@ -793,14 +788,16 @@ export default function MasterTasksPage() {
                         >
                           <Play className="h-4 w-4" />
                         </button>
-                      ) : null}
-                      <button
-                        onClick={() => handleClone(mt._id)}
-                        className="p-2 rounded-lg hover:bg-[#2563EB]/10 text-[#2563EB] transition-colors"
-                        title="Clone"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
+                      ) : null)}
+                      {isPrivileged && (
+                        <button
+                          onClick={() => handleClone(mt._id)}
+                          className="p-2 rounded-lg hover:bg-[#2563EB]/10 text-[#2563EB] transition-colors"
+                          title="Clone"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => router.push(`/master-tasks/${mt._id}`)}
                         className="p-2 rounded-lg hover:bg-[var(--bg-muted)] text-[var(--text-secondary)] transition-colors"
@@ -808,13 +805,15 @@ export default function MasterTasksPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(mt._id, mt.title)}
-                        className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors"
-                        title="Delete Series"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {isPrivileged && (
+                        <button
+                          onClick={() => handleDelete(mt._id, mt.title)}
+                          className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors"
+                          title="Delete Series"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

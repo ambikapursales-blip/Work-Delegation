@@ -33,11 +33,10 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     router.push("/auth/login");
   };
 
-  const canSeeMasterTasks = user?.role === "Super Admin" || user?.canAssignTasks === true;
   const menuItems = [
     { title: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
     { title: "Tasks", icon: CheckSquare, href: "/tasks" },
-    ...(canSeeMasterTasks ? [MASTER_TASKS_ITEM] : []),
+    MASTER_TASKS_ITEM,
     { title: "DWR", icon: FileText, href: "/dwr" },
     { title: "Events", icon: Calendar, href: "/events" },
     { title: "Attendance", icon: Activity, href: "/attendance" },

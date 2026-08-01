@@ -22,6 +22,12 @@ export const getTemplates = async (req, res) => {
     if (taskType) query.taskType = taskType;
     if (assignedBy) query.assignedBy = assignedBy;
 
+    // Normal users (no Master Task management permission) may only see
+    // templates assigned to themselves. Backend-enforced, like /api/master-tasks.
+    if (req.user.role !== "Super Admin" && !req.user.canAssignTasks) {
+      query.assignedTo = req.user._id;
+    }
+
     // Search in title and description
     if (search) {
       query.$or = [

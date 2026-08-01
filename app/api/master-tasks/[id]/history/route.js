@@ -13,10 +13,8 @@ export async function GET(request, { params }) {
   const user = await requireAuth(request);
   if (user instanceof NextResponse) return user;
 
-  if (user.role !== "Super Admin" && !user.canAssignTasks) {
-    return NextResponse.json({ success: false, message: "Not authorized" }, { status: 403 });
-  }
-
+  // Ownership is enforced in the controller: normal users may only view
+  // history of Master Tasks assigned to themselves; privileged users view any.
   const req = createReq(request, params);
   req.user = user;
   const res = createRes();

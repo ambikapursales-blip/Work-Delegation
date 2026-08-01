@@ -44,6 +44,7 @@ export default function MasterTaskDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuth();
+  const isPrivileged = user?.role === "Super Admin" || user?.canAssignTasks;
 
   const [masterTask, setMasterTask] = useState(null);
   const [occurrences, setOccurrences] = useState([]);
@@ -214,14 +215,6 @@ export default function MasterTaskDetailPage() {
     });
   };
 
-  if (user?.role !== "Super Admin" && !user?.canAssignTasks) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-[var(--text-secondary)]">
-        <p className="text-lg">Access Denied</p>
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -272,35 +265,37 @@ export default function MasterTaskDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {masterTask.status === "Active" ? (
-            <button onClick={handlePause} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-200 dark:border-amber-800 text-amber-600 text-sm font-medium hover:bg-amber-500/10 transition-colors">
-              <Pause className="h-4 w-4" /> Pause
+        {isPrivileged && (
+          <div className="flex items-center gap-2">
+            {masterTask.status === "Active" ? (
+              <button onClick={handlePause} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-200 dark:border-amber-800 text-amber-600 text-sm font-medium hover:bg-amber-500/10 transition-colors">
+                <Pause className="h-4 w-4" /> Pause
+              </button>
+            ) : masterTask.status === "Paused" ? (
+              <button onClick={handleResume} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-600 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
+                <Play className="h-4 w-4" /> Resume
+              </button>
+            ) : masterTask.status === "Scheduled" ? (
+              <button onClick={handleGenerateNow} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-600 text-sm font-medium hover:bg-blue-500/10 transition-colors">
+                <Zap className="h-4 w-4" /> Generate Now
+              </button>
+            ) : masterTask.status === "Generated" ? (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] text-sm">
+                <Zap className="h-4 w-4" /> Generated
+              </span>
+            ) : null}
+            <button onClick={handleClone} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--bg-muted)] transition-colors">
+              <Copy className="h-4 w-4" /> Clone
             </button>
-          ) : masterTask.status === "Paused" ? (
-            <button onClick={handleResume} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 text-emerald-600 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
-              <Play className="h-4 w-4" /> Resume
+            <button
+              onClick={() => setEditing(!editing)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all"
+              style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
+            >
+              <Edit3 className="h-4 w-4" /> {editing ? "Cancel" : "Edit"}
             </button>
-          ) : masterTask.status === "Scheduled" ? (
-            <button onClick={handleGenerateNow} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-600 text-sm font-medium hover:bg-blue-500/10 transition-colors">
-              <Zap className="h-4 w-4" /> Generate Now
-            </button>
-          ) : masterTask.status === "Generated" ? (
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--text-muted)] text-sm">
-              <Zap className="h-4 w-4" /> Generated
-            </span>
-          ) : null}
-          <button onClick={handleClone} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--bg-muted)] transition-colors">
-            <Copy className="h-4 w-4" /> Clone
-          </button>
-          <button
-            onClick={() => setEditing(!editing)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all"
-            style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
-          >
-            <Edit3 className="h-4 w-4" /> {editing ? "Cancel" : "Edit"}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -588,20 +583,22 @@ export default function MasterTaskDetailPage() {
         )}
       </div>
 
-      {/* Danger Zone */}
-      <div className="p-6 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20">
-        <h2 className="text-base font-semibold text-red-600 dark:text-red-400 mb-2">Danger Zone</h2>
-        <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-4">
-          Deleting this master task will stop all future generations, reminders, and notifications. Completed history will be preserved.
-        </p>
-        <button
-          onClick={handleDelete}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-500/10 transition-colors"
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete Recurring Series
-        </button>
-      </div>
+      {/* Danger Zone — management-only */}
+      {isPrivileged && (
+        <div className="p-6 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20">
+          <h2 className="text-base font-semibold text-red-600 dark:text-red-400 mb-2">Danger Zone</h2>
+          <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-4">
+            Deleting this master task will stop all future generations, reminders, and notifications. Completed history will be preserved.
+          </p>
+          <button
+            onClick={handleDelete}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Recurring Series
+          </button>
+        </div>
+      )}
     </div>
   );
 }

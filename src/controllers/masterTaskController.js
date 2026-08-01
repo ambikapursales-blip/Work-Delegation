@@ -49,6 +49,13 @@ export const getMasterTasks = async (req, res) => {
     if (assignedTo) query.assignedTo = assignedTo;
     if (assignedBy) query.assignedBy = assignedBy;
 
+    // Normal users (no Master Task management permission) may only see
+    // Master Tasks assigned to themselves. This is enforced on the backend —
+    // any client-supplied assignedTo filter is ignored for them.
+    if (req.user.role !== "Super Admin" && !req.user.canAssignTasks) {
+      query.assignedTo = req.user._id;
+    }
+
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: "i" } },
@@ -165,6 +172,17 @@ export const getMasterTask = async (req, res) => {
 
     if (!template) {
       return res.status(404).json({ success: false, message: "Master task not found" });
+    }
+
+    // Normal users may only open Master Tasks assigned to themselves.
+    if (req.user.role !== "Super Admin" && !req.user.canAssignTasks) {
+      const isAssigned = Array.isArray(template.assignedTo) &&
+        template.assignedTo.some((a) =>
+          (a._id ? a._id.toString() : a.toString()) === req.user._id.toString(),
+        );
+      if (!isAssigned) {
+        return res.status(403).json({ success: false, message: "Not authorized to view this master task" });
+      }
     }
 
     res.status(200).json({
@@ -674,9 +692,20 @@ export const cloneMasterTask = async (req, res) => {
 
 export const getMasterTaskHistory = async (req, res) => {
   try {
-    const template = await RecurringTemplate.findById(req.params.id).select("_id").lean();
+    const template = await RecurringTemplate.findById(req.params.id).select("_id assignedTo").lean();
     if (!template) {
       return res.status(404).json({ success: false, message: "Master task not found" });
+    }
+
+    // Normal users may only view history of Master Tasks assigned to themselves.
+    if (req.user.role !== "Super Admin" && !req.user.canAssignTasks) {
+      const isAssigned = Array.isArray(template.assignedTo) &&
+        template.assignedTo.some((id) =>
+          (id._id ? id._id.toString() : id.toString()) === req.user._id.toString(),
+        );
+      if (!isAssigned) {
+        return res.status(403).json({ success: false, message: "Not authorized to view this master task's history" });
+      }
     }
 
     const { page = 1, limit = 20, status } = req.query;
