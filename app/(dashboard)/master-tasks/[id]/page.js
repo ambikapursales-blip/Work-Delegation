@@ -585,14 +585,14 @@ export default function MasterTaskDetailPage() {
 
       {/* Danger Zone — management-only */}
       {isPrivileged && (
-        <div className="p-6 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20">
-          <h2 className="text-base font-semibold text-red-600 dark:text-red-400 mb-2">Danger Zone</h2>
-          <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-4">
+        <div className="p-6 rounded-xl border-2 border-red-500/30 dark:border-red-500/50 bg-red-950/40 dark:bg-red-950/60">
+          <h2 className="text-base font-semibold text-red-500 dark:text-red-400 mb-2">Danger Zone</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             Deleting this master task will stop all future generations, reminders, and notifications. Completed history will be preserved.
           </p>
           <button
             onClick={handleDelete}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-500/10 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white text-sm font-medium transition-colors"
           >
             <Trash2 className="h-4 w-4" />
             Delete Recurring Series

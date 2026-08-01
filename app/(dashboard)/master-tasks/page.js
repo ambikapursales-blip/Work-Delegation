@@ -689,6 +689,7 @@ export default function MasterTasksPage() {
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">Task Name</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden md:table-cell">Type</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden lg:table-cell">Assigned To</th>
+                <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden lg:table-cell">Assigned By</th>
                 <th className="text-center px-2 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden sm:table-cell">Gen</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider hidden xl:table-cell">Next Generation</th>
                 <th className="text-left px-4 py-3 font-semibold text-[var(--text-secondary)] text-xs uppercase tracking-wider">Status</th>
@@ -723,22 +724,21 @@ export default function MasterTasksPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3.5 hidden lg:table-cell">
-                    <div className="flex -space-x-2">
+                    <div className="space-y-0.5 whitespace-nowrap">
                       {(mt.assignedTo || []).slice(0, 3).map((a) => (
-                        <div
-                          key={a._id}
-                          className="h-7 w-7 rounded-full bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-[var(--bg-card)]"
-                          title={a.name}
-                        >
-                          {a.name?.charAt(0)?.toUpperCase()}
-                        </div>
+                        <p key={a._id} className="text-[var(--text-secondary)]">
+                          {a.name || "—"}
+                        </p>
                       ))}
                       {(mt.assignedTo || []).length > 3 && (
-                        <div className="h-7 w-7 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-[10px] font-medium text-[var(--text-secondary)] ring-2 ring-[var(--bg-card)]">
-                          +{mt.assignedTo.length - 3}
-                        </div>
+                        <p className="text-xs font-medium text-[var(--text-secondary)]">
+                          +{mt.assignedTo.length - 3} more
+                        </p>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-[var(--text-secondary)] hidden lg:table-cell whitespace-nowrap">
+                    {mt.assignedBy?.name || "—"}
                   </td>
                   <td className="px-2 py-3.5 text-center hidden sm:table-cell">
                     <span className="text-xs font-semibold text-[var(--text-secondary)]">
