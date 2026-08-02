@@ -3,12 +3,6 @@ import Task from "../models/Task.js";
 import User from "../models/User.js";
 import RecurringTemplate from "../models/RecurringTemplate.js";
 import {
-  sendTaskReminderEmail,
-  sendTaskAssignmentEmail,
-  sendTaskDueTodayEmail,
-  sendTaskOverdueAlertEmail,
-} from "./emailService.js";
-import {
   shouldSendEmailToday,
   updateEmailSchedule,
 } from "./emailFrequencyEngine.js";
@@ -21,22 +15,20 @@ import {
   shouldSendDeadlineMilestone,
   markReminderPaused,
 } from "./reminderEngine.js";
-import { generateCompleteToken } from "./completeToken.js";
-import { generateCommentToken } from "./commentToken.js";
-import { generateExtensionToken } from "./extensionToken.js";
 import {
   generateDueTasks,
-  findTasksNeedingAssignmentEmail,
   recalculateAllTemplateDates,
   sendPendingAssignmentEmails,
+  sendAssignmentEmailForTask,
 } from "./taskGenerationEngine.js";
 import { isRecurringTaskOverdue } from "./overdueEngine.js";
 import { buildRecurringSummary } from "./recurringSummaryBuilder.js";
-import {
-  sendRecurringSummaryEmail,
-  sendOverdueTasksSummaryEmail,
-} from "./emailService.js";
+import { sendRecurringSummaryEmail } from "./emailService.js";
 import { getKolkataDateParts, createKolkataDate, getKolkataDayOfWeek } from "./istTime.js";
+import { generateCompleteToken } from "./completeToken.js";
+import { generateCommentToken } from "./commentToken.js";
+import { generateExtensionToken } from "./extensionToken.js";
+import { EMAIL_CONFIG } from "../config/email.js";
 
 // The 6 recurring task types that are batched into summary emails
 const RECURRING_TASK_TYPES = [
@@ -270,10 +262,16 @@ const sendAssignmentEmailsForNewTasks = async () => {
   if (!lockAcquired) return;
 
   try {
+    const now = new Date();
     const tasks = await Task.find({
       generatedByCron: true,
       assignmentEmailSent: { $ne: true },
       assignmentEmailStatus: { $in: ["pending", "failed"] },
+      assignmentEmailRetryCount: { $lt: EMAIL_CONFIG.retry.maxRetries },
+      $or: [
+        { assignmentEmailNextAttemptAt: null },
+        { assignmentEmailNextAttemptAt: { $lte: now } },
+      ],
     }).populate("assignedTo assignedBy");
 
     let emailsSent = 0;
@@ -283,57 +281,22 @@ const sendAssignmentEmailsForNewTasks = async () => {
       if (RECURRING_TASK_TYPES.includes(task.taskType)) {
         task.assignmentEmailSent = true;
         task.assignmentEmailStatus = "skipped";
+        task.assignmentEmailClaimedAt = null;
         await task.save().catch(() => {});
         continue;
       }
 
-      const assignees = Array.isArray(task.assignedTo)
-        ? task.assignedTo
-        : [task.assignedTo];
-
-      let allSucceeded = true;
-
-      for (const assignee of assignees) {
-        if (!assignee?.email) continue;
-
-        try {
-          const assigneeUserId = String(assignee._id);
-          const taskId = String(task._id);
-          const completeToken = generateCompleteToken(taskId, assigneeUserId);
-          const commentToken = generateCommentToken(taskId, assigneeUserId);
-          const extensionToken = generateExtensionToken(taskId, assigneeUserId);
-
-          await sendTaskAssignmentEmail(assignee.email, assignee.name, {
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            deadline: task.deadline,
-            taskId: task._id,
-            userId: assignee._id,
-            completeToken,
-            commentToken,
-            extensionToken,
-            assignedBy: { name: task.assignedBy?.name || "Unknown", email: task.assignedBy?.email },
-          });
-          emailsSent++;
-        } catch (emailError) {
-          console.error(
-            "[CronJobs] Failed to send assignment email for generated task:",
-            emailError.message,
-          );
-          allSucceeded = false;
-        }
+      // Delegate to the shared engine so claim/retry/backoff handling is
+      // identical across the 1-minute retry loop and this fallback cron.
+      try {
+        await sendAssignmentEmailForTask(task);
+        if (task.assignmentEmailStatus === "sent") emailsSent++;
+      } catch (emailError) {
+        console.error(
+          "[CronJobs] Failed to send assignment email for generated task:",
+          emailError.message,
+        );
       }
-
-      if (allSucceeded) {
-        task.assignmentEmailSent = true;
-        task.assignmentEmailSentAt = new Date();
-        task.assignmentEmailStatus = "sent";
-      } else {
-        task.assignmentEmailStatus = "failed";
-        task.assignmentEmailRetryCount = (task.assignmentEmailRetryCount || 0) + 1;
-      }
-      await task.save().catch(() => {});
     }
 
     if (emailsSent > 0) {
@@ -347,6 +310,11 @@ const sendAssignmentEmailsForNewTasks = async () => {
 };
 
 const sendDeadlineAlerts = async () => {
+  const { hour } = getKolkataDateParts(new Date());
+  if (hour !== 9) {
+    return;
+  }
+
   const lockAcquired = await acquireDeadlineAlertLock();
   if (!lockAcquired) {
     return;
@@ -422,11 +390,12 @@ const sendDeadlineAlerts = async () => {
                 extensionToken,
               };
 
-              if (milestoneKey === "dueToday") {
-                await sendTaskDueTodayEmail(assignee.email, assignee.name, baseDetails);
-              } else {
-                await sendTaskReminderEmail(assignee.email, assignee.name, baseDetails);
-              }
+              // DISABLED: Reminder and Due Today Emails per new email policy
+              // if (milestoneKey === "dueToday") {
+              //   await sendTaskDueTodayEmail(assignee.email, assignee.name, baseDetails);
+              // } else {
+              //   await sendTaskReminderEmail(assignee.email, assignee.name, baseDetails);
+              // }
               alertsSent++;
             } catch (emailError) {
               console.error(
@@ -719,20 +688,21 @@ const processScheduledEmails = async () => {
             extensionToken,
           };
 
-          if (mode === "overdue") {
-            const overdueSince = task.deadline || task.occurrenceDate;
-            const daysOverdue = overdueSince
-              ? Math.ceil((now.getTime() - new Date(overdueSince).getTime()) / (1000 * 60 * 60 * 24))
-              : 0;
+          // DISABLED: Reminder and Overdue Alert Emails per new email policy
+          // if (mode === "overdue") {
+          //   const overdueSince = task.deadline || task.occurrenceDate;
+          //   const daysOverdue = overdueSince
+          //     ? Math.ceil((now.getTime() - new Date(overdueSince).getTime()) / (1000 * 60 * 60 * 24))
+          //     : 0;
 
-            await sendTaskOverdueAlertEmail(assignee.email, assignee.name, {
-              ...baseDetails,
-              deadline: task.deadline || task.occurrenceDate,
-              daysOverdue,
-            });
-          } else {
-            await sendTaskReminderEmail(assignee.email, assignee.name, baseDetails);
-          }
+          //   await sendTaskOverdueAlertEmail(assignee.email, assignee.name, {
+          //     ...baseDetails,
+          //     deadline: task.deadline || task.occurrenceDate,
+          //     daysOverdue,
+          //   });
+          // } else {
+          //   await sendTaskReminderEmail(assignee.email, assignee.name, baseDetails);
+          // }
 
           const updatedState = updateReminderStateAfterSend(
             task,
@@ -927,24 +897,25 @@ const processOverdueTasks = async () => {
     }
 
     // Send one summary email per user (only for non-recurring overdue tasks)
-    let emailsSent = 0;
-    for (const [userId, { user, count }] of userOverdueMap) {
-      if (user && user.email && count > 0) {
-        try {
-          await sendOverdueTasksSummaryEmail(user.email, user.name, count);
-          emailsSent++;
-        } catch (emailError) {
-          console.error(
-            "[CronJobs] Failed to send overdue summary email:",
-            emailError.message,
-          );
-        }
-      }
-    }
+    // DISABLED: Overdue Summary Email per new email policy
+    // let emailsSent = 0;
+    // for (const [userId, { user, count }] of userOverdueMap) {
+    //   if (user && user.email && count > 0) {
+    //     try {
+    //       await sendOverdueTasksSummaryEmail(user.email, user.name, count);
+    //       emailsSent++;
+    //     } catch (emailError) {
+    //       console.error(
+    //         "[CronJobs] Failed to send overdue summary email:",
+    //         emailError.message,
+    //       );
+    //     }
+    //   }
+    // }
 
-    if (emailsSent > 0) {
-      console.log(`[CronJobs] Sent ${emailsSent} overdue summary emails (non-recurring only)`);
-    }
+    // if (emailsSent > 0) {
+    //   console.log(`[CronJobs] Sent ${emailsSent} overdue summary emails (non-recurring only)`);
+    // }
   } catch (error) {
     console.error("[CronJobs] processOverdueTasks failed:", error.message);
   } finally {
@@ -952,103 +923,65 @@ const processOverdueTasks = async () => {
   }
 };
 
-// ── Distributed lock for sendDailyRecurringSummary ────────────
+// ── Once-per-period completion locks for the recurring summary jobs ──
+// Extends the existing cron_locks architecture: the marker document for
+// a reporting period is created exactly once (insert-if-absent) and left
+// in place, so repeated production route triggers within the same
+// reporting period can never re-send. Periods are IST-scoped:
+//   daily       → daily_recurring_summary:<YYYY-MM-DD>
+//   weekly      → weekly_recurring_summary:<YYYY-MM-DD> (IST Monday)
+//   management  → daily_management_summary:<YYYY-MM-DD>
+// Concurrency is still guaranteed: MongoDB permits only one successful
+// insert per _id, so a concurrent trigger loses the upsert race.
 
-const DAILY_SUMMARY_LOCK_KEY = "daily_recurring_summary";
-const DAILY_SUMMARY_LOCK_TTL_MS = 10 * 60 * 1000;
+const SUMMARY_LOCK_NAMESPACES = {
+  daily: "daily_recurring_summary",
+  weekly: "weekly_recurring_summary",
+  management: "daily_management_summary",
+};
 
-const acquireDailySummaryLock = async () => {
+const formatISTDateKey = (date) => {
+  const { year, month, day } = getKolkataDateParts(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
+const acquireSummaryPeriodLock = async (jobType, istDateKey) => {
+  const lockId = `${SUMMARY_LOCK_NAMESPACES[jobType]}:${istDateKey}`;
   try {
     await ensureMongoConnection();
     const db = mongoose.connection.db;
     const locks = db.collection("cron_locks");
     const now = new Date();
-    const lockExpiry = new Date(now.getTime() + DAILY_SUMMARY_LOCK_TTL_MS);
 
     const result = await locks.findOneAndUpdate(
+      { _id: lockId },
       {
-        _id: DAILY_SUMMARY_LOCK_KEY,
-        $or: [
-          { lockedAt: { $exists: false } },
-          { lockedAt: { $lt: new Date(now.getTime() - DAILY_SUMMARY_LOCK_TTL_MS) } },
-        ],
+        $setOnInsert: {
+          _id: lockId,
+          lockedAt: now,
+          completedAt: null,
+        },
       },
-      {
-        $set: { lockedAt: now, expiresAt: lockExpiry },
-        $setOnInsert: { _id: DAILY_SUMMARY_LOCK_KEY },
-      },
-      { upsert: true, returnDocument: "after" },
+      { upsert: true, returnDocument: "before" },
     );
 
     const doc = result && result.value ? result.value : result;
-    if (doc && doc.lockedAt && doc.lockedAt.getTime() === now.getTime()) {
-      return true;
-    }
-    return false;
+    return !doc;
   } catch (error) {
     if (error.code === 11000) return false;
-    console.error("[CronJobs] Failed to acquire daily summary lock:", error);
+    console.error(`[CronJobs] Failed to acquire ${lockId}:`, error);
     return false;
   }
 };
 
-const releaseDailySummaryLock = async () => {
+const completeSummaryPeriodLock = async (jobType, istDateKey) => {
+  const lockId = `${SUMMARY_LOCK_NAMESPACES[jobType]}:${istDateKey}`;
   try {
     const db = mongoose.connection.db;
     const locks = db.collection("cron_locks");
-    await locks.deleteOne({ _id: DAILY_SUMMARY_LOCK_KEY });
+    await locks.updateOne({ _id: lockId }, { $set: { completedAt: new Date() } });
   } catch (error) {
-    console.error("[CronJobs] Failed to release daily summary lock:", error);
-  }
-};
-
-// ── Distributed lock for sendWeeklyRecurringSummary ───────────
-
-const WEEKLY_SUMMARY_LOCK_KEY = "weekly_recurring_summary";
-const WEEKLY_SUMMARY_LOCK_TTL_MS = 10 * 60 * 1000;
-
-const acquireWeeklySummaryLock = async () => {
-  try {
-    await ensureMongoConnection();
-    const db = mongoose.connection.db;
-    const locks = db.collection("cron_locks");
-    const now = new Date();
-    const lockExpiry = new Date(now.getTime() + WEEKLY_SUMMARY_LOCK_TTL_MS);
-
-    const result = await locks.findOneAndUpdate(
-      {
-        _id: WEEKLY_SUMMARY_LOCK_KEY,
-        $or: [
-          { lockedAt: { $exists: false } },
-          { lockedAt: { $lt: new Date(now.getTime() - WEEKLY_SUMMARY_LOCK_TTL_MS) } },
-        ],
-      },
-      {
-        $set: { lockedAt: now, expiresAt: lockExpiry },
-        $setOnInsert: { _id: WEEKLY_SUMMARY_LOCK_KEY },
-      },
-      { upsert: true, returnDocument: "after" },
-    );
-
-    const doc = result && result.value ? result.value : result;
-    if (doc && doc.lockedAt && doc.lockedAt.getTime() === now.getTime()) {
-      return true;
-    }
-    return false;
-  } catch (error) {
-    if (error.code === 11000) return false;
-    console.error("[CronJobs] Failed to acquire weekly summary lock:", error);
-    return false;
-  }
-};
-
-const releaseWeeklySummaryLock = async () => {
-  try {
-    const db = mongoose.connection.db;
-    const locks = db.collection("cron_locks");
-    await locks.deleteOne({ _id: WEEKLY_SUMMARY_LOCK_KEY });
-  } catch (error) {
-    console.error("[CronJobs] Failed to release weekly summary lock:", error);
+    console.error(`[CronJobs] Failed to complete ${lockId}:`, error);
   }
 };
 
@@ -1088,13 +1021,19 @@ const startOfWeekIST = (date) => {
  * followed by task cards (max 20, with "+X more" link if truncated).
  */
 const sendDailyRecurringSummary = async () => {
-  const lockAcquired = await acquireDailySummaryLock();
+  const now = new Date();
+  const { hour } = getKolkataDateParts(now);
+  if (hour !== 9) {
+    return;
+  }
+  const istDateKey = formatISTDateKey(now);
+
+  const lockAcquired = await acquireSummaryPeriodLock("daily", istDateKey);
   if (!lockAcquired) return;
 
   try {
     await ensureMongoConnection();
 
-    const now = new Date();
     const { year: y, month: m, day: d } = getKolkataDateParts(now);
     const todayStart = startOfDayIST(now);
     const todayEnd = endOfDayIST(now);
@@ -1109,12 +1048,18 @@ const sendDailyRecurringSummary = async () => {
       assignedUntil: todayEnd,
       completedSince: yesterdayStart,
       completedUntil: yesterdayEnd,
+      yesterdayAssignedSince: yesterdayStart,
+      yesterdayAssignedUntil: yesterdayEnd,
+      includeAllTaskTypes: true,
       maxCards: 20,
     });
 
     let emailsSent = 0;
-    for (const [, { user, stats, taskCards, taskCardsTruncated, overdueCards, todayCards, pendingCards }] of perUser) {
+    for (const [, { user, stats, taskCards, taskCardsTruncated, overdueCards, todayCards, pendingCards, inProgressCards, completedCards, todayAssignedCards, highPriorityCards, upcomingCards }] of perUser) {
       if (!user || !user.email) continue;
+      
+      // SKIP: Super Admin should not receive Daily User Summary per new email policy
+      if (user.role === "Super Admin") continue;
 
       await sendRecurringSummaryEmail({
         userEmail: user.email,
@@ -1127,6 +1072,11 @@ const sendDailyRecurringSummary = async () => {
         overdueCards,
         todayCards,
         pendingCards,
+        inProgressCards,
+        completedCards,
+        todayAssignedCards,
+        highPriorityCards,
+        upcomingCards,
       });
       emailsSent++;
     }
@@ -1135,44 +1085,66 @@ const sendDailyRecurringSummary = async () => {
   } catch (error) {
     console.error("[CronJobs] sendDailyRecurringSummary failed:", error.message);
   } finally {
-    await releaseDailySummaryLock();
+    await completeSummaryPeriodLock("daily", istDateKey);
   }
 };
 
 /**
- * SendWeeklyRecurringSummary — runs Saturday at 11:00 AM IST.
+ * SendWeeklyRecurringSummary — runs Monday at 09:00 AM IST.
  *
  * Sends one email per user with:
- *   • Weekly Assigned
- *   • Weekly Completed
- *   • Weekly Overdue
- *   • Completion %
- *   • Current Active
+ *   • Section 1 "Last Week Performance" (Mon→Sat of previous week)
+ *   • Section 2 "This Week's Work" (Mon→Sat of current week)
  * followed by task cards (max 20, with "+X more" link if truncated).
+ *
+ * Reporting windows (Sunday is excluded):
+ *   lastWeekStart = previous Monday 00:00:00 IST
+ *   lastWeekEnd   = previous Saturday 23:59:59.999 IST
+ *   thisWeekStart = current Monday 00:00:00 IST
+ *   thisWeekEnd   = current Saturday 23:59:59.999 IST
  */
 const sendWeeklyRecurringSummary = async () => {
-  const lockAcquired = await acquireWeeklySummaryLock();
+  const now = new Date();
+  const { hour } = getKolkataDateParts(now);
+  if (hour !== 9 || getKolkataDayOfWeek(now) !== 1) {
+    return;
+  }
+  const istDateKey = formatISTDateKey(startOfWeekIST(now));
+
+  const lockAcquired = await acquireSummaryPeriodLock("weekly", istDateKey);
   if (!lockAcquired) return;
 
   try {
     await ensureMongoConnection();
 
-    const now = new Date();
-    const weekStart = startOfWeekIST(now);
-    const weekEnd = endOfDayIST(now);
+    // Monday 00:00:00 IST of the current week (Sunday-excluded window start)
+    const thisWeekStart = startOfWeekIST(now);
+    // Saturday 23:59:59.999 IST of the current week (Sunday-excluded window end)
+    const thisWeekEnd = new Date(thisWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000 - 1);
+    // Previous week windows (Monday→Saturday, Sunday excluded)
+    const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const lastWeekEnd = new Date(thisWeekEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const perUser = await buildRecurringSummary({
       activeAsOf: now,
-      assignedSince: weekStart,
-      assignedUntil: weekEnd,
-      completedSince: weekStart,
-      completedUntil: weekEnd,
+      assignedSince: thisWeekStart,
+      assignedUntil: thisWeekEnd,
+      completedSince: lastWeekStart,
+      completedUntil: lastWeekEnd,
+      lastWeekAssignedSince: lastWeekStart,
+      lastWeekAssignedUntil: lastWeekEnd,
+      dueSince: thisWeekStart,
+      dueUntil: thisWeekEnd,
+      includeAllTaskTypes: true,
       maxCards: 20,
     });
 
     let emailsSent = 0;
-    for (const [, { user, stats, taskCards, taskCardsTruncated, overdueCards, todayCards, pendingCards }] of perUser) {
+    for (const [, { user, stats, taskCards, taskCardsTruncated, overdueCards, todayCards, pendingCards, inProgressCards, completedCards, todayAssignedCards, highPriorityCards, upcomingCards, dueThisWeekCards }] of perUser) {
       if (!user || !user.email) continue;
+      
+      // SKIP: Super Admin should not receive Weekly User Summary per new email policy
+      if (user.role === "Super Admin") continue;
 
       await sendRecurringSummaryEmail({
         userEmail: user.email,
@@ -1185,6 +1157,12 @@ const sendWeeklyRecurringSummary = async () => {
         overdueCards,
         todayCards,
         pendingCards,
+        inProgressCards,
+        completedCards,
+        todayAssignedCards,
+        highPriorityCards,
+        upcomingCards,
+        dueThisWeekCards,
       });
       emailsSent++;
     }
@@ -1193,7 +1171,85 @@ const sendWeeklyRecurringSummary = async () => {
   } catch (error) {
     console.error("[CronJobs] sendWeeklyRecurringSummary failed:", error.message);
   } finally {
-    await releaseWeeklySummaryLock();
+    await completeSummaryPeriodLock("weekly", istDateKey);
+  }
+};
+
+/**
+ * SendDailyManagementSummary — runs daily at 6:00 PM IST.
+ *
+ * Sends a single company-wide management summary to every active Super
+ * Admin. Company-wide stats are aggregated by buildRecurringSummary in
+ * company mode (all task types), reusing the same builder/email/SMTP.
+ * The lock namespace is windowed per IST date so each day runs once.
+ */
+const sendDailyManagementSummary = async () => {
+  const now = new Date();
+  const { hour } = getKolkataDateParts(now);
+  if (hour !== 18) {
+    return;
+  }
+  const istDateKey = formatISTDateKey(now);
+
+  const lockAcquired = await acquireSummaryPeriodLock("management", istDateKey);
+  if (!lockAcquired) return;
+
+  try {
+    await ensureMongoConnection();
+
+    const todayStart = startOfDayIST(now);
+    const todayEnd = endOfDayIST(now);
+
+    const companyMap = await buildRecurringSummary({
+      companyMode: true,
+      perEmployee: true,
+      activeAsOf: now,
+      assignedSince: todayStart,
+      assignedUntil: todayEnd,
+      completedSince: todayStart,
+      completedUntil: todayEnd,
+      maxCards: 20,
+    });
+
+    const companyEntry = companyMap.get("company");
+    if (!companyEntry) return;
+
+    const superAdmins = await User.find({ role: "Super Admin", isActive: true })
+      .select("_id name email")
+      .lean();
+
+    let emailsSent = 0;
+    for (const admin of superAdmins) {
+      if (!admin || !admin.email) continue;
+
+      await sendRecurringSummaryEmail({
+        userEmail: admin.email,
+        userName: admin.name,
+        type: "management",
+        stats: companyEntry.stats,
+        taskCards: companyEntry.taskCards,
+        taskCardsTruncated: companyEntry.taskCardsTruncated,
+        totalTasks: companyEntry.stats.totalActive,
+        overdueCards: companyEntry.overdueCards,
+        todayCards: companyEntry.todayCards,
+        pendingCards: companyEntry.pendingCards,
+        completedCards: companyEntry.completedCards,
+        todayAssignedCards: companyEntry.todayAssignedCards,
+        highPriorityCards: companyEntry.highPriorityCards,
+        upcomingCards: companyEntry.upcomingCards,
+        dueThisWeekCards: companyEntry.dueThisWeekCards,
+        dueTomorrowCards: companyEntry.dueTomorrowCards,
+        topDepartments: companyEntry.topDepartments,
+        employees: companyEntry.employees,
+      });
+      emailsSent++;
+    }
+
+    console.log(`[CronJobs] Sent ${emailsSent} daily management summary emails`);
+  } catch (error) {
+    console.error("[CronJobs] sendDailyManagementSummary failed:", error.message);
+  } finally {
+    await completeSummaryPeriodLock("management", istDateKey);
   }
 };
 
@@ -1276,12 +1332,24 @@ const initCronJobs = async () => {
       },
     );
 
-    // Send weekly recurring task summary on Saturday at 11:00 AM IST
-    // Users also receive the daily summary at 9 AM on Saturday
+    // Send weekly recurring task summary on Monday at 9:00 AM IST
+    // Reports the previous week (Monday to Saturday); Sunday excluded
     cron.schedule(
-      "0 11 * * 6",
+      "0 9 * * 1",
       async () => {
         await sendWeeklyRecurringSummary();
+      },
+      {
+        timezone: "Asia/Kolkata",
+      },
+    );
+
+    // Send company-wide daily management summary to Super Admins at 6:00 PM IST
+    // Aggregates ALL task types company-wide (daily/weekly are per-user)
+    cron.schedule(
+      "0 18 * * *",
+      async () => {
+        await sendDailyManagementSummary();
       },
       {
         timezone: "Asia/Kolkata",
@@ -1328,4 +1396,5 @@ export {
   sendAssignmentEmailsForNewTasks,
   sendDailyRecurringSummary,
   sendWeeklyRecurringSummary,
+  sendDailyManagementSummary,
 };

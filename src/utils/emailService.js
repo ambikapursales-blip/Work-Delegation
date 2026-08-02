@@ -29,6 +29,24 @@ import {
   buttonGrid,
   renderAmpEmail,
 } from "./emailTemplates.js";
+import { EMAIL_CONFIG } from "../config/email.js";
+import { getKolkataDateParts } from "./istTime.js";
+
+/* ------------------------------------------------------------------ */
+/*  Structured logger                                                  */
+/* ------------------------------------------------------------------ */
+const log = (level, event, meta = {}) => {
+  const entry = JSON.stringify({
+    ts: new Date().toISOString(),
+    level,
+    service: "EmailService",
+    event,
+    ...meta,
+  });
+  if (level === "error") console.error(entry);
+  else if (level === "warn") console.warn(entry);
+  else console.log(entry);
+};
 
 /* ------------------------------------------------------------------ */
 /*  Transport                                                          */
@@ -41,27 +59,43 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  connectionTimeout: EMAIL_CONFIG.smtp.connectionTimeoutMs,
+  greetingTimeout: EMAIL_CONFIG.smtp.greetingTimeoutMs,
+  socketTimeout: EMAIL_CONFIG.smtp.timeoutMs,
 });
 
-const sendEmail = async (to, subject, html, amp) => {
+export const sendEmail = async (to, subject, html, amp, meta = {}) => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    log("warn", "smtp_not_configured", { to, subject, ...meta });
+    return { success: false, error: "SMTP not configured", skipped: true };
+  }
+
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to,
+    subject,
+    html,
+    timeout: EMAIL_CONFIG.smtp.timeoutMs,
+  };
+  if (amp) mailOptions.amp = amp;
+
   try {
-    const mailOptions = {
-      from: process.env.SMTP_USER,
+    const info = await transporter.sendMail(mailOptions);
+    log("info", "email_sent", {
       to,
       subject,
-      html,
-    };
-    if (amp) mailOptions.amp = amp;
-    const info = await transporter.sendMail(mailOptions);
+      messageId: info.messageId,
+      ...meta,
+    });
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error("[EmailService] Failed to send email:", {
+    log("error", "email_failed", {
       to,
       subject,
       error: error.message,
-      stack: error.stack?.split("\n")?.slice(0, 3)?.join("\n"),
       smtpHost: process.env.SMTP_HOST,
       smtpUser: process.env.SMTP_USER,
+      ...meta,
     });
     return { success: false, error: error.message };
   }
@@ -109,6 +143,7 @@ const formatShortDate = (date) =>
         year: "numeric",
         month: "short",
         day: "numeric",
+        timeZone: EMAIL_CONFIG.timezone.display,
       })
     : "N/A";
 
@@ -117,6 +152,7 @@ const todayShortDate = () =>
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone: EMAIL_CONFIG.timezone.display,
   });
 
 const taskUrl = (taskId) =>
@@ -196,6 +232,7 @@ const formatLongDate = (date) =>
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: EMAIL_CONFIG.timezone.display,
       })
     : "No deadline";
 
@@ -216,25 +253,26 @@ export const sendTaskAssignmentEmail = async (
         year: "numeric",
         month: "long",
         day: "numeric",
-        timeZone: "UTC",
+        timeZone: EMAIL_CONFIG.timezone.display,
       })
     : null;
 
-  const now = new Date();
-  const todayUTC = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
+  const nowParts = getKolkataDateParts(new Date());
+  const todayIST = Date.UTC(
+    nowParts.year,
+    nowParts.month - 1,
+    nowParts.day,
   );
   let remainingDays = null;
   let remainingDaysColor = null;
   if (deadline) {
-    const deadlineUTC = Date.UTC(
-      deadline.getUTCFullYear(),
-      deadline.getUTCMonth(),
-      deadline.getUTCDate(),
+    const dlParts = getKolkataDateParts(deadline);
+    const deadlineIST = Date.UTC(
+      dlParts.year,
+      dlParts.month - 1,
+      dlParts.day,
     );
-    const diff = Math.round((deadlineUTC - todayUTC) / 86400000);
+    const diff = Math.round((deadlineIST - todayIST) / 86400000);
     if (diff < 0) {
       remainingDays = `Overdue by ${Math.abs(diff)} day${Math.abs(diff) === 1 ? "" : "s"}`;
       remainingDaysColor = ACCENT.security;
@@ -474,6 +512,10 @@ export const sendTaskAssignmentEmail = async (
     "New Task Assigned: " + taskDetails.title,
     html,
     ampHtml,
+    {
+      event: "task_assignment",
+      taskId: taskDetails.taskId ? String(taskDetails.taskId) : undefined,
+    },
   );
 };
 
@@ -493,7 +535,9 @@ export const sendTaskAssignedConfirmationEmail = async (
       [
         "Deadline",
         taskDetails.deadline
-          ? new Date(taskDetails.deadline).toLocaleDateString()
+          ? new Date(taskDetails.deadline).toLocaleDateString("en-US", {
+              timeZone: EMAIL_CONFIG.timezone.display,
+            })
           : "No deadline",
       ],
       ["Assigned To", assigneeNames],
@@ -1001,8 +1045,13 @@ export const sendEventInvitationEmail = async (
   userName,
   eventDetails,
 ) => {
-  const startDate = new Date(eventDetails.startDate).toLocaleString();
-  const endDate = new Date(eventDetails.endDate).toLocaleString();
+  const startDate = new Date(eventDetails.startDate).toLocaleString(
+    "en-US",
+    { timeZone: EMAIL_CONFIG.timezone.display },
+  );
+  const endDate = new Date(eventDetails.endDate).toLocaleString("en-US", {
+    timeZone: EMAIL_CONFIG.timezone.display,
+  });
 
   const body = `
     ${greeting(userName)}
@@ -1131,7 +1180,7 @@ const renderSummaryTaskCard = (task) => {
  * Time-of-day greeting.
  */
 const timeGreeting = (name) => {
-  const hour = new Date().getHours();
+  const hour = getKolkataDateParts(new Date()).hour;
   let period = "Morning";
   if (hour >= 12 && hour < 17) period = "Afternoon";
   else if (hour >= 17) period = "Evening";
@@ -1165,14 +1214,16 @@ const taskSectionHeader = (label, count, color) => count > 0 ? `
  * @param {Object} options
  * @param {string} options.userEmail
  * @param {string} options.userName
- * @param {"daily"|"weekly"} options.type
- * @param {Object} options.stats  - { totalActive, overdue, assignedInPeriod, completedInPeriod, pendingYesterday, completionRate }
+ * @param {"daily"|"weekly"|"management"} options.type
+ * @param {Object} options.stats  - { totalActive, overdue, inProgress, assignedInPeriod, completedInPeriod, dailyCompletionRate, lastWeekAssignedInPeriod, lastWeekCompletedInPeriod, lastWeekCompletionRate, weeklyCompletionRate, pendingLastWeek, completionRate, totalEmployees }
  * @param {Array}  options.taskCards - Array of task detail objects (max 20)
  * @param {boolean} options.taskCardsTruncated - Whether more tasks exist beyond the card limit
  * @param {number}  options.totalTasks - Total active tasks (for "+X more" message)
  * @param {Array}  [options.overdueCards] - Categorized overdue tasks
  * @param {Array}  [options.todayCards] - Categorized tasks due today
  * @param {Array}  [options.pendingCards] - Categorized pending tasks
+ * @param {Array}  [options.inProgressCards] - Tasks with status "In Progress" (daily path)
+ * @param {Array}  [options.employees] - Per-employee performance rows (management path only): { name, email, totalTasks, completed, inProgress, overdue, completionRate }
  */
 export const sendRecurringSummaryEmail = async ({
   userEmail,
@@ -1185,44 +1236,33 @@ export const sendRecurringSummaryEmail = async ({
   overdueCards,
   todayCards,
   pendingCards,
+  inProgressCards,
+  completedCards,
+  todayAssignedCards,
+  highPriorityCards,
+  upcomingCards,
+  dueThisWeekCards,
+  dueTomorrowCards,
+  topDepartments,
+  employees,
 }) => {
   const isDaily = type === "daily";
-
-  // ── Labels ─────────────────────────────────────────────────────────────
-  const periodLabel = isDaily ? "Yesterday" : "Last 7 Days";
-  const todayLabel = isDaily ? "Today" : "This Week";
+  const isManagement = type === "management";
 
   // ── Subject line ───────────────────────────────────────────────────────
   const totalCardCount = (overdueCards?.length || 0) + (todayCards?.length || 0) + (pendingCards?.length || 0);
   const subject = isDaily
     ? `Daily Task Summary — ${totalCardCount} task${totalCardCount !== 1 ? "s" : ""}`
-    : `Weekly Task Summary — ${stats.completionRate}% complete`;
+    : isManagement
+      ? `Daily Management Summary — ${stats.totalActive} active task${stats.totalActive !== 1 ? "s" : ""}`
+      : `Weekly Task Summary — ${stats.weeklyCompletionRate}% complete`;
 
   // ── Header lead ────────────────────────────────────────────────────────
   const headerLead = isDaily
-    ? `Here is your daily overview of recurring tasks.`
-    : `Here is your weekly overview of recurring tasks.`;
-
-  // ── Stat sections ──────────────────────────────────────────────────────
-  const yesterdaySection = statSection(
-    `${periodLabel} Summary`,
-    ACCENT.assignment,
-    `${summaryStatBox("Completed", stats.completedInPeriod, SUCCESS, 50)}
-     ${summaryStatBox("Pending", stats.pendingYesterday, ACCENT.reminder, 50)}`,
-  );
-
-  const todaySection = statSection(
-    `${todayLabel} Summary`,
-    ACCENT.reminder,
-    summaryStatBox("New Tasks", stats.assignedInPeriod, ACCENT.assignment, 100),
-  );
-
-  const currentSection = statSection(
-    "Current Status",
-    "#555555",
-    `${summaryStatBox("Active", stats.totalActive, SUCCESS, 50)}
-     ${summaryStatBox("Overdue", stats.overdue, DANGER, 50)}`,
-  );
+    ? `Here is your daily overview of your tasks.`
+    : isManagement
+      ? `Here is today's company-wide performance across all tasks.`
+      : `Here is your weekly overview of recurring tasks.`;
 
   // ── Task card sections ─────────────────────────────────────────────────
   const overdueSection = overdueCards?.length > 0
@@ -1235,15 +1275,203 @@ export const sendRecurringSummaryEmail = async ({
       todayCards.map(renderSummaryTaskCard).join("\n")
     : "";
 
-  const pendingTasksSection = pendingCards?.length > 0
-    ? taskSectionHeader("Pending Tasks", pendingCards.length, ACCENT.assignment) +
-      pendingCards.map(renderSummaryTaskCard).join("\n")
+  // ── Weekly performance sections (weekly path only) ─────────────────────
+  const weeklyPerformanceSection = !isDaily ? statSection(
+    "Last Week Performance",
+    ACCENT.assignment,
+    `${summaryStatBox("Total Tasks", stats.totalActive, ACCENT.assignment, 20)}
+     ${summaryStatBox("Completed", stats.lastWeekCompletedInPeriod, SUCCESS, 20)}
+     ${summaryStatBox("In Progress", stats.inProgress, ACCENT.reminder, 20)}
+     ${summaryStatBox("Overdue", stats.overdue, DANGER, 20)}
+     ${summaryStatBox("Completion %", `${stats.weeklyCompletionRate}%`, SUCCESS, 20)}`,
+  ) : "";
+
+  const weeklyTodaySection = !isDaily ? statSection(
+    "This Week's Work",
+    ACCENT.reminder,
+    `${summaryStatBox("Due This Week", dueThisWeekCards?.length || 0, DANGER, 25)}
+     ${summaryStatBox("Scheduled This Week", stats.assignedInPeriod, ACCENT.assignment, 25)}
+     ${summaryStatBox("High Priority", highPriorityCards?.length || 0, WARNING, 25)}
+     ${summaryStatBox("Upcoming Deadlines", upcomingCards?.length || 0, ACCENT.reminder, 25)}`,
+  ) : "";
+
+  const weeklyCompletedSection = !isDaily && completedCards?.length > 0
+    ? taskSectionHeader("Completed Last Week", completedCards.length, SUCCESS) +
+      completedCards.map(renderSummaryTaskCard).join("\n")
     : "";
 
-  const categorizedCardsHtml = overdueSection + todayTasksSection + pendingTasksSection;
+  const weeklyInProgressSection = !isDaily && inProgressCards?.length > 0
+    ? taskSectionHeader("In Progress", inProgressCards.length, ACCENT.assignment) +
+      inProgressCards.map(renderSummaryTaskCard).join("\n")
+    : "";
 
-  // ── Fallback: if no categorized data, render all cards as a single list ─
-  const cardsHtml = categorizedCardsHtml || taskCards.map(renderSummaryTaskCard).join("\n");
+  const weeklyScheduledSection = !isDaily && todayAssignedCards?.length > 0
+    ? taskSectionHeader("Scheduled This Week", todayAssignedCards.length, ACCENT.assignment) +
+      todayAssignedCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const weeklyDueSection = !isDaily && dueThisWeekCards?.length > 0
+    ? taskSectionHeader("Tasks Due This Week", dueThisWeekCards.length, DANGER) +
+      dueThisWeekCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const weeklyHighPrioritySection = !isDaily && highPriorityCards?.length > 0
+    ? taskSectionHeader("High Priority Tasks", highPriorityCards.length, WARNING) +
+      highPriorityCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const weeklyUpcomingSection = !isDaily && upcomingCards?.length > 0
+    ? taskSectionHeader("Upcoming Deadlines", upcomingCards.length, ACCENT.reminder) +
+      upcomingCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  // Weekly fallback: if no categorized weekly cards exist, render the full
+  // active task list (preserves the pre-Phase-4 flat-list behavior).
+  const weeklySection1Cards =
+    weeklyCompletedSection + overdueSection + weeklyInProgressSection;
+  const weeklySection2Cards =
+    weeklyDueSection + weeklyScheduledSection + weeklyHighPrioritySection + weeklyUpcomingSection;
+  const weeklyCardList =
+    weeklySection1Cards + weeklySection2Cards ||
+    taskCards.map(renderSummaryTaskCard).join("\n");
+
+  // ── Daily performance sections (daily path only) ───────────────────────
+  const dailyPerformanceSection = isDaily ? statSection(
+    "Yesterday Performance",
+    ACCENT.assignment,
+    `${summaryStatBox("Total Tasks", stats.totalActive, ACCENT.assignment, 20)}
+     ${summaryStatBox("Completed", stats.completedInPeriod, SUCCESS, 20)}
+     ${summaryStatBox("In Progress", stats.inProgress, ACCENT.reminder, 20)}
+     ${summaryStatBox("Overdue", stats.overdue, DANGER, 20)}
+     ${summaryStatBox("Completion %", `${stats.dailyCompletionRate}%`, SUCCESS, 20)}`,
+  ) : "";
+
+  const dailyTodaySection = isDaily ? statSection(
+    "Today's Work",
+    ACCENT.reminder,
+    `${summaryStatBox("Total Tasks", stats.totalActive, ACCENT.assignment, 20)}
+     ${summaryStatBox("Due Today", todayCards?.length || 0, DANGER, 20)}
+     ${summaryStatBox("Generated Today", stats.assignedInPeriod, ACCENT.assignment, 20)}
+     ${summaryStatBox("High Priority", highPriorityCards?.length || 0, WARNING, 20)}
+     ${summaryStatBox("Upcoming Deadlines", upcomingCards?.length || 0, ACCENT.reminder, 20)}`,
+  ) : "";
+
+  const completedSection = isDaily && completedCards?.length > 0
+    ? taskSectionHeader("Completed Yesterday", completedCards.length, SUCCESS) +
+      completedCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const inProgressSection = isDaily && inProgressCards?.length > 0
+    ? taskSectionHeader("In Progress", inProgressCards.length, ACCENT.assignment) +
+      inProgressCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const generatedTodaySection = isDaily && todayAssignedCards?.length > 0
+    ? taskSectionHeader("Generated Today", todayAssignedCards.length, ACCENT.assignment) +
+      todayAssignedCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const highPrioritySection = isDaily && highPriorityCards?.length > 0
+    ? taskSectionHeader("High Priority Tasks", highPriorityCards.length, WARNING) +
+      highPriorityCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const upcomingSection = isDaily && upcomingCards?.length > 0
+    ? taskSectionHeader("Upcoming Deadlines", upcomingCards.length, ACCENT.reminder) +
+      upcomingCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  // ── Management sections (management path only) ─────────────────────────
+  const managementPerformanceSection = isManagement ? statSection(
+    "Today's Company Performance",
+    ACCENT.assignment,
+    `${summaryStatBox("Total Employees", stats.totalEmployees ?? 0, ACCENT.assignment, 16)}
+     ${summaryStatBox("Created Today", stats.assignedInPeriod, ACCENT.assignment, 16)}
+     ${summaryStatBox("Completed Today", stats.completedInPeriod, SUCCESS, 16)}
+     ${summaryStatBox("Total Pending", stats.totalActive, ACCENT.reminder, 16)}
+     ${summaryStatBox("Total Overdue", stats.overdue, DANGER, 16)}
+     ${summaryStatBox("Completion %", `${stats.completionRate}%`, SUCCESS, 16)}`,
+  ) : "";
+
+  const managementHighlightsSection = isManagement ? statSection(
+    "Today's Highlights",
+    ACCENT.reminder,
+    `${summaryStatBox("High Priority", highPriorityCards?.length || 0, WARNING, 25)}
+     ${summaryStatBox("Newly Generated", todayAssignedCards?.length || 0, ACCENT.assignment, 25)}
+     ${summaryStatBox("Due Tomorrow", dueTomorrowCards?.length || 0, DANGER, 25)}
+     ${summaryStatBox("Top Pending Depts", topDepartments?.length || 0, ACCENT.reminder, 25)}`,
+  ) : "";
+
+  const managementHighPrioritySection = isManagement && highPriorityCards?.length > 0
+    ? taskSectionHeader("High Priority Tasks", highPriorityCards.length, WARNING) +
+      highPriorityCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const managementGeneratedSection = isManagement && todayAssignedCards?.length > 0
+    ? taskSectionHeader("Newly Generated Today", todayAssignedCards.length, ACCENT.assignment) +
+      todayAssignedCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  const managementDueTomorrowSection = isManagement && dueTomorrowCards?.length > 0
+    ? taskSectionHeader("Tasks Due Tomorrow", dueTomorrowCards.length, DANGER) +
+      dueTomorrowCards.map(renderSummaryTaskCard).join("\n")
+    : "";
+
+  // Employee Performance table (management path only) — one row per active
+  // employee (excluding Super Admin), built by the builder's perEmployee mode.
+  const managementEmployeeTable = isManagement && employees?.length > 0 ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 28px 0 0 0;">
+      <tr>
+        <td style="background-color: ${ACCENT.assignment}; border-radius: 8px 8px 0 0; padding: 10px 18px;">
+          <span style="font-family: ${FONT_STACK}; font-size: 12px; font-weight: 700; color: #FFFFFF; text-transform: uppercase; letter-spacing: 1px;">Employee Performance</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="background-color: ${CARD}; border: 1px solid ${BORDER}; border-top: none; border-radius: 0 0 8px 8px; padding: 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr style="background-color: ${BACKGROUND};">
+              <td style="padding: 12px 16px; font-family: ${FONT_STACK}; font-size: 11px; font-weight: 700; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px;">Employee</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 11px; font-weight: 700; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px;">Total</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 11px; font-weight: 700; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px;">Completed</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 11px; font-weight: 700; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px;">In Progress</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 11px; font-weight: 700; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px;">Overdue</td>
+              <td align="center" style="padding: 12px 16px; font-family: ${FONT_STACK}; font-size: 11px; font-weight: 700; color: ${MUTED}; text-transform: uppercase; letter-spacing: 0.8px;">Completion</td>
+            </tr>
+            ${employees.map((e) => `
+            <tr style="border-top: 1px solid ${BORDER};">
+              <td style="padding: 12px 16px; font-family: ${FONT_STACK}; font-size: 14px; font-weight: 600; color: ${PRIMARY_TEXT};">${e.name}</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 14px; color: ${SECONDARY_TEXT};">${e.totalTasks}</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 14px; color: ${SUCCESS};">${e.completed}</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 14px; color: ${ACCENT.reminder};">${e.inProgress}</td>
+              <td align="center" style="padding: 12px 8px; font-family: ${FONT_STACK}; font-size: 14px; color: ${DANGER};">${e.overdue}</td>
+              <td align="center" style="padding: 12px 16px; font-family: ${FONT_STACK}; font-size: 14px; font-weight: 700; color: ${e.completionRate > 0 ? SUCCESS : MUTED};">${e.completionRate}%</td>
+            </tr>`).join("\n")}
+          </table>
+        </td>
+      </tr>
+    </table>` : "";
+
+  // Top Pending Departments — omitted gracefully when no department data exists.
+  const managementDepartmentsSection = isManagement && topDepartments?.length > 0
+    ? taskSectionHeader("Top Pending Departments", topDepartments.length, ACCENT.assignment) +
+      topDepartments
+        .map(
+          (d) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 16px 0; background-color: ${CARD}; border: 1px solid ${BORDER}; border-radius: 12px; overflow: hidden;">
+      <tr>
+        <td style="padding: 18px 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="font-family: ${FONT_STACK}; font-size: 16px; font-weight: 700; color: ${PRIMARY_TEXT};">${d.name}</td>
+              <td align="right" style="font-family: ${FONT_STACK}; font-size: 15px; font-weight: 700; color: ${ACCENT.reminder};">${d.count} pending</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>`,
+        )
+        .join("\n")
+    : "";
 
   // ── Dashboard button ───────────────────────────────────────────────────
   const dashboardButton = `
@@ -1278,17 +1506,42 @@ export const sendRecurringSummaryEmail = async ({
     : "";
 
   // ── Build body ─────────────────────────────────────────────────────────
-  const body = `
+  const body = isDaily ? `
     ${timeGreeting(userName)}
     <p style="margin: 0 0 24px 0; font-family: ${FONT_STACK}; font-size: 16px; line-height: 1.7; color: ${SECONDARY_TEXT};">${headerLead}</p>
-    ${yesterdaySection}
-    ${todaySection}
-    ${currentSection}
-    ${cardsHtml}
+    ${dailyTodaySection}
+    ${todayTasksSection}
+    ${generatedTodaySection}
+    ${highPrioritySection}
+    ${upcomingSection}
+    ${dailyPerformanceSection}
+    ${completedSection}
+    ${inProgressSection}
+    ${overdueSection}
+    ${truncationHtml}
+    ${dashboardButton}
+  ` : isManagement ? `
+    ${timeGreeting(userName)}
+    <p style="margin: 0 0 24px 0; font-family: ${FONT_STACK}; font-size: 16px; line-height: 1.7; color: ${SECONDARY_TEXT};">${headerLead}</p>
+    ${managementPerformanceSection}
+    ${managementEmployeeTable}
+    ${managementHighlightsSection}
+    ${managementHighPrioritySection}
+    ${managementGeneratedSection}
+    ${managementDueTomorrowSection}
+    ${managementDepartmentsSection}
+    ${dashboardButton}
+  ` : `
+    ${timeGreeting(userName)}
+    <p style="margin: 0 0 24px 0; font-family: ${FONT_STACK}; font-size: 16px; line-height: 1.7; color: ${SECONDARY_TEXT};">${headerLead}</p>
+    ${weeklyPerformanceSection}
+    ${weeklySection1Cards}
+    ${weeklyTodaySection}
+    ${weeklySection2Cards}
     ${truncationHtml}
     ${dashboardButton}
   `;
 
-  const html = renderEmail("reminder", subject, "Your task summary", body);
+  const html = renderEmail("reminder", subject, isManagement ? "Daily Management Summary" : "Your task summary", body);
   return sendEmail(userEmail, subject, html);
 };

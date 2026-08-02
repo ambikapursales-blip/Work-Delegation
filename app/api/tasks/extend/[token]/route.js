@@ -8,8 +8,10 @@ import { verifyExtensionToken } from "@/src/utils/extensionToken";
 import { generateExtensionResponseToken } from "@/src/utils/extensionResponseToken";
 import { notifyExtensionRequested } from "@/src/utils/conversationMessages.js";
 import { pauseReminderStateEntry } from "@/src/utils/reminderEngine";
+import { sendEmail } from "@/src/utils/emailService";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const IST_TIMEZONE = "Asia/Kolkata";
 
 function pageHtml(title, bodyContent) {
   return `<!DOCTYPE html>
@@ -94,7 +96,7 @@ export async function GET(request, { params }) {
           year: "numeric",
           month: "long",
           day: "numeric",
-          timeZone: "UTC",
+          timeZone: IST_TIMEZONE,
         })
       : "No deadline";
 
@@ -198,7 +200,7 @@ export async function POST(request, { params }) {
           year: "numeric",
           month: "long",
           day: "numeric",
-          timeZone: "UTC",
+          timeZone: IST_TIMEZONE,
         })
       : "No deadline";
     const revisedDateStr = revisedTargetDate.toLocaleDateString("en-US", {
@@ -206,7 +208,7 @@ export async function POST(request, { params }) {
       year: "numeric",
       month: "long",
       day: "numeric",
-      timeZone: "UTC",
+      timeZone: IST_TIMEZONE,
     });
 
     if (task.reminderState?.length) {
@@ -297,19 +299,7 @@ export async function POST(request, { params }) {
     if (assigner?.email) {
       const approveUrl = `${FRONTEND_URL}/api/tasks/extend-response/${approveToken}`;
       const rejectUrl = `${FRONTEND_URL}/api/tasks/extend-response/${rejectToken}`;
-      try {
-        const nodemailer = (await import("nodemailer")).default;
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: process.env.SMTP_PORT,
-          secure: false,
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        });
-        await transporter.sendMail({
-          from: process.env.SMTP_USER,
-          to: assigner.email,
-          subject: `Revised Target Date Request: ${task.title}`,
-          html: `
+      const emailHtml = `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -340,14 +330,14 @@ ${reason ? `<tr><td style="padding:8px 12px;background:#F6F4EF;font-size:13px;fo
 </td></tr>
 </table>
 </body>
-</html>`,
-        });
-      } catch (emailError) {
-        console.error(
-          "[Extension] Failed to send email to manager:",
-          emailError.message,
-        );
-      }
+</html>`;
+      await sendEmail(
+        assigner.email,
+        `Revised Target Date Request: ${task.title}`,
+        emailHtml,
+        null,
+        { event: "extension_request" },
+      );
     }
 
     return new NextResponse(

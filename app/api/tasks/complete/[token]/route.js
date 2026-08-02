@@ -113,18 +113,19 @@ async function processComplete(token) {
     entityType: "Task",
   });
 
-  const assigner = await User.findById(task.assignedBy).select("email name");
-  if (assigner?.email) {
-    sendTaskCompletionEmail(
-      assigner.email,
-      {
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-      },
-      user.name,
-    ).catch(() => {});
-  }
+  // DISABLED: Task Completion Email per new email policy
+  // const assigner = await User.findById(task.assignedBy).select("email name");
+  // if (assigner?.email) {
+  //   sendTaskCompletionEmail(
+  //     assigner.email,
+  //     {
+  //       title: task.title,
+  //       description: task.description,
+  //       priority: task.priority,
+  //     },
+  //     user.name,
+  //   ).catch(() => {});
+  // }
 
   return {
     success: true,
