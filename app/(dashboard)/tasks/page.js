@@ -897,16 +897,20 @@ export default function TasksPage() {
                         }
                         className="input-field h-[52px] text-base"
                       >
-                        <option value="Sales">Sales</option>
-                        <option value="HR">HR</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Customer Support">
-                          Customer Support
-                        </option>
-                        <option value="Admin">Admin</option>
                         <option value="General">General</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Service">Service</option>
+                        <option value="Spare Parts">Spare Parts</option>
                         <option value="Marketing">Marketing</option>
-                        <option value="Strategic">Strategic</option>
+                        <option value="CRM">CRM</option>
+                        <option value="HR">HR</option>
+                        <option value="Accounts & Finance">Accounts & Finance</option>
+                        <option value="Purchase">Purchase</option>
+                        <option value="Stores">Stores</option>
+                        <option value="Logistics">Logistics</option>
+                        <option value="Admin">Admin</option>
+                        <option value="IT">IT</option>
+                        <option value="Management">Management</option>
                       </select>
                     </div>
                   </div>
