@@ -7,13 +7,14 @@ import {
   generateRecurringTasks,
   sendDailyRecurringSummary,
   sendWeeklyRecurringSummary,
+  sendDailyManagementSummary,
 } from "../../../../src/utils/cronJobs.js";
 
 export const runtime = "nodejs";
 
 // MongoDB-based distributed lock collection
 const LOCK_COLLECTION = "cron_locks";
-const LOCK_KEY = "process_reminders";
+const LOCK_KEY = "process_reminders_batch";
 const LOCK_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function acquireLock() {
@@ -118,6 +119,7 @@ export async function POST(request) {
       generateRecurringTasks(),
       sendDailyRecurringSummary(),
       sendWeeklyRecurringSummary(),
+      sendDailyManagementSummary(),
     ]);
     
     return NextResponse.json({

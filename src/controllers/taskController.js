@@ -7,9 +7,6 @@ import { generateNextTaskOccurrence } from "../utils/cronJobs.js";
 import {
   sendTaskAssignmentEmail,
   sendTaskAssignedConfirmationEmail,
-  sendTaskCompletionEmail,
-  sendTaskEscalationEmail,
-  sendTaskStatusUpdateEmail,
 } from "../utils/emailService.js";
 import { createEmailSchedule } from "../utils/emailFrequencyEngine.js";
 import { generateCompleteToken } from "../utils/completeToken.js";
@@ -434,20 +431,29 @@ export const createTask = async (req, res) => {
               String(assignee._id),
             ),
             assignedBy: { name: req.user.name, email: req.user.email },
+          }).then((result) => {
+            if (!result?.success) {
+              console.error(
+                "Failed to send assignment email:",
+                result?.error || "unknown SMTP failure",
+              );
+            }
+            return result;
           }).catch((e) => console.error("Failed to send assignment email:", e)),
         );
       }
     }
-    if (assigneeUsers.length > 0 && req.user.email) {
-      emailPromises.push(
-        sendTaskAssignedConfirmationEmail(
-          req.user.email,
-          req.user.name,
-          { title, description, priority, deadline, taskId: task._id },
-          assigneeUsers.map((u) => u.name).join(", "),
-        ).catch((e) => console.error("Failed to send confirmation email:", e)),
-      );
-    }
+    // DISABLED: Assignment Confirmation Email per new email policy
+    // if (assigneeUsers.length > 0 && req.user.email) {
+    //   emailPromises.push(
+    //     sendTaskAssignedConfirmationEmail(
+    //       req.user.email,
+    //       req.user.name,
+    //       { title, description, priority, deadline, taskId: task._id },
+    //       assigneeUsers.map((u) => u.name).join(", "),
+    //     ).catch((e) => console.error("Failed to send confirmation email:", e)),
+    //   );
+    // }
     Promise.allSettled(emailPromises);
 
     await Activity.create({
@@ -615,22 +621,23 @@ export const updateTask = async (req, res) => {
           messageId: completeMessage?._id,
         });
 
-        try {
-          const assigner = await User.findById(task.assignedBy);
-          if (assigner && assigner.email) {
-            await sendTaskCompletionEmail(
-              assigner.email,
-              {
-                title: task.title,
-                description: task.description,
-                priority: task.priority,
-              },
-              req.user.name,
-            );
-          }
-        } catch (emailError) {
-          console.error("Failed to send completion email:", emailError);
-        }
+        // DISABLED: Task Completion Email per new email policy
+        // try {
+        //   const assigner = await User.findById(task.assignedBy);
+        //   if (assigner && assigner.email) {
+        //     await sendTaskCompletionEmail(
+        //       assigner.email,
+        //       {
+        //         title: task.title,
+        //         description: task.description,
+        //         priority: task.priority,
+        //       },
+        //       req.user.name,
+        //     );
+        //   }
+        // } catch (emailError) {
+        //   console.error("Failed to send completion email:", emailError);
+        // }
 
         // REMOVED: Completion-based recurrence generation
         // New system generates tasks based on schedule, not completion
@@ -645,36 +652,37 @@ export const updateTask = async (req, res) => {
           assignee.email &&
           assignee._id.toString() !== req.user._id.toString()
         ) {
-          try {
-            const assigneeUserId = String(assignee._id);
-            const taskId = String(task._id);
-            await sendTaskStatusUpdateEmail(
-              assignee.email,
-              assignee.name,
-              {
-                title: task.title,
-                description: task.description,
-                priority: task.priority,
-                deadline: task.deadline,
-                taskId: task._id,
-                userId: assignee._id,
-                assignedTo: assignee.name,
-                taskType: task.taskType,
-                createdAt: task.createdAt,
-                status: task.status,
-                completeToken: generateCompleteToken(taskId, assigneeUserId),
-                commentToken: generateCommentToken(taskId, assigneeUserId),
-                extensionToken: generateExtensionToken(taskId, assigneeUserId),
-              },
-              req.body.status,
-              req.user.name,
-            );
-          } catch (emailError) {
-            console.error(
-              "Failed to send status update email to assignee:",
-              emailError,
-            );
-          }
+          // DISABLED: Task Status Update Email per new email policy
+          // try {
+          //   const assigneeUserId = String(assignee._id);
+          //   const taskId = String(task._id);
+          //   await sendTaskStatusUpdateEmail(
+          //     assignee.email,
+          //     assignee.name,
+          //     {
+          //       title: task.title,
+          //       description: task.description,
+          //       priority: task.priority,
+          //       deadline: task.deadline,
+          //       taskId: task._id,
+          //       userId: assignee._id,
+          //       assignedTo: assignee.name,
+          //       taskType: task.taskType,
+          //       createdAt: task.createdAt,
+          //       status: task.status,
+          //       completeToken: generateCompleteToken(taskId, assigneeUserId),
+          //       commentToken: generateCommentToken(taskId, assigneeUserId),
+          //       extensionToken: generateExtensionToken(taskId, assigneeUserId),
+          //     },
+          //     req.body.status,
+          //     req.user.name,
+          //   );
+          // } catch (emailError) {
+          //   console.error(
+          //     "Failed to send status update email to assignee:",
+          //     emailError,
+          //   );
+          // }
         }
       }
       if (
@@ -685,46 +693,47 @@ export const updateTask = async (req, res) => {
           .lean()
           .select("name email");
         if (assignerNotify && assignerNotify.email) {
-          try {
-            const assignerUserId = String(assignerNotify._id);
-            const taskId = String(task._id);
-            const assignedToNames = Array.isArray(task.assignedTo)
-              ? task.assignedTo.map((id) => id.toString())
-              : [task.assignedTo?.toString() || "Unassigned"];
-            const assignedToUsers = await User.find({ _id: { $in: assignedToNames } })
-              .lean()
-              .select("name");
-            const assignedToText = assignedToUsers.length > 0
-              ? assignedToUsers.map((u) => u.name).join(", ")
-              : "Unassigned";
+          // DISABLED: Task Status Update Email per new email policy
+          // try {
+          //   const assignerUserId = String(assignerNotify._id);
+          //   const taskId = String(task._id);
+          //   const assignedToNames = Array.isArray(task.assignedTo)
+          //     ? task.assignedTo.map((id) => id.toString())
+          //     : [task.assignedTo?.toString() || "Unassigned"];
+          //   const assignedToUsers = await User.find({ _id: { $in: assignedToNames } })
+          //     .lean()
+          //     .select("name");
+          //   const assignedToText = assignedToUsers.length > 0
+          //     ? assignedToUsers.map((u) => u.name).join(", ")
+          //     : "Unassigned";
 
-            await sendTaskStatusUpdateEmail(
-              assignerNotify.email,
-              assignerNotify.name,
-              {
-                title: task.title,
-                description: task.description,
-                priority: task.priority,
-                deadline: task.deadline,
-                taskId: task._id,
-                userId: assignerNotify._id,
-                assignedTo: assignedToText,
-                taskType: task.taskType,
-                createdAt: task.createdAt,
-                status: task.status,
-                completeToken: generateCompleteToken(taskId, assignerUserId),
-                commentToken: generateCommentToken(taskId, assignerUserId),
-                extensionToken: generateExtensionToken(taskId, assignerUserId),
-              },
-              req.body.status,
-              req.user.name,
-            );
-          } catch (emailError) {
-            console.error(
-              "Failed to send status update email to assigner:",
-              emailError,
-            );
-          }
+          //   await sendTaskStatusUpdateEmail(
+          //     assignerNotify.email,
+          //     assignerNotify.name,
+          //     {
+          //       title: task.title,
+          //       description: task.description,
+          //       priority: task.priority,
+          //       deadline: task.deadline,
+          //       taskId: task._id,
+          //       userId: assignerNotify._id,
+          //       assignedTo: assignedToText,
+          //       taskType: task.taskType,
+          //       createdAt: task.createdAt,
+          //       status: task.status,
+          //       completeToken: generateCompleteToken(taskId, assignerUserId),
+          //       commentToken: generateCommentToken(taskId, assignerUserId),
+          //       extensionToken: generateExtensionToken(taskId, assignerUserId),
+          //     },
+          //     req.body.status,
+          //     req.user.name,
+          //   );
+          // } catch (emailError) {
+          //   console.error(
+          //     "Failed to send status update email to assigner:",
+          //     emailError,
+          //   );
+          // }
         }
       }
 
@@ -1082,7 +1091,7 @@ export const bulkCreateTasks = async (req, res) => {
     for (const assignee of allAssignees) {
       if (assignee.email) {
         try {
-          await sendTaskAssignmentEmail(assignee.email, assignee.name, {
+          const result = await sendTaskAssignmentEmail(assignee.email, assignee.name, {
             title:
               tasks.length === 1
                 ? tasks[0].title
@@ -1115,32 +1124,36 @@ export const bulkCreateTasks = async (req, res) => {
                 : undefined,
             assignedBy: { name: req.user.name, email: req.user.email },
           });
+          if (!result?.success) {
+            console.error("Failed to send bulk create email:", result?.error || "unknown SMTP failure");
+          }
         } catch (emailError) {
           console.error("Failed to send bulk create email:", emailError);
         }
       }
     }
-    if (req.user.email) {
-      try {
-        await sendTaskAssignedConfirmationEmail(
-          req.user.email,
-          req.user.name,
-          {
-            title: `${tasks.length} task(s) created`,
-            description: `Bulk created and assigned to ${allAssignees.length} user(s).`,
-            priority: "Medium",
-            deadline: null,
-            taskId: "",
-          },
-          allAssignees.map((u) => u.name).join(", "),
-        );
-      } catch (emailError) {
-        console.error(
-          "Failed to send bulk create confirmation email:",
-          emailError,
-        );
-      }
-    }
+    // DISABLED: Assignment Confirmation Email per new email policy
+    // if (req.user.email) {
+    //   try {
+    //     await sendTaskAssignedConfirmationEmail(
+    //       req.user.email,
+    //       req.user.name,
+    //       {
+    //         title: `${tasks.length} task(s) created`,
+    //         description: `Bulk created and assigned to ${allAssignees.length} user(s).`,
+    //         priority: "Medium",
+    //         deadline: null,
+    //         taskId: "",
+    //       },
+    //       allAssignees.map((u) => u.name).join(", "),
+    //     );
+    //   } catch (emailError) {
+    //     console.error(
+    //       "Failed to send bulk create confirmation email:",
+    //       emailError,
+    //     );
+    //   }
+    // }
 
     await Activity.create({
       user: req.user._id,
@@ -1301,7 +1314,7 @@ export const bulkAssignTasks = async (req, res) => {
     for (const user of users) {
       if (user.email) {
         try {
-          await sendTaskAssignmentEmail(user.email, user.name, {
+          const result = await sendTaskAssignmentEmail(user.email, user.name, {
             title:
               tasks.length === 1 ? tasks[0].title : `${tasks.length} tasks`,
             description: `You have been assigned to ${tasks.length} task(s).`,
@@ -1323,32 +1336,36 @@ export const bulkAssignTasks = async (req, res) => {
                 : undefined,
             assignedBy: { name: req.user.name, email: req.user.email },
           });
+          if (!result?.success) {
+            console.error("Failed to send bulk assignment email:", result?.error || "unknown SMTP failure");
+          }
         } catch (emailError) {
           console.error("Failed to send bulk assignment email:", emailError);
         }
       }
     }
-    if (req.user.email) {
-      try {
-        await sendTaskAssignedConfirmationEmail(
-          req.user.email,
-          req.user.name,
-          {
-            title: `${tasks.length} task(s)`,
-            description: `Bulk assigned to ${users.length} user(s).`,
-            priority: "Medium",
-            deadline: null,
-            taskId: "",
-          },
-          users.map((u) => u.name).join(", "),
-        );
-      } catch (emailError) {
-        console.error(
-          "Failed to send bulk assignment confirmation email:",
-          emailError,
-        );
-      }
-    }
+    // DISABLED: Assignment Confirmation Email per new email policy
+    // if (req.user.email) {
+    //   try {
+    //     await sendTaskAssignedConfirmationEmail(
+    //       req.user.email,
+    //       req.user.name,
+    //       {
+    //         title: `${tasks.length} task(s) assigned`,
+    //         description: `Bulk assigned to ${users.length} user(s).`,
+    //         priority: "Medium",
+    //         deadline: null,
+    //         taskId: "",
+    //       },
+    //       users.map((u) => u.name).join(", "),
+    //     );
+    //   } catch (emailError) {
+    //     console.error(
+    //       "Failed to send bulk assignment confirmation email:",
+    //       emailError,
+    //     );
+    //   }
+    // }
 
     await Activity.create({
       user: req.user._id,
@@ -1465,7 +1482,7 @@ export const reassignTask = async (req, res) => {
 
     if (toUser.email) {
       try {
-        await sendTaskAssignmentEmail(toUser.email, toUser.name, {
+        const result = await sendTaskAssignmentEmail(toUser.email, toUser.name, {
           title: task.title,
           description: task.description,
           priority: task.priority,
@@ -1486,31 +1503,35 @@ export const reassignTask = async (req, res) => {
           ),
           assignedBy: { name: req.user.name, email: req.user.email },
         });
+        if (!result?.success) {
+          console.error("Failed to send reassignment email:", result?.error || "unknown SMTP failure");
+        }
       } catch (emailError) {
         console.error("Failed to send reassignment email:", emailError);
       }
     }
-    if (req.user.email) {
-      try {
-        await sendTaskAssignedConfirmationEmail(
-          req.user.email,
-          req.user.name,
-          {
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            deadline: task.deadline,
-            taskId: task._id,
-          },
-          toUser.name || toUserId,
-        );
-      } catch (emailError) {
-        console.error(
-          "Failed to send reassignment confirmation email:",
-          emailError,
-        );
-      }
-    }
+    // DISABLED: Assignment Confirmation Email per new email policy
+    // if (req.user.email) {
+    //   try {
+    //     await sendTaskAssignedConfirmationEmail(
+    //       req.user.email,
+    //       req.user.name,
+    //       {
+    //         title: task.title,
+    //         description: task.description,
+    //         priority: task.priority,
+    //         deadline: task.deadline,
+    //         taskId: task._id,
+    //       },
+    //       toUser.name,
+    //     );
+    //   } catch (emailError) {
+    //     console.error(
+    //       "Failed to send reassignment confirmation email:",
+    //       emailError,
+    //     );
+    //   }
+    // }
 
     await Activity.create({
       user: req.user._id,
@@ -1574,34 +1595,35 @@ export const escalateTask = async (req, res) => {
       actionUrl: buildActionUrl(task._id),
     });
 
-    if (escalateeUser.email) {
-      try {
-        const escalateeUserId = String(escalateeUser._id);
-        const taskId = String(task._id);
-        await sendTaskEscalationEmail(
-          escalateeUser.email,
-          escalateeUser.name,
-          {
-            title: task.title,
-            description: task.description,
-            deadline: task.deadline,
-            taskId: task._id,
-            userId: escalateeUser._id,
-            priority: "Critical",
-            assignedTo: escalateeUser.name,
-            taskType: task.taskType,
-            createdAt: task.createdAt,
-            status: task.status,
-            completeToken: generateCompleteToken(taskId, escalateeUserId),
-            commentToken: generateCommentToken(taskId, escalateeUserId),
-            extensionToken: generateExtensionToken(taskId, escalateeUserId),
-          },
-          reason,
-        );
-      } catch (emailError) {
-        console.error("Failed to send escalation email:", emailError);
-      }
-    }
+    // DISABLED: Escalation Email per new email policy
+    // if (escalateeUser.email) {
+    //   try {
+    //     const escalateeUserId = String(escalateeUser._id);
+    //     const taskId = String(task._id);
+    //     await sendTaskEscalationEmail(
+    //       escalateeUser.email,
+    //       escalateeUser.name,
+    //       {
+    //         title: task.title,
+    //         description: task.description,
+    //         deadline: task.deadline,
+    //         taskId: task._id,
+    //         userId: escalateeUser._id,
+    //         priority: "Critical",
+    //         assignedTo: escalateeUser.name,
+    //         taskType: task.taskType,
+    //         createdAt: task.createdAt,
+    //         status: task.status,
+    //         completeToken: generateCompleteToken(taskId, escalateeUserId),
+    //         commentToken: generateCommentToken(taskId, escalateeUserId),
+    //         extensionToken: generateExtensionToken(taskId, escalateeUserId),
+    //       },
+    //       reason,
+    //     );
+    //   } catch (emailError) {
+    //     console.error("Failed to send escalation email:", emailError);
+    //   }
+    // }
     if (req.user.email) {
       try {
         await sendTaskAssignedConfirmationEmail(

@@ -108,6 +108,8 @@ export const createTemplate = async (req, res) => {
       startDate,
       endDate,
       defaultDeadlineHours,
+      scheduledHour = 9,
+      scheduledMinute = 0,
     } = req.body;
 
     if (!assignedTo || assignedTo.length === 0) {
@@ -136,8 +138,10 @@ export const createTemplate = async (req, res) => {
       });
     }
 
-    const scheduledHour = 9;
-    const scheduledMinute = 0;
+    // User-selected scheduled time (D4) — default to 9:00 AM IST when not
+    // supplied or empty, matching the master-task convention (masterTaskController).
+    const templateScheduledHour = scheduledHour || 9;
+    const templateScheduledMinute = scheduledMinute || 0;
     const timezone = "Asia/Kolkata";
 
     const effectiveStart = new Date(startDate);
@@ -155,15 +159,15 @@ export const createTemplate = async (req, res) => {
       recurrencePattern,
       startDate: effectiveStart,
       isActive: true,
-      scheduledHour,
-      scheduledMinute,
+      scheduledHour: templateScheduledHour,
+      scheduledMinute: templateScheduledMinute,
       timezone,
       nextGenerationDate: calculateFirstGenerationDate({
         taskType,
         recurrencePattern,
         startDate: effectiveStart,
-        scheduledHour,
-        scheduledMinute,
+        scheduledHour: templateScheduledHour,
+        scheduledMinute: templateScheduledMinute,
       }),
       generatedCount: 0,
     };

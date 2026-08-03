@@ -24,6 +24,7 @@ import { sendTaskAssignmentEmail } from "./emailService.js";
 import { generateCompleteToken } from "./completeToken.js";
 import { generateCommentToken } from "./commentToken.js";
 import { generateExtensionToken } from "./extensionToken.js";
+import { EMAIL_CONFIG, getRetryDelayMs } from "../config/email.js";
 
 /**
  * Calculate the first nextGenerationDate for a template.
@@ -189,6 +190,13 @@ export async function recalculateAllTemplateDates() {
     const templates = await RecurringTemplate.find({ status: "Active", isActive: true });
     let updated = 0;
     for (const template of templates) {
+      // A null lastGeneratedDate means the FIRST occurrence has not been generated yet.
+      // nextGenerationDate for such templates was set correctly by calculateFirstGenerationDate()
+      // (start date at scheduledHour:scheduledMinute IST). Recalculating it here would shift the
+      // first occurrence one interval ahead (calculateNextGenerationDate assumes the baseDate
+      // occurrence already happened), delaying the first task and its assignment email.
+      if (!template.lastGeneratedDate) continue;
+
       const baseDate = template.lastGeneratedDate || template.startDate || new Date();
       const corrected = calculateNextGenerationDate(template, baseDate);
       if (!template.nextGenerationDate ||
@@ -209,12 +217,53 @@ export async function recalculateAllTemplateDates() {
 }
 
 /**
+ * Atomically claim a task for assignment-email sending.
+ *
+ * Only one caller (cron cycle, retry loop, or API request) can claim a
+ * pending/failed task at a time. Claims expire after
+ * EMAIL_CONFIG.assignment.claimStaleAfterMs so a crashed process never
+ * leaves a task permanently stuck.
+ *
+ * @param {string} taskId
+ * @returns {Promise<boolean>} true if this caller won the claim
+ */
+export async function claimTaskForAssignmentEmail(taskId) {
+  const now = new Date();
+  const staleBefore = new Date(
+    now.getTime() - EMAIL_CONFIG.assignment.claimStaleAfterMs,
+  );
+
+  const result = await Task.findOneAndUpdate(
+    {
+      _id: taskId,
+      assignmentEmailSent: { $ne: true },
+      assignmentEmailStatus: { $in: ["pending", "failed"] },
+      $or: [
+        { assignmentEmailClaimedAt: null },
+        { assignmentEmailClaimedAt: { $lt: staleBefore } },
+      ],
+    },
+    { $set: { assignmentEmailClaimedAt: now } },
+    { new: false },
+  );
+
+  return result !== null;
+}
+
+/**
  * Send assignment email for a single generated task.
  * Updates the task's assignment email tracking fields.
  * Never throws — failures are logged and stored on the task.
  */
 export async function sendAssignmentEmailForTask(task) {
   if (task.assignmentEmailSent) {
+    return;
+  }
+
+  // Atomic claim prevents duplicate sends when multiple processes (the
+  // 1-minute retry loop and the 9AM fallback cron) race on the same task.
+  const claimed = await claimTaskForAssignmentEmail(task._id);
+  if (!claimed) {
     return;
   }
 
@@ -226,6 +275,7 @@ export async function sendAssignmentEmailForTask(task) {
       : [task.assignedTo];
 
     let allSucceeded = true;
+    let lastError = null;
 
     for (const assignee of assignees) {
       if (!assignee?.email) continue;
@@ -237,27 +287,37 @@ export async function sendAssignmentEmailForTask(task) {
         const commentToken = generateCommentToken(taskId, assigneeUserId);
         const extensionToken = generateExtensionToken(taskId, assigneeUserId);
 
-        await sendTaskAssignmentEmail(assignee.email, assignee.name, {
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          deadline: task.deadline,
-          taskId: task._id,
-          userId: assignee._id,
-          completeToken,
-          commentToken,
-          extensionToken,
-          assignedBy: {
-            name: task.assignedBy?.name || "Unknown",
-            email: task.assignedBy?.email,
+        const result = await sendTaskAssignmentEmail(
+          assignee.email,
+          assignee.name,
+          {
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            deadline: task.deadline,
+            taskId: task._id,
+            userId: assignee._id,
+            completeToken,
+            commentToken,
+            extensionToken,
+            assignedBy: {
+              name: task.assignedBy?.name || "Unknown",
+              email: task.assignedBy?.email,
+            },
           },
-        });
+        );
+
+        if (!result?.success) {
+          allSucceeded = false;
+          lastError = result?.error || `SMTP failure for ${assignee.email}`;
+        }
       } catch (emailError) {
         console.error(
           `[TaskGenerationEngine] Assignment email failed for assignee ${assignee._id} on task ${task._id}:`,
           emailError.message,
         );
         allSucceeded = false;
+        lastError = emailError.message;
       }
     }
 
@@ -267,20 +327,34 @@ export async function sendAssignmentEmailForTask(task) {
       task.assignmentEmailStatus = "sent";
       task.assignmentEmailRetryCount = 0;
       task.assignmentEmailLastError = null;
+      task.assignmentEmailNextAttemptAt = null;
+      task.assignmentEmailClaimedAt = null;
       console.log(`[TaskGenerationEngine] Assignment email sent for task ${task._id}`);
     } else {
+      const retryCount = (task.assignmentEmailRetryCount || 0) + 1;
       task.assignmentEmailStatus = "failed";
-      task.assignmentEmailRetryCount = (task.assignmentEmailRetryCount || 0) + 1;
-      task.assignmentEmailLastError = "One or more assignee emails failed";
-      console.log(`[TaskGenerationEngine] Assignment email failed for task ${task._id}`);
+      task.assignmentEmailRetryCount = retryCount;
+      task.assignmentEmailLastError = lastError || "One or more assignee emails failed";
+      task.assignmentEmailNextAttemptAt =
+        retryCount >= EMAIL_CONFIG.retry.maxRetries
+          ? null
+          : new Date(Date.now() + getRetryDelayMs(retryCount));
+      task.assignmentEmailClaimedAt = null;
+      console.log(`[TaskGenerationEngine] Assignment email failed for task ${task._id} (attempt ${retryCount}/${EMAIL_CONFIG.retry.maxRetries})`);
     }
 
     await task.save();
   } catch (error) {
     console.error(`[TaskGenerationEngine] sendAssignmentEmailForTask error for ${task._id}:`, error.message);
+    const retryCount = (task.assignmentEmailRetryCount || 0) + 1;
     task.assignmentEmailStatus = "failed";
-    task.assignmentEmailRetryCount = (task.assignmentEmailRetryCount || 0) + 1;
+    task.assignmentEmailRetryCount = retryCount;
     task.assignmentEmailLastError = error.message;
+    task.assignmentEmailNextAttemptAt =
+      retryCount >= EMAIL_CONFIG.retry.maxRetries
+        ? null
+        : new Date(Date.now() + getRetryDelayMs(retryCount));
+    task.assignmentEmailClaimedAt = null;
     await task.save().catch((saveErr) => {
       console.error(`[TaskGenerationEngine] Failed to save email status for task ${task._id}:`, saveErr.message);
     });
@@ -293,10 +367,15 @@ export async function sendAssignmentEmailForTask(task) {
  */
 export async function sendPendingAssignmentEmails() {
   try {
-    const MAX_RETRIES = 5;
+    const now = new Date();
     const tasks = await Task.find({
-      assignmentEmailStatus: "failed",
-      assignmentEmailRetryCount: { $lt: MAX_RETRIES },
+      assignmentEmailSent: { $ne: true },
+      assignmentEmailStatus: { $in: ["pending", "failed"] },
+      assignmentEmailRetryCount: { $lt: EMAIL_CONFIG.retry.maxRetries },
+      $or: [
+        { assignmentEmailNextAttemptAt: null },
+        { assignmentEmailNextAttemptAt: { $lte: now } },
+      ],
     }).populate("assignedTo assignedBy");
 
     let sent = 0;

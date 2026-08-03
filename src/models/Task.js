@@ -451,6 +451,14 @@ const taskSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    assignmentEmailNextAttemptAt: {
+      type: Date,
+      default: null,
+    },
+    assignmentEmailClaimedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -526,6 +534,7 @@ taskSchema.index({ templateId: 1, occurrenceDate: -1 });
 taskSchema.index({ isGeneratedOccurrence: 1, occurrenceDate: -1 });
 taskSchema.index({ generatedByCron: 1, generatedAt: -1 });
 taskSchema.index({ assignmentEmailStatus: 1, assignmentEmailRetryCount: 1 });
+taskSchema.index({ assignmentEmailStatus: 1, assignmentEmailNextAttemptAt: 1 });
 // Indexes for master task operational queries
 taskSchema.index({ templateId: 1, isGeneratedOccurrence: 1, status: 1 });
 taskSchema.index({ templateId: 1, isGeneratedOccurrence: 1, occurrenceDate: -1 });
