@@ -965,8 +965,7 @@ const acquireSummaryPeriodLock = async (jobType, istDateKey) => {
       { upsert: true, returnDocument: "before" },
     );
 
-    const doc = result && result.value ? result.value : result;
-    return !doc;
+    return result?.value === null;
   } catch (error) {
     if (error.code === 11000) return false;
     console.error(`[CronJobs] Failed to acquire ${lockId}:`, error);
