@@ -20,7 +20,7 @@ const TASK_TYPES = [
 ];
 
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
-const CATEGORIES = ["Sales", "HR", "Operations", "Customer Support", "Admin", "General", "Marketing", "Strategic"];
+const CATEGORIES = ["General", "Sales", "Service", "Spare Parts", "Marketing", "CRM", "HR", "Accounts & Finance", "Purchase", "Stores", "Logistics", "Admin", "IT", "Management"];
 const WEEKDAYS = [
   { value: 0, label: "Sun" },
   { value: 1, label: "Mon" },
