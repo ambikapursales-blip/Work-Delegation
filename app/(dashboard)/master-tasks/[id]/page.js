@@ -341,7 +341,7 @@ export default function MasterTaskDetailPage() {
               className="w-full px-4 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
             <p className="text-xs text-[var(--text-muted)] mt-1">Enter a valid HTTP/HTTPS URL for attachment</p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Priority</label>
               <select value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}
@@ -353,8 +353,14 @@ export default function MasterTaskDetailPage() {
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Category</label>
               <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
                 className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]">
-                {["Sales", "HR", "Operations", "Customer Support", "Admin", "General", "Marketing", "Strategic"].map((c) => <option key={c} value={c}>{c}</option>)}
+                {["General", "Sales", "Service", "Spare Parts", "Marketing", "CRM", "HR", "Accounts & Finance", "Purchase", "Stores", "Logistics", "Admin", "IT", "Management"].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Department</label>
+              <input type="text" value={form.department} onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+                placeholder="e.g. Sales"
+                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
             </div>
           </div>
           <div>
