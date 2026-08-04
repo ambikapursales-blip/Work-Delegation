@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, Fragment, useRef } from "react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import dynamic from "next/dynamic";
@@ -26,6 +26,8 @@ import {
   X,
   Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   MessageSquare,
   Link as LinkIcon,
@@ -182,6 +184,10 @@ export default function TasksPage() {
   const [endDate, setEndDate] = useState("");
   const [userFilter, setUserFilter] = useState(""); // user ID filter
   const [isMobile, setIsMobile] = useState(false);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const tableContainerRef = useRef(null);
 
   const canAssignTasks = user?.role === "Super Admin" || user?.canAssignTasks;
   const canViewAllTasks = user?.role === "Super Admin" || user?.canViewAllTasks;
@@ -215,6 +221,18 @@ export default function TasksPage() {
     const main = document.querySelector("main");
     if (main) main.scrollTop = 0;
   }, []);
+
+  const scrollTable = (direction) => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    const scrollAmount = container.clientWidth * 0.8;
+    if (direction === "left") {
+      container.scrollBy({ left: -scrollAmount, behavior: "smooth" });
+    } else {
+      container.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    }
+  };
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -535,6 +553,30 @@ export default function TasksPage() {
       );
 
   const tasksToDisplay = filteredTasks;
+
+  // Handle horizontal scroll for navigation arrows
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = container;
+      setShowLeftArrow(scrollLeft > 5);
+      setShowRightArrow(Math.ceil(scrollLeft) < scrollWidth - clientWidth - 5);
+    };
+
+    // Initial check with a small delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      handleScroll();
+    }, 100);
+
+    // Add scroll listener
+    container.addEventListener("scroll", handleScroll);
+    return () => {
+      clearTimeout(timeoutId);
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [tasksToDisplay]); // Re-check when tasks change
 
   // UI date helpers (no business logic)
   const toDate = (dateStr) => {
@@ -1254,9 +1296,19 @@ export default function TasksPage() {
                   </div>
                 )}
                 {!isMobile && (
-                <div className="overflow-x-auto">
+                <div 
+                  ref={tableContainerRef}
+                  className="relative overflow-x-auto max-h-[600px] overflow-y-auto"
+                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border) var(--bg-surface)' }}
+                >
                   <table className="w-full">
-                    <thead>
+                    <thead 
+                      className="sticky top-0 z-10"
+                      style={{ 
+                        backgroundColor: 'var(--bg-surface)',
+                        borderBottom: '1px solid var(--border)'
+                      }}
+                    >
                       <tr className="table-head">
                         <th className="px-4 py-3 text-left w-10">
                           <input
@@ -1273,7 +1325,7 @@ export default function TasksPage() {
                         <th className="px-4 py-3 text-left">Assigned To</th>
                         <th className="px-4 py-3 text-left">Created Date</th>
                         <th className="px-4 py-3 text-left">Deadline</th>
-                        <th className="px-4 py-3 text-left">Category</th>
+                        <th className="px-4 py-3 text-left">Task Type</th>
                         <th className="px-4 py-3 text-left">Attachment</th>
                         <th className="px-4 py-3 text-left">
                           Remaining / Overdue
@@ -1507,7 +1559,7 @@ export default function TasksPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <span
-                                    className="text-xs font-medium px-2 py-1 rounded-md border"
+                                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
                                     style={{
                                       color: "var(--color-info)",
                                       backgroundColor:
@@ -1516,7 +1568,7 @@ export default function TasksPage() {
                                         "color-mix(in srgb, var(--color-info) 20%, transparent)",
                                     }}
                                   >
-                                    {task.category || "General"}
+                                    {task.taskType || "One Time"}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3">
@@ -1536,7 +1588,7 @@ export default function TasksPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <span
-                                    className="text-xs font-medium px-2 py-1 rounded-md border"
+                                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
                                     style={{
                                       color: remainingColor,
                                       backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
@@ -1825,6 +1877,51 @@ export default function TasksPage() {
                       )}
                     </tbody>
                   </table>
+                  
+                  {/* Navigation Arrows */}
+                  {showRightArrow && (
+                    <button
+                      onClick={() => scrollTable('right')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 shadow-lg"
+                      style={{
+                        backgroundColor: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                        e.currentTarget.style.borderColor = 'var(--color-info)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                      }}
+                    >
+                      <ChevronRight className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
+                    </button>
+                  )}
+                  
+                  {showLeftArrow && (
+                    <button
+                      onClick={() => scrollTable('left')}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 shadow-lg"
+                      style={{
+                        backgroundColor: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                        e.currentTarget.style.borderColor = 'var(--color-info)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                      }}
+                    >
+                      <ChevronLeft className="w-5 h-5" style={{ color: 'var(--text-primary)' }} />
+                    </button>
+                  )}
                 </div>
                 )}
                 {isMobile && (
@@ -2040,9 +2137,9 @@ export default function TasksPage() {
                                 </div>
                               )}
                               <div className="flex items-center gap-1">
-                                <span>Category:</span>
+                                <span>Task Type:</span>
                                 <span
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
+                                  className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
                                   style={{
                                     color: "var(--color-info)",
                                     backgroundColor:
@@ -2051,7 +2148,7 @@ export default function TasksPage() {
                                       "color-mix(in srgb, var(--color-info) 20%, transparent)",
                                   }}
                                 >
-                                  {task.category || "General"}
+                                  {task.taskType || "One Time"}
                                 </span>
                               </div>
                             </div>
@@ -2059,7 +2156,7 @@ export default function TasksPage() {
                             {/* Remaining / Overdue */}
                             <div className="px-3 pb-1.5">
                               <span
-                                className="text-xs font-medium px-2 py-0.5 rounded-md border"
+                                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
                                 style={{
                                   color: remainingColor,
                                   backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
@@ -2536,29 +2633,20 @@ export default function TasksPage() {
                       className="text-xs font-semibold uppercase tracking-wide mb-1 block"
                       style={{ color: "var(--text-muted)" }}
                     >
-                      Category
-                    </label>
-                    <p
-                      className="text-sm"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {selectedTaskForModal.category || "General"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label
-                      className="text-xs font-semibold uppercase tracking-wide mb-1 block"
-                      style={{ color: "var(--text-muted)" }}
-                    >
                       Task Type
                     </label>
-                    <p
-                      className="text-sm"
-                      style={{ color: "var(--text-secondary)" }}
+                    <span
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+                      style={{
+                        color: "var(--color-info)",
+                        backgroundColor:
+                          "color-mix(in srgb, var(--color-info) 8%, transparent)",
+                        borderColor:
+                          "color-mix(in srgb, var(--color-info) 20%, transparent)",
+                      }}
                     >
                       {selectedTaskForModal.taskType || "One Time"}
-                    </p>
+                    </span>
                   </div>
 
                   <div>
@@ -2697,7 +2785,7 @@ export default function TasksPage() {
 
                     return (
                       <span
-                        className="text-xs font-medium px-2 py-1 rounded-md border"
+                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
                         style={{
                           color: remainingColor,
                           backgroundColor: `color-mix(in srgb, ${remainingColor} 8%, transparent)`,
