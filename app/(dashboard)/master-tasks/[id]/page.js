@@ -389,6 +389,20 @@ export default function MasterTaskDetailPage() {
                 className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]" />
             </div>
           </div>
+          {masterTask.taskType !== "One Time" && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Deadline After Assignment (Hours)</label>
+              <input
+                type="number"
+                min="1"
+                value={form.defaultDeadlineHours}
+                onChange={(e) => setForm((p) => ({ ...p, defaultDeadlineHours: e.target.value }))}
+                placeholder="24"
+                className="w-full px-3 py-2.5 rounded-xl border text-sm bg-[var(--bg-base)] text-[var(--text-primary)] border-[var(--border)]"
+              />
+              <p className="text-xs text-[var(--text-muted)] mt-1">Example: 24 = task becomes overdue 24 hours after it is generated.</p>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.repeatForever} onChange={(e) => setForm((p) => ({ ...p, repeatForever: e.target.checked }))}
